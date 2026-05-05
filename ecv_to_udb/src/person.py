@@ -67,9 +67,9 @@ def build_person_udb(input_dir: Path, year: int) -> pd.DataFrame:
 
     out = pd.DataFrame(index=person.index)
 
-    rb030 = person["RB030"].astype("string").str.strip().str.zfill(10)
-    out["IDHH"]     = rb030.str[:-2]
-    out["idperson"] = rb030
+    rb030 = pd.to_numeric(person["RB030"], errors="coerce")
+    out["IDHH"]     = rb030.floordiv(100).astype("Int64").astype("string")
+    out["idperson"] = rb030.astype("Int64").astype("string")
     out["idmother"]  = fill_zero(_get_raw(person, "RB230"))
     out["idfather"]  = fill_zero(_get_raw(person, "RB220"))
     out["idpartner"] = fill_zero(_get_raw(person, "RB240"))

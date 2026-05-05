@@ -51,7 +51,7 @@ def build_household_udb(input_dir: Path, year: int) -> pd.DataFrame:
 
     out = pd.DataFrame(index=hh.index)
 
-    out["IDHH"] = hh["DB030"].astype("string").str.strip()
+    out["IDHH"] = pd.to_numeric(hh["DB030"], errors="coerce").astype("Int64").astype("string")
 
     out["drgn1"] = recode_drgn1(hh["DB040"])
     out["drgn2"] = recode_drgn2(hh["DB040"])

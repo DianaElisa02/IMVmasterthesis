@@ -27,7 +27,7 @@ from src.constants import (
     LES_DEFAULT,
     LINDI_DEFAULT,
     LINDI_MAP,
-    PL032_TO_LES,
+    PL031_TO_LES,
     PL040_TO_LES,
 )
 
