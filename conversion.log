@@ -1,0 +1,44 @@
+2026-05-05 07:49:48,785 | INFO | Starting ECV → EUROMOD UDB conversion
+2026-05-05 07:49:48,785 | INFO | Input  : /workspaces/IMVmasterthesis/ecv_to_udb/input_data
+2026-05-05 07:49:48,785 | INFO | Output : /workspaces/IMVmasterthesis/ecv_to_udb/output
+2026-05-05 07:49:48,785 | INFO | ============================================================
+2026-05-05 07:49:48,785 | INFO | Processing year 2017
+2026-05-05 07:49:48,833 | WARNING | Year 2017 | TD: 1 requested columns not found and will be skipped: ['DB070']
+2026-05-05 07:49:48,850 | INFO | Year 2017 | TD: read 13740 rows, 5 columns
+2026-05-05 07:49:49,433 | WARNING | Year 2017 | TH: 3 requested columns not found and will be skipped: ['HH071', 'HX010', 'HX090']
+2026-05-05 07:49:49,548 | INFO | Year 2017 | TH: read 13740 rows, 28 columns
+2026-05-05 07:49:49,704 | INFO | Year 2017: built household UDB — 13740 households
+2026-05-05 07:49:50,139 | WARNING | Year 2017 | TR: 1 requested columns not found and will be skipped: ['DB030']
+2026-05-05 07:49:50,205 | INFO | Year 2017 | TR: read 34911 rows, 9 columns
+2026-05-05 07:49:52,529 | WARNING | Year 2017 | TP: 5 requested columns not found and will be skipped: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
+2026-05-05 07:49:52,846 | INFO | Year 2017 | TP: read 29294 rows, 37 columns
+2026-05-05 07:49:53,134 | INFO | Year 2017: built person UDB — 34911 persons
+2026-05-05 07:49:55,720 | INFO | Year 2017: exported 34911 persons, 101 columns → /workspaces/IMVmasterthesis/ecv_to_udb/output/ES_2017_a2.txt
+2026-05-05 07:49:55,721 | INFO | ============================================================
+2026-05-05 07:49:55,721 | INFO | Processing year 2018
+2026-05-05 07:49:55,749 | WARNING | Year 2018 | TD: 1 requested columns not found and will be skipped: ['DB070']
+2026-05-05 07:49:55,763 | INFO | Year 2018 | TD: read 13368 rows, 5 columns
+2026-05-05 07:49:56,313 | WARNING | Year 2018 | TH: 3 requested columns not found and will be skipped: ['HH071', 'HX010', 'HX090']
+2026-05-05 07:49:56,403 | INFO | Year 2018 | TH: read 13368 rows, 28 columns
+2026-05-05 07:49:56,527 | INFO | Year 2018: built household UDB — 13368 households
+2026-05-05 07:49:56,839 | WARNING | Year 2018 | TR: 1 requested columns not found and will be skipped: ['DB030']
+2026-05-05 07:49:56,897 | INFO | Year 2018 | TR: read 33734 rows, 9 columns
+2026-05-05 07:49:59,016 | WARNING | Year 2018 | TP: 5 requested columns not found and will be skipped: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
+2026-05-05 07:49:59,324 | INFO | Year 2018 | TP: read 28372 rows, 37 columns
+2026-05-05 07:49:59,606 | INFO | Year 2018: built person UDB — 33734 persons
+2026-05-05 07:50:02,430 | INFO | Year 2018: exported 33734 persons, 101 columns → /workspaces/IMVmasterthesis/ecv_to_udb/output/ES_2018_a1.txt
+2026-05-05 07:50:02,430 | INFO | ============================================================
+2026-05-05 07:50:02,430 | INFO | Processing year 2019
+2026-05-05 07:50:02,473 | WARNING | Year 2019 | TD: 1 requested columns not found and will be skipped: ['DB070']
+2026-05-05 07:50:02,494 | INFO | Year 2019 | TD: read 15887 rows, 5 columns
+2026-05-05 07:50:03,079 | WARNING | Year 2019 | TH: 3 requested columns not found and will be skipped: ['HH071', 'HX010', 'HX090']
+2026-05-05 07:50:03,193 | INFO | Year 2019 | TH: read 15887 rows, 28 columns
+2026-05-05 07:50:03,314 | INFO | Year 2019: built household UDB — 15887 households
+2026-05-05 07:50:03,644 | WARNING | Year 2019 | TR: 1 requested columns not found and will be skipped: ['DB030']
+2026-05-05 07:50:03,698 | INFO | Year 2019 | TR: read 39852 rows, 9 columns
+2026-05-05 07:50:06,164 | WARNING | Year 2019 | TP: 5 requested columns not found and will be skipped: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
+2026-05-05 07:50:06,613 | INFO | Year 2019 | TP: read 33376 rows, 37 columns
+2026-05-05 07:50:06,985 | INFO | Year 2019: built person UDB — 39852 persons
+2026-05-05 07:50:10,017 | INFO | Year 2019: exported 39852 persons, 101 columns → /workspaces/IMVmasterthesis/ecv_to_udb/output/ES_2019_b1.txt
+2026-05-05 07:50:10,018 | INFO | ============================================================
+2026-05-05 07:50:10,018 | INFO | Conversion completed successfully for all years: [2017, 2018, 2019]
