@@ -16,11 +16,11 @@ import polars as pl
 
 from src.readers import read_td, read_th
 from src.recode import (
-    fill_zero_expr,
-    recode_amrtn_expr,
+    fill_zero,
+    recode_amrtn,
     recode_drgn1,
     recode_drgn2,
-    scale_monthly_expr,
+    scale_monthly,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,40 +79,40 @@ def build_household_udb(input_dir: Path, year: int) -> pl.DataFrame:
             .cast(pl.Float64)
             .fill_null(strategy="zero")
             .alias("drgur"),
-            fill_zero_expr(pl.col("DB060")).alias("dsu01"),
+            fill_zero(pl.col("DB060")).alias("dsu01"),
             pl.col("HX040").cast(pl.Float64, strict=False).alias("hsize"),
-            fill_zero_expr(pl.col("HH010")).alias("hh010"),
-            fill_zero_expr(pl.col("HH021")).alias("hh021"),
-            fill_zero_expr(pl.col("HH030")).alias("hh030"),
-            fill_zero_expr(pl.col("HH040")).alias("hh040"),
-            fill_zero_expr(pl.col("HH030")).alias("amrrm"),
-            fill_zero_expr(pl.col("HH050")).alias("amraw"),
-            fill_zero_expr(pl.col("HS021")).alias("amrub"),
-            fill_zero_expr(pl.col("HS090")).alias("aco"),
-            fill_zero_expr(pl.col("HS110")).alias("aca"),
-            fill_zero_expr(pl.col("HY020")).alias("hy020"),
-            fill_zero_expr(pl.col("HY022")).alias("hy022"),
-            fill_zero_expr(pl.col("HY023")).alias("hy023"),
-            recode_amrtn_expr(pl.col("HH021")).alias("amrtn"),
-            scale_monthly_expr(pl.col("HY020"), pl.col("HX010")).alias("yds"),
-            scale_monthly_expr(pl.col("HY090G"), pl.col("HX010")).alias("yiy"),
-            scale_monthly_expr(pl.col("HY040G"), pl.col("HX010")).alias("ypr"),
-            scale_monthly_expr(pl.col("HY080G"), pl.col("HX010")).alias("ypt"),
-            scale_monthly_expr(pl.col("HY050G"), pl.col("HX010")).alias("bfa"),
-            scale_monthly_expr(pl.col("HY070G"), pl.col("HX010")).alias("bho"),
-            scale_monthly_expr(pl.col("HY060G"), pl.col("HX010")).alias("bsa"),
-            scale_monthly_expr(pl.col("HY145N"), pl.col("HX010")).alias("tad"),
-            scale_monthly_expr(pl.col("HY120G"), pl.col("HX010")).alias("tpr"),
-            scale_monthly_expr(pl.col("HY120G"), pl.col("HX010")).alias("twl"),
-            scale_monthly_expr(pl.col("HY130G"), pl.col("HX010")).alias("xmp"),
-            scale_monthly_expr(pl.col("HY100G"), pl.col("HX010")).alias("xhcmomi"),
+            fill_zero(pl.col("HH010")).alias("hh010"),
+            fill_zero(pl.col("HH021")).alias("hh021"),
+            fill_zero(pl.col("HH030")).alias("hh030"),
+            fill_zero(pl.col("HH040")).alias("hh040"),
+            fill_zero(pl.col("HH030")).alias("amrrm"),
+            fill_zero(pl.col("HH050")).alias("amraw"),
+            fill_zero(pl.col("HS021")).alias("amrub"),
+            fill_zero(pl.col("HS090")).alias("aco"),
+            fill_zero(pl.col("HS110")).alias("aca"),
+            fill_zero(pl.col("HY020")).alias("hy020"),
+            fill_zero(pl.col("HY022")).alias("hy022"),
+            fill_zero(pl.col("HY023")).alias("hy023"),
+            recode_amrtn(pl.col("HH021")).alias("amrtn"),
+            scale_monthly(pl.col("HY020"), pl.col("HX010")).alias("yds"),
+            scale_monthly(pl.col("HY090G"), pl.col("HX010")).alias("yiy"),
+            scale_monthly(pl.col("HY040G"), pl.col("HX010")).alias("ypr"),
+            scale_monthly(pl.col("HY080G"), pl.col("HX010")).alias("ypt"),
+            scale_monthly(pl.col("HY050G"), pl.col("HX010")).alias("bfa"),
+            scale_monthly(pl.col("HY070G"), pl.col("HX010")).alias("bho"),
+            scale_monthly(pl.col("HY060G"), pl.col("HX010")).alias("bsa"),
+            scale_monthly(pl.col("HY145N"), pl.col("HX010")).alias("tad"),
+            scale_monthly(pl.col("HY120G"), pl.col("HX010")).alias("tpr"),
+            scale_monthly(pl.col("HY120G"), pl.col("HX010")).alias("twl"),
+            scale_monthly(pl.col("HY130G"), pl.col("HX010")).alias("xmp"),
+            scale_monthly(pl.col("HY100G"), pl.col("HX010")).alias("xhcmomi"),
             (pl.col("HH060").cast(pl.Float64, strict=False) * pl.col("HX010"))
             .fill_null(0.0)
             .alias("xhcrt"),
             (pl.col("HH070").cast(pl.Float64, strict=False) * pl.col("HX010"))
             .fill_null(0.0)
             .alias("xhc"),
-            scale_monthly_expr(pl.col("HY110G"), pl.col("HX010")).alias("yot"),
+            scale_monthly(pl.col("HY110G"), pl.col("HX010")).alias("yot"),
             pl.lit(year, dtype=pl.Int32).alias("year"),
         )
         .with_columns(

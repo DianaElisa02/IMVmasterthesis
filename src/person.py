@@ -14,7 +14,7 @@ from pathlib import Path
 
 import polars as pl
 
-from src.readers import read_tr, read_tp
+from src.readers import read_tp, read_tr
 from src.recode import (
     compute_dag,
     compute_liwftmy,
@@ -26,61 +26,51 @@ from src.recode import (
     recode_ddi,
     recode_deh,
     recode_dgn,
+    recode_dms,
     recode_les,
     recode_lindi,
-    recode_dms,
     scale_monthly,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def _get(df: pl.DataFrame, col: str) -> pl.Series:
-    """Return column cast to Float64, or a zero-filled series if absent."""
-    if col in df.columns:
-        return df[col].cast(pl.Float64, strict=False)
-    return pl.Series(col, [0.0] * len(df), dtype=pl.Float64)
-
-
-def _get_raw(df: pl.DataFrame, col: str) -> pl.Series:
-    """Return column as-is, or a null String series if absent."""
-    if col in df.columns:
-        return df[col]
-    return pl.Series(col, [None] * len(df), dtype=pl.String)
-
-
-def _recode_loc(isco: pl.Series) -> pl.Series:
-    """Map ISCO-08 occupation code to EUROMOD loc category (0–9, -1=unknown)."""
+def recode_loc_expr(isco: pl.Expr) -> pl.Expr:
+    """Map ISCO-08 occupation code to EUROMOD loc category."""
     num = isco.cast(pl.Int64, strict=False).fill_null(0)
-    n   = len(num)
-    result = pl.Series([-1.0] * n, dtype=pl.Float64)
-    result = pl.Series([0.0] * n, dtype=pl.Float64).zip_with(
-        num.is_in([1, 2, 3]).fill_null(False), result
+
+    result = pl.lit(-1.0, dtype=pl.Float64)
+
+    result = (
+        pl.when(num.is_in([1, 2, 3]).fill_null(False))
+        .then(pl.lit(0.0, dtype=pl.Float64))
+        .otherwise(result)
     )
+
     for tens in range(1, 10):
         lo, hi = tens * 10, tens * 10 + 9
         mask = ((num >= lo) & (num <= hi)).fill_null(False)
-        result = pl.Series([float(tens)] * n, dtype=pl.Float64).zip_with(mask, result)
-    return result
+
+        result = (
+            pl.when(mask).then(pl.lit(float(tens), dtype=pl.Float64)).otherwise(result)
+        )
+
+    return result.cast(pl.Float64)
 
 
-def _recode_dcz(pb220a: pl.Series) -> pl.Series:
+def recode_dcz_expr(pb220a: pl.Expr) -> pl.Expr:
     num = pb220a.cast(pl.Int64, strict=False)
+
     return (
-        num.replace([1, 2, 3], [1, 2, 3], default=None)
-        .cast(pl.Float64)
-        .fill_null(1.0)
+        num.replace([1, 2, 3], [1, 2, 3], default=None).cast(pl.Float64).fill_null(1.0)
     )
 
 
-def _zero_to_null(s: pl.Series) -> pl.Series:
-    """Replace exact 0.0 with null; used for lhw computation."""
+def zero_to_null_expr(x: pl.Expr) -> pl.Expr:
     return (
-        pl.DataFrame({"s": s})
-        .select(
-            pl.when(pl.col("s") == 0.0).then(None).otherwise(pl.col("s")).alias("r")
-        )
-        .to_series()
+        pl.when(x == 0.0)
+        .then(pl.lit(None, dtype=pl.Float64))
+        .otherwise(x)
         .cast(pl.Float64)
     )
 
@@ -91,134 +81,132 @@ def build_person_udb(input_dir: Path, year: int) -> pl.DataFrame:
 
     person = tr.join(tp, left_on="RB030", right_on="PB030", how="left")
 
-    n_tr     = len(tr)
+    n_tr = len(tr)
     n_merged = len(person)
     if n_merged != n_tr:
         logger.warning(
             "Year %s: row count changed after Tr-Tp join (%d → %d)",
-            year, n_tr, n_merged,
+            year,
+            n_tr,
+            n_merged,
         )
 
-    rb010 = (
-        _get_raw(person, "RB010").cast(pl.String).fill_null(str(year))
-        .cast(pl.Float64, strict=False)
+    person = person.with_columns(
+        pl.lit(0.0).alias("dwt"),  # DB090 Missing
+        pl.lit(0.0).alias("dcz"),  # PB220A Missing
+        pl.lit(0.0).alias("lunwh"),  # PL271 missing
+        pl.lit(1.0).alias("HX010"),  # HX010 missing
+        pl.lit(0.0).alias("bunct"),
+        pl.lit(0.0).alias("bunnc"),
+        pl.lit(0.0).alias("bunot"),
+        pl.lit(0.0).alias("bhl00"),
+        pl.lit(0.0).alias("bhlot"),
+        pl.lit(0.0).alias("pdi00"),
+        pl.lit(0.0).alias("pdicm"),
+        pl.lit(0.0).alias("pdinc"),
+        pl.lit(0.0).alias("poa00"),
+        pl.lit(0.0).alias("poacm"),
+        pl.lit(0.0).alias("poanc"),
+        pl.lit(0.0).alias("psuwd00"),
+        pl.lit(0.0).alias("psuwdcm"),
+        pl.lit(year).alias("year"),
     )
-    rb030 = person["RB030"].cast(pl.Int64, strict=False)
-
-    # True for persons with a TP record (adults with personal income data)
-    has_tp = (
-        person["PB040"].is_not_null() if "PB040" in person.columns
-        else pl.Series([False] * len(person), dtype=pl.Boolean)
+    out = (
+        person.lazy()
+        .with_columns(
+            _rb010=pl.col("RB010").cast(pl.Float64, strict=False).fill_null(year),
+            _rb030=pl.col("RB030").cast(pl.Int64, strict=False),
+            _has_tp=pl.col("PB040").is_not_null(),
+            _hx010=pl.lit(1.0, dtype=pl.Float64),
+            _lhw_sum=(
+                pl.col("PL060").cast(pl.Float64, strict=False).fill_null(0.0)
+                + pl.col("PL100").cast(pl.Float64, strict=False).fill_null(0.0)
+            ),
+        )
+        .with_columns(
+            _dag=compute_dag(pl.col("RB080"), pl.col("_rb010")),
+            _idpartner=fill_zero(pl.col("RB240")),
+        )
+        .select(
+            (pl.col("RB030") // 100).cast(pl.String).alias("IDHH"),
+            pl.col("RB030").alias("idperson"),
+            fill_zero(pl.col("RB230")).alias("idmother"),
+            fill_zero(pl.col("RB220")).alias("idfather"),
+            fill_zero(pl.col("RB240")).alias("idpartner"),
+            fill_zero(pl.col("RB070")).alias("dmb"),
+            scale_monthly(pl.col("PY010G"), pl.col("HX010")).alias("yem"),
+            scale_monthly(pl.col("PY050G"), pl.col("HX010")).alias("yse"),
+            scale_monthly(pl.col("PY080G"), pl.col("HX010")).alias("ypp"),
+            scale_monthly(pl.col("PY020G"), pl.col("HX010")).alias("kfb"),
+            scale_monthly(pl.col("PY021G"), pl.col("HX010")).alias("kfbcc"),
+            scale_monthly(pl.col("PY090G"), pl.col("HX010")).alias("bun"),
+            scale_monthly(pl.col("PY120G"), pl.col("HX010")).alias("bhl"),
+            scale_monthly(pl.col("PY130G"), pl.col("HX010")).alias("pdi"),
+            scale_monthly(pl.col("PY100G"), pl.col("HX010")).alias("poa"),
+            scale_monthly(pl.col("PY110G"), pl.col("HX010")).alias("psu"),
+            scale_monthly(pl.col("PY140G"), pl.col("HX010")).alias("bed"),
+            scale_monthly(pl.col("PY030G"), pl.col("HX010")).alias("tscer"),
+            scale_monthly(pl.col("PY035G"), pl.col("HX010")).alias("xpp"),
+            pl.col("_dag").alias("dag"),
+            recode_dgn(pl.col("RB090")).alias("dgn"),
+            pl.lit(13.0, dtype=pl.Float64).alias("dct"),
+            recode_ddi(pl.col("PL031"), pl.col("_has_tp")).alias("ddi"),
+            recode_deh(pl.col("PE040")).alias("deh"),
+            recode_dms(pl.col("PB190"), pl.col("_idpartner")).alias("dms"),
+            recode_les(
+                pl.col("PL031"),
+                pl.col("PL040"),
+                pl.col("_dag"),
+            ).alias("les"),
+            zero_to_null_expr(pl.col("_lhw_sum"))
+            .clip(lower_bound=1.0, upper_bound=80.0)
+            .fill_null(0.0)
+            .cast(pl.Float64)
+            .alias("lhw"),
+            compute_liwmy(
+                pl.col("PL073"), pl.col("PL074"), pl.col("PL075"), pl.col("PL076")
+            ).alias("liwmy"),
+            compute_liwftmy(
+                pl.col("PL073"),
+                pl.col("PL075"),
+            ).alias("liwftmy"),
+            compute_liwptmy(
+                pl.col("PL074"),
+                pl.col("PL076"),
+            ).alias("liwptmy"),
+            compute_liwwh(pl.col("PL200")).alias("liwwh"),
+            pl.col("PL080")
+            .cast(pl.Float64, strict=False)
+            .clip(upper_bound=12)
+            .fill_null(0.0)
+            .cast(pl.Float64)
+            .alias("lunmy"),
+            pl.col("PL085")
+            .cast(pl.Float64, strict=False)
+            .clip(upper_bound=12)
+            .fill_null(0.0)
+            .cast(pl.Float64)
+            .alias("lpemy"),
+            recode_lindi(pl.col("PL111A")).alias("lindi"),
+            recode_loc_expr(pl.col("PL051")).alias("loc"),
+            pl.col("PL040")
+            .cast(pl.Int64, strict=False)
+            .replace([1, 2, 3, 4], [1, 2, 0, 3], default=None)
+            .cast(pl.Float64)
+            .fill_null(0.0)
+            .alias("lse"),
+            pl.col("PL051")
+            .cast(pl.Int64, strict=False)
+            .fill_null(0)
+            .is_in([1, 2, 3, 11, 23, 34, 54])
+            .cast(pl.Float64)
+            .alias("lcs"),
+        )
+        .collect()
     )
 
-    hx010 = pl.Series([1.0] * len(person), dtype=pl.Float64)
-
-    cols: dict[str, pl.Series] = {}
-
-    cols["IDHH"]      = (rb030 // 100).cast(pl.String)
-    cols["idperson"]  = rb030.cast(pl.String)
-    cols["idmother"]  = fill_zero(_get_raw(person, "RB230"))
-    cols["idfather"]  = fill_zero(_get_raw(person, "RB220"))
-    cols["idpartner"] = fill_zero(_get_raw(person, "RB240"))
-
-    dag = compute_dag(_get(person, "RB080"), rb010)
-    cols["dag"] = dag
-    cols["dgn"] = recode_dgn(_get(person, "RB090"))
-    cols["dct"] = pl.Series([13.0] * len(person), dtype=pl.Float64)
-    cols["dmb"] = fill_zero(_get_raw(person, "RB070"))
-    cols["dwt"] = fill_zero(_get_raw(person, "DB090"))
-
-    cols["ddi"] = recode_ddi(_get_raw(person, "PL031"), has_tp)
-    cols["deh"] = recode_deh(_get(person, "PE040"))
-    cols["dms"] = recode_dms(_get_raw(person, "PB190"), cols["idpartner"])
-
-    cols["les"] = recode_les(
-        _get_raw(person, "PL031"),
-        _get_raw(person, "PL040"),
-        dag,
-    )
-
-    pl060    = _get(person, "PL060").fill_null(0.0)
-    pl100    = _get(person, "PL100").fill_null(0.0)
-    lhw_sum  = pl060 + pl100
-    cols["lhw"] = (
-        _zero_to_null(lhw_sum)
-        .clip(lower_bound=1.0, upper_bound=80.0)
-        .fill_null(0.0)
-        .cast(pl.Float64)
-    )
-
-    cols["liwmy"]   = compute_liwmy(
-        _get_raw(person, "PL073"), _get_raw(person, "PL074"),
-        _get_raw(person, "PL075"), _get_raw(person, "PL076"),
-    )
-    cols["liwftmy"] = compute_liwftmy(_get_raw(person, "PL073"), _get_raw(person, "PL075"))
-    cols["liwptmy"] = compute_liwptmy(_get_raw(person, "PL074"), _get_raw(person, "PL076"))
-    cols["liwwh"]   = compute_liwwh(_get_raw(person, "PL200"))
-    cols["lunmy"]   = _get(person, "PL080").clip(upper_bound=12).fill_null(0.0).cast(pl.Float64)
-    cols["lunwh"]   = fill_zero(_get_raw(person, "PL271"))
-    cols["lpemy"]   = _get(person, "PL085").clip(upper_bound=12).fill_null(0.0).cast(pl.Float64)
-
-    cols["lindi"] = recode_lindi(_get_raw(person, "PL111A"))
-
-    cols["loc"] = _recode_loc(_get(person, "PL051"))
-
-    cols["lse"] = (
-        _get_raw(person, "PL040")
-        .cast(pl.Int64, strict=False)
-        .replace([1, 2, 3, 4], [1, 2, 0, 3], default=None)
-        .cast(pl.Float64)
-        .fill_null(0.0)
-    )
-
-    civil_servant_codes = [1, 2, 3, 11, 23, 34, 54]
-    cols["lcs"] = (
-        _get(person, "PL051").cast(pl.Int64, strict=False).fill_null(0)
-        .is_in(civil_servant_codes)
-        .cast(pl.Float64)
-    )
-
-    cols["yem"]   = scale_monthly(_get(person, "PY010G"), hx010)
-    cols["yse"]   = scale_monthly(_get(person, "PY050G"), hx010)
-    cols["ypp"]   = scale_monthly(_get(person, "PY080G"), hx010)
-    cols["kfb"]   = scale_monthly(_get(person, "PY020G"), hx010)
-    cols["kfbcc"] = scale_monthly(_get(person, "PY021G"), hx010)
-
-    cols["bun"]   = scale_monthly(_get(person, "PY090G"), hx010)
-    cols["bunct"] = pl.Series([0.0] * len(person), dtype=pl.Float64)
-    cols["bunnc"] = pl.Series([0.0] * len(person), dtype=pl.Float64)
-    cols["bunot"] = pl.Series([0.0] * len(person), dtype=pl.Float64)
-
-    cols["bhl"]   = scale_monthly(_get(person, "PY120G"), hx010)
-    cols["bhl00"] = pl.Series([0.0] * len(person), dtype=pl.Float64)
-    cols["bhlot"] = pl.Series([0.0] * len(person), dtype=pl.Float64)
-
-    cols["pdi"]   = scale_monthly(_get(person, "PY130G"), hx010)
-    cols["pdi00"] = pl.Series([0.0] * len(person), dtype=pl.Float64)
-    cols["pdicm"] = pl.Series([0.0] * len(person), dtype=pl.Float64)
-    cols["pdinc"] = pl.Series([0.0] * len(person), dtype=pl.Float64)
-    cols["pdiot"] = pl.Series([0.0] * len(person), dtype=pl.Float64)
-
-    cols["poa"]   = scale_monthly(_get(person, "PY100G"), hx010)
-    cols["poa00"] = pl.Series([0.0] * len(person), dtype=pl.Float64)
-    cols["poacm"] = pl.Series([0.0] * len(person), dtype=pl.Float64)
-    cols["poanc"] = pl.Series([0.0] * len(person), dtype=pl.Float64)
-
-    cols["psu"]     = scale_monthly(_get(person, "PY110G"), hx010)
-    cols["psuwd00"] = pl.Series([0.0] * len(person), dtype=pl.Float64)
-    cols["psuwdcm"] = pl.Series([0.0] * len(person), dtype=pl.Float64)
-
-    cols["bed"]   = scale_monthly(_get(person, "PY140G"), hx010)
-    cols["tscer"] = scale_monthly(_get(person, "PY030G"), hx010)
-    cols["xpp"]   = scale_monthly(_get(person, "PY035G"), hx010)
-
-    cols["dcz"] = _recode_dcz(_get_raw(person, "PB220A"))
-
-    cols["year"] = pl.Series([year] * len(person), dtype=pl.Int32)
-
-    interim = pl.DataFrame(cols)
-    oecd_df = compute_oecd_m(interim.select(["IDHH", "dag"]))
-    out = interim.join(oecd_df, on="IDHH", how="left").with_columns(
+    oecd_df = compute_oecd_m(out.select(["IDHH", "dag"]))
+    out = out.join(oecd_df, on="IDHH", how="left").with_columns(
         pl.col("oecd_m").fill_null(1.0)
     )
 

@@ -60,53 +60,80 @@ def recode_drgn2(db040: pl.Expr) -> pl.Expr:
     )
 
 
-def recode_dgn(rb090: pl.Series) -> pl.Series:
+def recode_dgn(rb090: pl.Expr) -> pl.Expr:
     num = rb090.cast(pl.Float64, strict=False)
     is_valid = num.is_in(list(DGN_VALID_VALUES)).fill_null(False)
-    return num.zip_with(is_valid, _const(float(DGN_DEFAULT), len(num)))
+
+    return (
+        pl.when(is_valid)
+        .then(num)
+        .otherwise(pl.lit(float(DGN_DEFAULT), dtype=pl.Float64))
+        .cast(pl.Float64)
+    )
 
 
-def recode_dms(pb190: pl.Series, idpartner: pl.Series) -> pl.Series:  # noqa: ARG001
+def recode_dms(pb190: pl.Expr, idpartner: pl.Expr) -> pl.Expr:
     # idpartner not needed: all remaining nulls fall back to DMS_DEFAULT anyway
     num = pb190.cast(pl.Int64, strict=False)
+
     return (
-        num.replace(list(DMS_RECODE.keys()), list(DMS_RECODE.values()), default=None)
+        num.replace(
+            list(DMS_RECODE.keys()),
+            list(DMS_RECODE.values()),
+            default=None,
+        )
         .cast(pl.Float64)
         .fill_null(float(DMS_DEFAULT))
     )
 
 
-def recode_deh(pe040: pl.Series) -> pl.Series:
+def recode_deh(pe040: pl.Expr) -> pl.Expr:
     num = pe040.cast(pl.Float64, strict=False)
-    result = _const(float(DEH_DEFAULT), len(num))
+
+    result = pl.lit(float(DEH_DEFAULT), dtype=pl.Float64)
+
     for low, high, target in DEH_RECODE_BOUNDARIES:
         mask = ((num >= low) & (num <= high)).fill_null(False)
-        result = _const(float(target), len(num)).zip_with(mask, result)
-    return result
+
+        result = (
+            pl.when(mask)
+            .then(pl.lit(float(target), dtype=pl.Float64))
+            .otherwise(result)
+        )
+
+    return result.cast(pl.Float64)
 
 
-def recode_ddi(pl031: pl.Series, has_personal_record: pl.Series) -> pl.Series:
+def recode_ddi(
+    pl031: pl.Expr,
+    has_personal_record: pl.Expr,
+) -> pl.Expr:
     """
-    has_personal_record: boolean Series, True for persons with a TP record (adults).
+    has_personal_record: boolean expression, True for persons with a TP record.
     False/null indicates children / no personal info collected.
     """
     pl031_num = pl031.cast(pl.Float64, strict=False)
+    has_record = has_personal_record.cast(pl.Boolean).fill_null(False)
 
     is_disabled = (pl031_num == 8.0).fill_null(False)
-    is_not_disabled = pl031_num.is_not_null() & ~(pl031_num == 8.0)
-    is_not_applicable = pl031_num.is_null() & ~has_personal_record.fill_null(False)
 
-    n = len(pl031)
-    result = pl.Series([None] * n, dtype=pl.Float64)
-    result = _const(float(DDI_DISABLED), n).zip_with(is_disabled, result)
-    result = _const(float(DDI_NOT_DISABLED), n).zip_with(is_not_disabled, result)
-    result = _const(float(DDI_NOT_APPLICABLE), n).zip_with(is_not_applicable, result)
-    return result
+    is_not_disabled = pl031_num.is_not_null() & (pl031_num != 8.0).fill_null(False)
+
+    is_not_applicable = pl031_num.is_null() & ~has_record
+
+    return (
+        pl.when(is_disabled)
+        .then(pl.lit(float(DDI_DISABLED), dtype=pl.Float64))
+        .when(is_not_disabled)
+        .then(pl.lit(float(DDI_NOT_DISABLED), dtype=pl.Float64))
+        .when(is_not_applicable)
+        .then(pl.lit(float(DDI_NOT_APPLICABLE), dtype=pl.Float64))
+        .otherwise(pl.lit(None, dtype=pl.Float64))
+        .cast(pl.Float64)
+    )
 
 
-def compute_dag(rb080: pl.Series, rb010: pl.Series) -> pl.Series:
-    birth_year = rb080.cast(pl.Float64, strict=False)
-    survey_year = rb010.cast(pl.Float64, strict=False)
+def compute_dag(birth_year: pl.Expr, survey_year: pl.Expr) -> pl.Expr:
     return (survey_year - birth_year - 1).clip(lower_bound=0).cast(pl.Float64)
 
 
@@ -140,30 +167,44 @@ def compute_oecd_m(person_df: pl.DataFrame) -> pl.DataFrame:
     ).select(["IDHH", "oecd_m"])
 
 
-def recode_les(pl031: pl.Series, pl040: pl.Series, dag: pl.Series) -> pl.Series:
+def recode_les(
+    pl031: pl.Expr,
+    pl040: pl.Expr,
+    dag: pl.Expr,
+) -> pl.Expr:
     pl031_num = pl031.cast(pl.Int64, strict=False)
     pl040_num = pl040.cast(pl.Int64, strict=False)
     age = dag.cast(pl.Float64, strict=False)
 
-    n = len(pl031)
-    result = pl.Series([None] * n, dtype=pl.Int64)
+    from_pl031 = pl031_num.replace(
+        list(PL031_TO_LES.keys()),
+        list(PL031_TO_LES.values()),
+        default=None,
+    ).cast(pl.Int64)
 
-    child_mask = (age < 6).fill_null(False)
-    result = pl.Series([0] * n, dtype=pl.Int64).zip_with(child_mask, result)
+    from_pl040 = pl040_num.replace(
+        list(PL040_TO_LES.keys()),
+        list(PL040_TO_LES.values()),
+        default=None,
+    ).cast(pl.Int64)
 
-    for val, les_val in PL031_TO_LES.items():
-        mask = (pl031_num == val).fill_null(False) & result.is_null()
-        result = pl.Series([les_val] * n, dtype=pl.Int64).zip_with(mask, result)
+    return (
+        pl.when((age < 6).fill_null(False))
+        .then(pl.lit(0, dtype=pl.Int64))
+        .otherwise(
+            pl.coalesce(
+                from_pl031,
+                from_pl040,
+                pl.lit(LES_DEFAULT, dtype=pl.Int64),
+            )
+        )
+        .cast(pl.Float64)
+    )
 
-    for val, les_val in PL040_TO_LES.items():
-        mask = (pl040_num == val).fill_null(False) & result.is_null()
-        result = pl.Series([les_val] * n, dtype=pl.Int64).zip_with(mask, result)
 
-    return result.fill_null(LES_DEFAULT).cast(pl.Float64)
+def recode_lindi(pl111a: pl.Expr) -> pl.Expr:
+    cleaned = pl111a.cast(pl.String, strict=False).str.strip_chars().str.to_lowercase()
 
-
-def recode_lindi(pl111a: pl.Series) -> pl.Series:
-    cleaned = pl111a.cast(pl.String).str.strip_chars().str.to_lowercase()
     return (
         cleaned.replace(
             list(LINDI_MAP.keys()),
@@ -175,7 +216,7 @@ def recode_lindi(pl111a: pl.Series) -> pl.Series:
     )
 
 
-def recode_amrtn_expr(hh021: pl.Expr) -> pl.Expr:
+def recode_amrtn(hh021: pl.Expr) -> pl.Expr:
     num = hh021.cast(pl.Int64, strict=False)
 
     return num.replace(
@@ -187,13 +228,7 @@ def recode_amrtn_expr(hh021: pl.Expr) -> pl.Expr:
     ).cast(pl.Float64)
 
 
-def scale_monthly(annual: pl.Series, hx010: pl.Series) -> pl.Series:
-    ann = annual.cast(pl.Float64, strict=False).fill_null(0.0)
-    scale = hx010.cast(pl.Float64, strict=False).fill_null(1.0)
-    return (ann / 12.0 * scale).cast(pl.Float64)
-
-
-def scale_monthly_expr(annual: pl.Expr, hx010: pl.Expr) -> pl.Expr:
+def scale_monthly(annual: pl.Expr, hx010: pl.Expr) -> pl.Expr:
     ann = annual.cast(pl.Float64, strict=False).fill_null(0.0)
     scale = hx010.cast(pl.Float64, strict=False).fill_null(1.0)
 
@@ -201,58 +236,58 @@ def scale_monthly_expr(annual: pl.Expr, hx010: pl.Expr) -> pl.Expr:
 
 
 def compute_liwmy(
-    pl073: pl.Series,
-    pl074: pl.Series,
-    pl075: pl.Series,
-    pl076: pl.Series,
-) -> pl.Series:
-    tmp = pl.DataFrame(
-        {
-            "a": pl073.cast(pl.Float64, strict=False),
-            "b": pl074.cast(pl.Float64, strict=False),
-            "c": pl075.cast(pl.Float64, strict=False),
-            "d": pl076.cast(pl.Float64, strict=False),
-        }
+    pl073: pl.Expr,
+    pl074: pl.Expr,
+    pl075: pl.Expr,
+    pl076: pl.Expr,
+) -> pl.Expr:
+    total = pl.sum_horizontal(
+        pl073.cast(pl.Float64, strict=False),
+        pl074.cast(pl.Float64, strict=False),
+        pl075.cast(pl.Float64, strict=False),
+        pl076.cast(pl.Float64, strict=False),
     )
-    total = tmp.select(pl.sum_horizontal("a", "b", "c", "d")).to_series()
+
     return total.clip(upper_bound=12).fill_null(0.0).cast(pl.Float64)
 
 
-def compute_liwftmy(pl073: pl.Series, pl075: pl.Series) -> pl.Series:
-    tmp = pl.DataFrame(
-        {
-            "a": pl073.cast(pl.Float64, strict=False),
-            "b": pl075.cast(pl.Float64, strict=False),
-        }
+def compute_liwftmy(
+    pl073: pl.Expr,
+    pl075: pl.Expr,
+) -> pl.Expr:
+    total = pl.sum_horizontal(
+        pl073.cast(pl.Float64, strict=False),
+        pl075.cast(pl.Float64, strict=False),
     )
-    total = tmp.select(pl.sum_horizontal("a", "b")).to_series()
+
     return total.clip(upper_bound=12).fill_null(0.0).cast(pl.Float64)
 
 
-def compute_liwptmy(pl074: pl.Series, pl076: pl.Series) -> pl.Series:
-    tmp = pl.DataFrame(
-        {
-            "a": pl074.cast(pl.Float64, strict=False),
-            "b": pl076.cast(pl.Float64, strict=False),
-        }
+def compute_liwptmy(
+    pl074: pl.Expr,
+    pl076: pl.Expr,
+) -> pl.Expr:
+    total = pl.sum_horizontal(
+        pl074.cast(pl.Float64, strict=False),
+        pl076.cast(pl.Float64, strict=False),
     )
-    total = tmp.select(pl.sum_horizontal("a", "b")).to_series()
+
     return total.clip(upper_bound=12).fill_null(0.0).cast(pl.Float64)
 
 
-def compute_liwwh(pl200: pl.Series) -> pl.Series:
+def compute_liwwh(pl200: pl.Expr) -> pl.Expr:
     years = pl200.cast(pl.Float64, strict=False)
+
     return (
         (years * 12)
-        .clip(lower_bound=0, upper_bound=780)
+        .clip(
+            lower_bound=0,
+            upper_bound=780,
+        )
         .fill_null(0.0)
         .cast(pl.Float64)
     )
 
 
-def fill_zero(series: pl.Series) -> pl.Series:
-    return series.cast(pl.Float64, strict=False).fill_null(0.0)
-
-
-def fill_zero_expr(x: pl.Expr) -> pl.Expr:
+def fill_zero(x: pl.Expr) -> pl.Expr:
     return x.cast(pl.Float64, strict=False).fill_null(0.0)
