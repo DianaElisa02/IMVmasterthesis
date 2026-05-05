@@ -10,49 +10,20 @@ person-level file in merge.py.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from pathlib import Path
 
 import polars as pl
 
 from src.readers import read_td, read_th
 from src.recode import (
-    fill_zero,
-    recode_amrtn,
+    fill_zero_expr,
+    recode_amrtn_expr,
     recode_drgn1,
     recode_drgn2,
-    scale_monthly_hh,
+    scale_monthly_expr,
 )
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class Cols:
-    available: set[str]
-
-    def has(self, name: str) -> bool:
-        return name in self.available
-
-    def f64(self, name: str, default: float = 0.0) -> pl.Expr:
-        if self.has(name):
-            return pl.col(name).cast(pl.Float64, strict=False)
-        return pl.lit(default, dtype=pl.Float64)
-
-    def string(self, name: str, default: str = "") -> pl.Expr:
-        if self.has(name):
-            return pl.col(name).cast(pl.String, strict=False)
-        return pl.lit(default, dtype=pl.String)
-
-    def const_f64(self, value: float) -> pl.Expr:
-        return pl.lit(value, dtype=pl.Float64)
-
-
-def _get(df: pl.DataFrame, col: str) -> pl.Series:
-    """Return column cast to Float64, or a zero-filled series if absent."""
-    if col in df.columns:
-        return df[col].cast(pl.Float64, strict=False)
-    return pl.Series(col, [0.0] * len(df), dtype=pl.Float64)
 
 
 def build_household_udb(input_dir: Path, year: int) -> pl.DataFrame:
@@ -75,87 +46,85 @@ def build_household_udb(input_dir: Path, year: int) -> pl.DataFrame:
     c = Cols(set(hh.columns))
     db100 = c.f64("DB100")
 
+    hh = hh.with_columns(
+        pl.lit(1.0, dtype=pl.Float64).alias("HX010"),
+        pl.lit(0.0, dtype=pl.Float64).alias("bma"),
+        pl.lit(0.0, dtype=pl.Float64).alias("bch"),
+        pl.lit(0.0, dtype=pl.Float64).alias("bch00"),
+        pl.lit(0.0, dtype=pl.Float64).alias("bchdi"),
+        pl.lit(0.0, dtype=pl.Float64).alias("bchot"),
+        pl.lit(0.0, dtype=pl.Float64).alias("xpp"),
+        pl.lit(0.0).alias("dsu00"),
+        pl.lit(0.0).alias("xhcmomc"),
+        pl.lit(0.0).alias("yptmp"),
+        pl.lit(0.0).alias("tis"),
+        pl.lit(0.0).alias("afc"),
+        pl.lit(0.0).alias("tintrch"),
+    )
+
     out = (
         hh.lazy()
         .select(
             pl.col("DB030").cast(pl.Int64, strict=False).cast(pl.String).alias("IDHH"),
-            recode_drgn1(c.string("DB040")).alias("drgn1"),
-            recode_drgn2(c.string("DB040")).alias("drgn2"),
-            c.f64("DB090").alias("dwt"),
-            c.const_f64(13.0).alias("dct"),
-            (db100 == 2.0).cast(pl.Float64).fill_null(0.0).alias("drgmd"),
-            (db100 == 3.0).cast(pl.Float64).fill_null(0.0).alias("drgru"),
-            (db100 == 1.0).cast(pl.Float64).fill_null(0.0).alias("drgur"),
+            recode_drgn1(pl.col("DB040")).alias("drgn1"),
+            recode_drgn2(pl.col("DB040")).alias("drgn2"),
+            pl.col("DB090").alias("dwt"),
+            pl.lit(13.0).alias("dct"),  # Introduce dct column fixed at 13
+            (pl.col("DB100").cast(pl.Float64, strict=False) == 2.0)
+            .cast(pl.Float64)
+            .fill_null(strategy="zero")
+            .alias("drgmd"),
+            (pl.col("DB100").cast(pl.Float64, strict=False) == 3.0)
+            .cast(pl.Float64)
+            .fill_null(strategy="zero")
+            .alias("drgru"),
+            (pl.col("DB100").cast(pl.Float64, strict=False) == 1.0)
+            .cast(pl.Float64)
+            .fill_null(strategy="zero")
+            .alias("drgur"),
+            fill_zero_expr(pl.col("DB060")).alias("dsu01"),
+            pl.col("HX040").cast(pl.Float64, strict=False).alias("hsize"),
+            fill_zero_expr(pl.col("HH010")).alias("hh010"),
+            fill_zero_expr(pl.col("HH021")).alias("hh021"),
+            fill_zero_expr(pl.col("HH030")).alias("hh030"),
+            fill_zero_expr(pl.col("HH040")).alias("hh040"),
+            fill_zero_expr(pl.col("HH030")).alias("amrrm"),
+            fill_zero_expr(pl.col("HH050")).alias("amraw"),
+            fill_zero_expr(pl.col("HS021")).alias("amrub"),
+            fill_zero_expr(pl.col("HS090")).alias("aco"),
+            fill_zero_expr(pl.col("HS110")).alias("aca"),
+            fill_zero_expr(pl.col("HY020")).alias("hy020"),
+            fill_zero_expr(pl.col("HY022")).alias("hy022"),
+            fill_zero_expr(pl.col("HY023")).alias("hy023"),
+            recode_amrtn_expr(pl.col("HH021")).alias("amrtn"),
+            scale_monthly_expr(pl.col("HY020"), pl.col("HX010")).alias("yds"),
+            scale_monthly_expr(pl.col("HY090G"), pl.col("HX010")).alias("yiy"),
+            scale_monthly_expr(pl.col("HY040G"), pl.col("HX010")).alias("ypr"),
+            scale_monthly_expr(pl.col("HY080G"), pl.col("HX010")).alias("ypt"),
+            scale_monthly_expr(pl.col("HY050G"), pl.col("HX010")).alias("bfa"),
+            scale_monthly_expr(pl.col("HY070G"), pl.col("HX010")).alias("bho"),
+            scale_monthly_expr(pl.col("HY060G"), pl.col("HX010")).alias("bsa"),
+            scale_monthly_expr(pl.col("HY145N"), pl.col("HX010")).alias("tad"),
+            scale_monthly_expr(pl.col("HY120G"), pl.col("HX010")).alias("tpr"),
+            scale_monthly_expr(pl.col("HY120G"), pl.col("HX010")).alias("twl"),
+            scale_monthly_expr(pl.col("HY130G"), pl.col("HX010")).alias("xmp"),
+            scale_monthly_expr(pl.col("HY100G"), pl.col("HX010")).alias("xhcmomi"),
+            (pl.col("HH060").cast(pl.Float64, strict=False) * pl.col("HX010"))
+            .fill_null(0.0)
+            .alias("xhcrt"),
+            (pl.col("HH070").cast(pl.Float64, strict=False) * pl.col("HX010"))
+            .fill_null(0.0)
+            .alias("xhc"),
+            scale_monthly_expr(pl.col("HY110G"), pl.col("HX010")).alias("yot"),
+            pl.lit(year, dtype=pl.Int32).alias("year"),
+        )
+        .with_columns(
+            (pl.col("xhc") - pl.col("xhcrt") - pl.col("xhcmomi"))
+            .clip(lower_bound=0.0)
+            .alias("xhcot")
         )
         .collect()
     )
 
-    cols: dict[str, pl.Series] = {name: out[name] for name in out.columns}
-
-    cols["dsu00"] = fill_zero(_get(hh, "DB070"))
-    cols["dsu01"] = fill_zero(_get(hh, "DB060"))
-
-    cols["hsize"] = _get(hh, "HX040")
-    cols["hh010"] = fill_zero(_get(hh, "HH010"))
-    cols["hh021"] = fill_zero(_get(hh, "HH021"))
-    cols["hh030"] = fill_zero(_get(hh, "HH030"))
-    cols["hh040"] = fill_zero(_get(hh, "HH040"))
-
-    cols["amrtn"] = (
-        recode_amrtn(_get(hh, "HH021"))
-        if "HH021" in hh.columns
-        else pl.Series([0.0] * len(hh), dtype=pl.Float64)
-    )
-    cols["amrrm"] = fill_zero(_get(hh, "HH030"))
-    cols["amraw"] = fill_zero(_get(hh, "HH050"))
-    cols["amrub"] = fill_zero(_get(hh, "HS021"))
-    cols["aco"] = fill_zero(_get(hh, "HS090"))
-    cols["aca"] = fill_zero(_get(hh, "HS110"))
-
-    cols["hy020"] = fill_zero(_get(hh, "HY020"))
-    cols["hy022"] = fill_zero(_get(hh, "HY022"))
-    cols["hy023"] = fill_zero(_get(hh, "HY023"))
-
-    hx010 = _get(hh, "HX010").fill_null(1.0)
-    cols["yds"] = scale_monthly_hh(_get(hh, "HY020"), hx010)
-    cols["yiy"] = scale_monthly_hh(_get(hh, "HY090G"), hx010)
-    cols["ypr"] = scale_monthly_hh(_get(hh, "HY040G"), hx010)
-    cols["ypt"] = scale_monthly_hh(_get(hh, "HY080G"), hx010)
-    cols["yptmp"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
-    cols["bfa"] = scale_monthly_hh(_get(hh, "HY050G"), hx010)
-    cols["bho"] = scale_monthly_hh(_get(hh, "HY070G"), hx010)
-    cols["bsa"] = scale_monthly_hh(_get(hh, "HY060G"), hx010)
-    cols["bma"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
-    cols["bch"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
-    cols["bch00"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
-    cols["bchdi"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
-    cols["bchot"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
-
-    cols["tad"] = scale_monthly_hh(_get(hh, "HY145N"), hx010)
-    cols["tis"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
-    cols["tpr"] = scale_monthly_hh(_get(hh, "HY120G"), hx010)
-    cols["twl"] = scale_monthly_hh(_get(hh, "HY120G"), hx010)
-    cols["xmp"] = scale_monthly_hh(_get(hh, "HY130G"), hx010)
-    cols["xpp"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
-
-    hy100g = _get(hh, "HY100G")
-    hh060 = _get(hh, "HH060")
-    hh070 = _get(hh, "HH070")
-
-    cols["xhcmomi"] = scale_monthly_hh(hy100g, hx010)
-    cols["xhcmomc"] = fill_zero(_get(hh, "HH071"))
-    cols["xhcrt"] = (hh060 * hx010).fill_null(0.0)
-    cols["xhc"] = (hh070 * hx010).fill_null(0.0)
-    cols["xhcot"] = (cols["xhc"] - cols["xhcrt"] - cols["xhcmomi"]).clip(
-        lower_bound=0.0
-    )
-
-    cols["yot"] = scale_monthly_hh(_get(hh, "HY110G"), hx010)
-    cols["afc"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
-    cols["tintrch"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
-
-    cols["year"] = pl.Series([year] * len(hh), dtype=pl.Int32)
-
-    out = pl.DataFrame(cols)
     logger.info("Year %s: built household UDB — %d households", year, len(out))
     return out

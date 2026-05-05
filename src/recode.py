@@ -175,20 +175,16 @@ def recode_lindi(pl111a: pl.Series) -> pl.Series:
     )
 
 
-def recode_amrtn(hh021: pl.Series) -> pl.Series:
+def recode_amrtn_expr(hh021: pl.Expr) -> pl.Expr:
     num = hh021.cast(pl.Int64, strict=False)
-    result = num.clone()
-    n = len(num)
-    result = pl.Series([2] * n, dtype=pl.Int64).zip_with(
-        (num == 1).fill_null(False), result
-    )
-    result = pl.Series([1] * n, dtype=pl.Int64).zip_with(
-        (num == 2).fill_null(False), result
-    )
-    result = pl.Series([6] * n, dtype=pl.Int64).zip_with(
-        (num == 5).fill_null(False), result
-    )
-    return result.cast(pl.Float64)
+
+    return num.replace(
+        {
+            1: 2,
+            2: 1,
+            5: 6,
+        }
+    ).cast(pl.Float64)
 
 
 def scale_monthly(annual: pl.Series, hx010: pl.Series) -> pl.Series:
@@ -197,9 +193,10 @@ def scale_monthly(annual: pl.Series, hx010: pl.Series) -> pl.Series:
     return (ann / 12.0 * scale).cast(pl.Float64)
 
 
-def scale_monthly_hh(annual: pl.Series, hx010: pl.Series) -> pl.Series:
+def scale_monthly_expr(annual: pl.Expr, hx010: pl.Expr) -> pl.Expr:
     ann = annual.cast(pl.Float64, strict=False).fill_null(0.0)
     scale = hx010.cast(pl.Float64, strict=False).fill_null(1.0)
+
     return (ann / 12.0 * scale).cast(pl.Float64)
 
 
@@ -255,3 +252,7 @@ def compute_liwwh(pl200: pl.Series) -> pl.Series:
 
 def fill_zero(series: pl.Series) -> pl.Series:
     return series.cast(pl.Float64, strict=False).fill_null(0.0)
+
+
+def fill_zero_expr(x: pl.Expr) -> pl.Expr:
+    return x.cast(pl.Float64, strict=False).fill_null(0.0)
