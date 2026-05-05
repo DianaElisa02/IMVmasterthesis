@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
+import np
 
 from src.constants import EUROMOD_DATASET_NAMES, YEARS
 from src.household import build_household_udb
