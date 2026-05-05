@@ -1,73 +1,30 @@
 """
 schemas.py
 ==========
-Pandera schemas validating the final merged UDB output before export.
-
-Two schemas are defined:
-- PersonUdbSchema: validates the person-level UDB DataFrame before export.
-- HouseholdUdbSchema: validates household-level variables merged onto persons.
-
-Constraints are derived from the EUROMOD Input Data Codebook (ES sheet, J2.0+)
-and apply only to variables this pipeline actively populates. Variables set to
-zero by default (absent from Spanish ECV UDB) are not constrained here.
+Pandera/Polars schemas validating the final merged UDB output before export.
 """
 
 from __future__ import annotations
 
-import pandera.pandas as pa
-from pandera.pandas import Column, Check, DataFrameSchema
+import polars as pl
+import pandera.polars as pa
 
-
-PersonUdbSchema = DataFrameSchema(
+PersonUdbSchema = pa.DataFrameSchema(
     {
-        # --- identifiers ---
-        "idhh": Column(nullable=False),
-        "idperson": Column(nullable=False, unique=True),
+        "idhh":     pa.Column(pl.String, nullable=False),
+        "idperson": pa.Column(pl.String, nullable=False, unique=True),
 
-        # --- demographic ---
-        "dag": Column(
-            float,
-            checks=[Check.ge(0), Check.le(120)],
-            nullable=True,
-        ),
-        "dgn": Column(
-            float,
-            checks=Check.isin([1.0, 2.0]),
-            nullable=True,
-        ),
-        "dct": Column(
-            float,
-            checks=Check.equal_to(13.0),
-            nullable=False,
-        ),
-        "ddi": Column(
-            float,
-            checks=Check.isin([-1.0, 0.0, 1.0]),
-            nullable=True,
-        ),
-        "deh": Column(
-            float,
-            checks=[Check.ge(0.0), Check.le(5.0)],
-            nullable=True,
-        ),
-        "dms": Column(
-            float,
-            checks=[Check.ge(1.0), Check.le(5.0)],
-            nullable=True,
-        ),
-        "dwt": Column(
-            float,
-            checks=Check.ge(0.0),
-            nullable=True,
-        ),
-        "drgn1": Column(
-            float,
-            checks=[Check.ge(1.0), Check.le(7.0)],
-            nullable=True,
-        ),
-        "drgn2": Column(
-            float,
-            checks=Check.isin([
+        "dag":   pa.Column(pl.Float64, checks=[pa.Check.ge(0), pa.Check.le(120)], nullable=True),
+        "dgn":   pa.Column(pl.Float64, checks=pa.Check.isin([1.0, 2.0]), nullable=True),
+        "dct":   pa.Column(pl.Float64, checks=pa.Check.equal_to(13.0), nullable=False),
+        "ddi":   pa.Column(pl.Float64, checks=pa.Check.isin([-1.0, 0.0, 1.0]), nullable=True),
+        "deh":   pa.Column(pl.Float64, checks=[pa.Check.ge(0.0), pa.Check.le(5.0)], nullable=True),
+        "dms":   pa.Column(pl.Float64, checks=[pa.Check.ge(1.0), pa.Check.le(5.0)], nullable=True),
+        "dwt":   pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
+        "drgn1": pa.Column(pl.Float64, checks=[pa.Check.ge(1.0), pa.Check.le(7.0)], nullable=True),
+        "drgn2": pa.Column(
+            pl.Float64,
+            checks=pa.Check.isin([
                 11.0, 12.0, 13.0,
                 21.0, 22.0, 23.0, 24.0,
                 30.0,
@@ -79,85 +36,48 @@ PersonUdbSchema = DataFrameSchema(
             nullable=True,
         ),
 
-        # --- labour market ---
-        "les": Column(
-            float,
-            checks=[Check.ge(0.0), Check.le(9.0)],
-            nullable=True,
-        ),
-        "lhw": Column(
-            float,
-            checks=[Check.ge(0.0), Check.le(80.0)],
-            nullable=True,
-        ),
-        "liwmy": Column(
-            float,
-            checks=[Check.ge(0.0), Check.le(12.0)],
-            nullable=True,
-        ),
-        "lunmy": Column(
-            float,
-            checks=[Check.ge(0.0), Check.le(12.0)],
-            nullable=True,
-        ),
-        "lpemy": Column(
-            float,
-            checks=[Check.ge(0.0), Check.le(12.0)],
-            nullable=True,
-        ),
+        "les":   pa.Column(pl.Float64, checks=[pa.Check.ge(0.0), pa.Check.le(9.0)], nullable=True),
+        "lhw":   pa.Column(pl.Float64, checks=[pa.Check.ge(0.0), pa.Check.le(80.0)], nullable=True),
+        "liwmy": pa.Column(pl.Float64, checks=[pa.Check.ge(0.0), pa.Check.le(12.0)], nullable=True),
+        "lunmy": pa.Column(pl.Float64, checks=[pa.Check.ge(0.0), pa.Check.le(12.0)], nullable=True),
+        "lpemy": pa.Column(pl.Float64, checks=[pa.Check.ge(0.0), pa.Check.le(12.0)], nullable=True),
 
-        # --- household structure ---
-        "hsize": Column(
-            float,
-            checks=[Check.ge(1.0), Check.le(20.0)],
-            nullable=True,
-        ),
-        "oecd_m": Column(
-            float,
-            checks=Check.ge(1.0),
-            nullable=True,
-        ),
+        "hsize":  pa.Column(pl.Float64, checks=[pa.Check.ge(1.0), pa.Check.le(20.0)], nullable=True),
+        "oecd_m": pa.Column(pl.Float64, checks=pa.Check.ge(1.0), nullable=True),
 
-        # --- household income ---
-        "hy020": Column(float, nullable=True),
-        "hy022": Column(float, nullable=True),
-        "hy023": Column(float, nullable=True),
+        "hy020": pa.Column(pl.Float64, nullable=True),
+        "hy022": pa.Column(pl.Float64, nullable=True),
+        "hy023": pa.Column(pl.Float64, nullable=True),
 
-        # --- personal income (monthly gross, can be negative for self-employment) ---
-        "yem": Column(float, checks=Check.ge(0.0), nullable=True),
-        "yse": Column(float, nullable=True),
-        "ypp": Column(float, checks=Check.ge(0.0), nullable=True),
+        "yem": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
+        "yse": pa.Column(pl.Float64, nullable=True),
+        "ypp": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
 
-        # --- benefits (non-negative monthly amounts) ---
-        "bun": Column(float, checks=Check.ge(0.0), nullable=True),
-        "bhl": Column(float, checks=Check.ge(0.0), nullable=True),
-        "pdi": Column(float, checks=Check.ge(0.0), nullable=True),
-        "poa": Column(float, checks=Check.ge(0.0), nullable=True),
-        "psu": Column(float, checks=Check.ge(0.0), nullable=True),
-        "bed": Column(float, checks=Check.ge(0.0), nullable=True),
-        "bsa": Column(float, checks=Check.ge(0.0), nullable=True),
-        "bfa": Column(float, checks=Check.ge(0.0), nullable=True),
-        "bho": Column(float, checks=Check.ge(0.0), nullable=True),
+        "bun": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
+        "bhl": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
+        "pdi": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
+        "poa": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
+        "psu": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
+        "bed": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
+        "bsa": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
+        "bfa": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
+        "bho": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
     },
     strict=False,
     coerce=True,
 )
 
 
-HouseholdUdbSchema = DataFrameSchema(
+HouseholdUdbSchema = pa.DataFrameSchema(
     {
-        "idhh": Column(nullable=False, unique=True),
-        "drgn1": Column(
-            float,
-            checks=[Check.ge(1.0), Check.le(7.0)],
-            nullable=True,
-        ),
-        "drgn2": Column(float, nullable=True),
-        "dwt": Column(float, checks=Check.ge(0.0), nullable=True),
-        "hsize": Column(float, checks=Check.ge(1.0), nullable=True),
-        "hy020": Column(float, nullable=True),
-        "hh021": Column(float, nullable=True),
-        "hh030": Column(float, nullable=True),
+        "idhh":  pa.Column(pl.String, nullable=False, unique=True),
+        "drgn1": pa.Column(pl.Float64, checks=[pa.Check.ge(1.0), pa.Check.le(7.0)], nullable=True),
+        "drgn2": pa.Column(pl.Float64, nullable=True),
+        "dwt":   pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
+        "hsize": pa.Column(pl.Float64, checks=pa.Check.ge(1.0), nullable=True),
+        "hy020": pa.Column(pl.Float64, nullable=True),
+        "hh021": pa.Column(pl.Float64, nullable=True),
+        "hh030": pa.Column(pl.Float64, nullable=True),
     },
     strict=False,
     coerce=True,

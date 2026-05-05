@@ -3,14 +3,13 @@ recode.py
 =========
 All recoding logic for the ECV → EUROMOD UDB conversion pipeline.
 
-Each function takes one or more pandas Series and returns a Series.
+Each function takes one or more polars Series and returns a Series.
 No file I/O is performed here. All mappings reference constants.py.
 """
 
 from __future__ import annotations
 
-import numpy as np
-import pandas as pd
+import polars as pl
 
 from src.constants import (
     DDI_DISABLED,
@@ -32,161 +31,200 @@ from src.constants import (
 )
 
 
-def recode_drgn1(db040: pd.Series) -> pd.Series:
-    return db040.astype("string").map(DRGN1_MAP).astype("Float64")
+def _const(value: float, n: int) -> pl.Series:
+    """Return a Float64 Series of length n filled with value."""
+    return pl.Series([value] * n, dtype=pl.Float64)
 
 
-def recode_drgn2(db040: pd.Series) -> pd.Series:
-    return db040.astype("string").map(DRGN2_MAP).astype("Float64")
+def recode_drgn1(db040: pl.Series) -> pl.Series:
+    return (
+        db040.cast(pl.String)
+        .replace(
+            list(DRGN1_MAP.keys()),
+            [str(v) for v in DRGN1_MAP.values()],
+            default=None,
+        )
+        .cast(pl.Float64)
+    )
 
 
-def recode_dgn(rb090: pd.Series) -> pd.Series:
-    num = pd.to_numeric(rb090, errors="coerce")
-    valid = num.isin(DGN_VALID_VALUES)
-    return num.where(valid, other=float(DGN_DEFAULT)).astype("Float64")
+def recode_drgn2(db040: pl.Series) -> pl.Series:
+    return (
+        db040.cast(pl.String)
+        .replace(
+            list(DRGN2_MAP.keys()),
+            [str(v) for v in DRGN2_MAP.values()],
+            default=None,
+        )
+        .cast(pl.Float64)
+    )
 
 
-def recode_dms(pb190: pd.Series, idpartner: pd.Series) -> pd.Series:
-    num = pd.to_numeric(pb190, errors="coerce").astype("Int64")
-    recoded = num.map(DMS_RECODE)
-    # individuals without marital status and no partner → single
-    no_status = recoded.isna()
-    no_partner = pd.to_numeric(idpartner, errors="coerce").fillna(0).eq(0)
-    recoded = recoded.where(~(no_status & no_partner), other=float(DMS_DEFAULT))
-    # individuals without marital status but with a partner → also single
-    recoded = recoded.fillna(float(DMS_DEFAULT))
-    return recoded.astype("Float64")
+def recode_dgn(rb090: pl.Series) -> pl.Series:
+    num = rb090.cast(pl.Float64, strict=False)
+    is_valid = num.is_in(list(DGN_VALID_VALUES)).fill_null(False)
+    return num.zip_with(is_valid, _const(float(DGN_DEFAULT), len(num)))
 
 
-def recode_deh(pe040: pd.Series) -> pd.Series:
-    num = pd.to_numeric(pe040, errors="coerce")
-    result = pd.Series(float(DEH_DEFAULT), index=pe040.index, dtype="Float64")
+def recode_dms(pb190: pl.Series, idpartner: pl.Series) -> pl.Series:  # noqa: ARG001
+    # idpartner not needed: all remaining nulls fall back to DMS_DEFAULT anyway
+    num = pb190.cast(pl.Int64, strict=False)
+    return (
+        num.replace(list(DMS_RECODE.keys()), list(DMS_RECODE.values()), default=None)
+        .cast(pl.Float64)
+        .fill_null(float(DMS_DEFAULT))
+    )
+
+
+def recode_deh(pe040: pl.Series) -> pl.Series:
+    num = pe040.cast(pl.Float64, strict=False)
+    result = _const(float(DEH_DEFAULT), len(num))
     for low, high, target in DEH_RECODE_BOUNDARIES:
-        mask = num.between(low, high, inclusive="both")
-        result = result.where(~mask, other=float(target))
+        mask = ((num >= low) & (num <= high)).fill_null(False)
+        result = _const(float(target), len(num)).zip_with(mask, result)
     return result
 
 
-def recode_ddi(pl031: pd.Series, pb030: pd.Series) -> pd.Series:
-    pl031_num = pd.to_numeric(pl031, errors="coerce")
-    pb030_num = pd.to_numeric(pb030, errors="coerce")
+def recode_ddi(pl031: pl.Series, has_personal_record: pl.Series) -> pl.Series:
+    """
+    has_personal_record: boolean Series, True for persons with a TP record (adults).
+    False/null indicates children / no personal info collected.
+    """
+    pl031_num = pl031.cast(pl.Float64, strict=False)
 
-    result = pd.Series(np.nan, index=pl031.index, dtype="Float64")
-    result = result.where(~pl031_num.eq(8), other=float(DDI_DISABLED))
-    not_disabled = pl031_num.notna() & ~pl031_num.eq(8)
-    result = result.where(~not_disabled, other=float(DDI_NOT_DISABLED))
-    not_applicable = pl031_num.isna() & pb030_num.isna()
-    result = result.where(~not_applicable, other=float(DDI_NOT_APPLICABLE))
+    is_disabled     = (pl031_num == 8.0).fill_null(False)
+    is_not_disabled = pl031_num.is_not_null() & ~(pl031_num == 8.0)
+    is_not_applicable = pl031_num.is_null() & ~has_personal_record.fill_null(False)
+
+    n = len(pl031)
+    result = pl.Series([None] * n, dtype=pl.Float64)
+    result = _const(float(DDI_DISABLED),     n).zip_with(is_disabled,           result)
+    result = _const(float(DDI_NOT_DISABLED), n).zip_with(is_not_disabled,       result)
+    result = _const(float(DDI_NOT_APPLICABLE), n).zip_with(is_not_applicable,   result)
     return result
 
-def compute_dag(rb080: pd.Series, rb010: pd.Series) -> pd.Series:
-    birth_year = pd.to_numeric(rb080, errors="coerce")
-    survey_year = pd.to_numeric(rb010, errors="coerce")
-    age = survey_year - birth_year - 1
-    return age.clip(lower=0).astype("Float64")
+
+def compute_dag(rb080: pl.Series, rb010: pl.Series) -> pl.Series:
+    birth_year  = rb080.cast(pl.Float64, strict=False)
+    survey_year = rb010.cast(pl.Float64, strict=False)
+    return (survey_year - birth_year - 1).clip(lower_bound=0).cast(pl.Float64)
 
 
-def compute_oecd_m(person_df: pd.DataFrame) -> pd.Series:
+def compute_oecd_m(person_df: pl.DataFrame) -> pl.DataFrame:
     """
     Compute OECD modified equivalence scale per household.
 
-    Scale: 1.0 for the first adult, 0.5 for each additional adult,
-    0.3 for each child under 14. Returns a Series indexed by household ID.
-
-    Parameters
-    ----------
-    person_df : DataFrame with columns IDHH and DAG (uppercase).
+    Expects columns IDHH (String) and dag (Float64).
+    Returns a DataFrame with IDHH and oecd_m.
     """
-    age = pd.to_numeric(person_df["DAG"], errors="coerce")
-    is_adult = age.ge(14)
-    is_child = age.lt(14)
-
-    grouped = person_df.assign(_adult=is_adult.astype(int), _child=is_child.astype(int))
-    agg = grouped.groupby("IDHH")[["_adult", "_child"]].sum()
-
-    oecd = 1.0 + (agg["_adult"] - 1).clip(lower=0) * 0.5 + agg["_child"] * 0.3
-    return oecd.rename("oecd_m")
-
-def recode_les(pl031: pd.Series, pl040: pd.Series, dag: pd.Series) -> pd.Series:
-    pl031_num = pd.to_numeric(pl031, errors="coerce").astype("Int64")
-    pl040_num = pd.to_numeric(pl040, errors="coerce").astype("Int64")
-    age = pd.to_numeric(dag, errors="coerce")
-
-    result = pd.Series(pd.NA, index=pl031.index, dtype="Int64")
-
-    result = result.where(~age.lt(6), other=0)
-
-    for pl031_val, les_val in PL031_TO_LES.items():
-        mask = pl031_num.eq(pl031_val) & result.isna()
-        result = result.where(~mask, other=les_val)
-
-    for pl040_val, les_val in PL040_TO_LES.items():
-        mask = pl040_num.eq(pl040_val) & result.isna()
-        result = result.where(~mask, other=les_val)
-
-    return result.fillna(LES_DEFAULT).astype("Float64")
+    age = person_df["dag"].cast(pl.Float64, strict=False)
+    temp = pl.DataFrame({
+        "IDHH":   person_df["IDHH"],
+        "_adult": (age >= 14).fill_null(False).cast(pl.Int32),
+        "_child": (age < 14).fill_null(False).cast(pl.Int32),
+    })
+    agg = temp.group_by("IDHH").agg([
+        pl.col("_adult").sum(),
+        pl.col("_child").sum(),
+    ])
+    return agg.with_columns(
+        (1.0 + (pl.col("_adult") - 1).clip(lower_bound=0) * 0.5 + pl.col("_child") * 0.3)
+        .alias("oecd_m")
+    ).select(["IDHH", "oecd_m"])
 
 
+def recode_les(pl031: pl.Series, pl040: pl.Series, dag: pl.Series) -> pl.Series:
+    pl031_num = pl031.cast(pl.Int64, strict=False)
+    pl040_num = pl040.cast(pl.Int64, strict=False)
+    age       = dag.cast(pl.Float64, strict=False)
 
-def recode_lindi(pl111a: pd.Series) -> pd.Series:
-    cleaned = pl111a.astype("string").str.strip().str.lower()
-    return cleaned.map(LINDI_MAP).fillna(float(LINDI_DEFAULT)).astype("Float64")
+    n = len(pl031)
+    result = pl.Series([None] * n, dtype=pl.Int64)
 
+    child_mask = (age < 6).fill_null(False)
+    result = pl.Series([0] * n, dtype=pl.Int64).zip_with(child_mask, result)
 
-def recode_amrtn(hh021: pd.Series) -> pd.Series:
-    num = pd.to_numeric(hh021, errors="coerce").astype("Int64")
-    result = num.copy().astype("Int64")
-    result = result.where(~num.eq(1), other=2)
-    result = result.where(~num.eq(2), other=1)
-    result = result.where(~num.eq(5), other=6)
-    return result.astype("Float64")
+    for val, les_val in PL031_TO_LES.items():
+        mask = (pl031_num == val).fill_null(False) & result.is_null()
+        result = pl.Series([les_val] * n, dtype=pl.Int64).zip_with(mask, result)
 
+    for val, les_val in PL040_TO_LES.items():
+        mask = (pl040_num == val).fill_null(False) & result.is_null()
+        result = pl.Series([les_val] * n, dtype=pl.Int64).zip_with(mask, result)
 
-def scale_monthly(annual: pd.Series, hx010: pd.Series) -> pd.Series:
-    """
-    Convert annual gross income to monthly and scale by hx010.
-    Mirrors EUROMOD formula: yem = py010g / 12 * hx010.
-    """
-    ann = pd.to_numeric(annual, errors="coerce").fillna(0.0)
-    scale = pd.to_numeric(hx010, errors="coerce").fillna(1.0)
-    return (ann / 12.0 * scale).astype("Float64")
+    return result.fill_null(LES_DEFAULT).cast(pl.Float64)
 
 
-def scale_monthly_hh(annual: pd.Series, hx010: pd.Series) -> pd.Series:
-    """
-    Convert annual household-level income to monthly, split by hx010
-    and assigned to the default income recipient (household respondent).
-    Mirrors EUROMOD formula: yds = hy020 / 12 * hx010.
-    """
-    ann = pd.to_numeric(annual, errors="coerce").fillna(0.0)
-    scale = pd.to_numeric(hx010, errors="coerce").fillna(1.0)
-    return (ann / 12.0 * scale).astype("Float64")
+def recode_lindi(pl111a: pl.Series) -> pl.Series:
+    cleaned = pl111a.cast(pl.String).str.strip_chars().str.to_lowercase()
+    return (
+        cleaned.replace(
+            list(LINDI_MAP.keys()),
+            [str(v) for v in LINDI_MAP.values()],
+            default=None,
+        )
+        .cast(pl.Float64)
+        .fill_null(float(LINDI_DEFAULT))
+    )
 
 
-def compute_liwmy(pl073: pd.Series, pl074: pd.Series,
-                  pl075: pd.Series, pl076: pd.Series) -> pd.Series:
-    cols = [pd.to_numeric(s, errors="coerce") for s in (pl073, pl074, pl075, pl076)]
-    total = pd.concat(cols, axis=1).sum(axis=1, min_count=1)
-    return total.clip(upper=12).fillna(0.0).astype("Float64")
+def recode_amrtn(hh021: pl.Series) -> pl.Series:
+    num = hh021.cast(pl.Int64, strict=False)
+    result = num.clone()
+    n = len(num)
+    result = pl.Series([2] * n, dtype=pl.Int64).zip_with((num == 1).fill_null(False), result)
+    result = pl.Series([1] * n, dtype=pl.Int64).zip_with((num == 2).fill_null(False), result)
+    result = pl.Series([6] * n, dtype=pl.Int64).zip_with((num == 5).fill_null(False), result)
+    return result.cast(pl.Float64)
 
 
-def compute_liwftmy(pl073: pd.Series, pl075: pd.Series) -> pd.Series:
-    cols = [pd.to_numeric(s, errors="coerce") for s in (pl073, pl075)]
-    total = pd.concat(cols, axis=1).sum(axis=1, min_count=1)
-    return total.clip(upper=12).fillna(0.0).astype("Float64")
+def scale_monthly(annual: pl.Series, hx010: pl.Series) -> pl.Series:
+    ann   = annual.cast(pl.Float64, strict=False).fill_null(0.0)
+    scale = hx010.cast(pl.Float64, strict=False).fill_null(1.0)
+    return (ann / 12.0 * scale).cast(pl.Float64)
 
 
-def compute_liwptmy(pl074: pd.Series, pl076: pd.Series) -> pd.Series:
-    cols = [pd.to_numeric(s, errors="coerce") for s in (pl074, pl076)]
-    total = pd.concat(cols, axis=1).sum(axis=1, min_count=1)
-    return total.clip(upper=12).fillna(0.0).astype("Float64")
+def scale_monthly_hh(annual: pl.Series, hx010: pl.Series) -> pl.Series:
+    ann   = annual.cast(pl.Float64, strict=False).fill_null(0.0)
+    scale = hx010.cast(pl.Float64, strict=False).fill_null(1.0)
+    return (ann / 12.0 * scale).cast(pl.Float64)
 
 
-def compute_liwwh(pl200: pd.Series) -> pd.Series:
-    years = pd.to_numeric(pl200, errors="coerce")
-    months = (years * 12).clip(lower=0, upper=780)
-    return months.fillna(0.0).astype("Float64")
+def compute_liwmy(
+    pl073: pl.Series, pl074: pl.Series, pl075: pl.Series, pl076: pl.Series,
+) -> pl.Series:
+    tmp = pl.DataFrame({
+        "a": pl073.cast(pl.Float64, strict=False),
+        "b": pl074.cast(pl.Float64, strict=False),
+        "c": pl075.cast(pl.Float64, strict=False),
+        "d": pl076.cast(pl.Float64, strict=False),
+    })
+    total = tmp.select(pl.sum_horizontal("a", "b", "c", "d")).to_series()
+    return total.clip(upper_bound=12).fill_null(0.0).cast(pl.Float64)
 
 
-def fill_zero(series: pd.Series) -> pd.Series:
-    return pd.to_numeric(series, errors="coerce").fillna(0.0).astype("Float64")
+def compute_liwftmy(pl073: pl.Series, pl075: pl.Series) -> pl.Series:
+    tmp = pl.DataFrame({
+        "a": pl073.cast(pl.Float64, strict=False),
+        "b": pl075.cast(pl.Float64, strict=False),
+    })
+    total = tmp.select(pl.sum_horizontal("a", "b")).to_series()
+    return total.clip(upper_bound=12).fill_null(0.0).cast(pl.Float64)
+
+
+def compute_liwptmy(pl074: pl.Series, pl076: pl.Series) -> pl.Series:
+    tmp = pl.DataFrame({
+        "a": pl074.cast(pl.Float64, strict=False),
+        "b": pl076.cast(pl.Float64, strict=False),
+    })
+    total = tmp.select(pl.sum_horizontal("a", "b")).to_series()
+    return total.clip(upper_bound=12).fill_null(0.0).cast(pl.Float64)
+
+
+def compute_liwwh(pl200: pl.Series) -> pl.Series:
+    years = pl200.cast(pl.Float64, strict=False)
+    return (years * 12).clip(lower_bound=0, upper_bound=780).fill_null(0.0).cast(pl.Float64)
+
+
+def fill_zero(series: pl.Series) -> pl.Series:
+    return series.cast(pl.Float64, strict=False).fill_null(0.0)

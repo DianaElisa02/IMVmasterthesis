@@ -4,8 +4,9 @@ readers.py
 Raw ECV file readers for the ECV → EUROMOD UDB conversion pipeline.
 
 Each function reads one ECV section for one year, selecting only the columns
-needed for UDB conversion as declared in constants.py. No recoding is performed
-here — that is the responsibility of recode.py.
+needed for UDB conversion as declared in constants.py. Stata files are read
+via pandas (no native Polars .dta reader) and immediately converted to a
+Polars DataFrame. No recoding is performed here.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import logging
 from pathlib import Path
 
 import pandas as pd
+import polars as pl
 
 from src.constants import (
     ECV_FILE_PREFIXES,
@@ -36,7 +38,7 @@ def _read_section(
     requested_columns: list[str],
     year: int,
     section: str,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"ECV {section.upper()} file not found: {path}")
 
@@ -58,28 +60,25 @@ def _read_section(
             year, section.upper(), len(missing), missing,
         )
 
-    df = pd.read_stata(path, columns=selected, convert_categoricals=False)
-    df.columns = [c.upper() for c in df.columns]
+    df_pd = pd.read_stata(path, columns=selected, convert_categoricals=False)
+    df_pd.columns = [c.upper() for c in df_pd.columns]
 
+    df = pl.from_pandas(df_pd)
     logger.info("Year %s | %s: read %d rows, %d columns", year, section.upper(), len(df), len(df.columns))
     return df
 
 
-def read_td(input_dir: Path, year: int) -> pd.DataFrame:
-    path = _ecv_path(input_dir, "td", year)
-    return _read_section(path, TD_COLUMNS, year, "td")
+def read_td(input_dir: Path, year: int) -> pl.DataFrame:
+    return _read_section(_ecv_path(input_dir, "td", year), TD_COLUMNS, year, "td")
 
 
-def read_th(input_dir: Path, year: int) -> pd.DataFrame:
-    path = _ecv_path(input_dir, "th", year)
-    return _read_section(path, TH_COLUMNS, year, "th")
+def read_th(input_dir: Path, year: int) -> pl.DataFrame:
+    return _read_section(_ecv_path(input_dir, "th", year), TH_COLUMNS, year, "th")
 
 
-def read_tr(input_dir: Path, year: int) -> pd.DataFrame:
-    path = _ecv_path(input_dir, "tr", year)
-    return _read_section(path, TR_COLUMNS, year, "tr")
+def read_tr(input_dir: Path, year: int) -> pl.DataFrame:
+    return _read_section(_ecv_path(input_dir, "tr", year), TR_COLUMNS, year, "tr")
 
 
-def read_tp(input_dir: Path, year: int) -> pd.DataFrame:
-    path = _ecv_path(input_dir, "tp", year)
-    return _read_section(path, TP_COLUMNS, year, "tp")
+def read_tp(input_dir: Path, year: int) -> pl.DataFrame:
+    return _read_section(_ecv_path(input_dir, "tp", year), TP_COLUMNS, year, "tp")

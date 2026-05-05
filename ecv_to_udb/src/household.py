@@ -3,8 +3,8 @@ household.py
 ============
 Builds the household-level UDB variables from raw ECV Td and Th sections.
 
-Returns a DataFrame with one row per household containing all household-level
-UDB variables. This is later merged onto the person-level file in merge.py.
+Returns a Polars DataFrame with one row per household. Merged onto the
+person-level file in merge.py.
 """
 
 from __future__ import annotations
@@ -12,8 +12,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
+import polars as pl
 
 from src.readers import read_td, read_th
 from src.recode import (
@@ -27,97 +26,113 @@ from src.recode import (
 logger = logging.getLogger(__name__)
 
 
-def _get(df: pd.DataFrame, col: str) -> pd.Series:
+def _get(df: pl.DataFrame, col: str) -> pl.Series:
+    """Return column cast to Float64, or a zero-filled series if absent."""
     if col in df.columns:
-        return pd.to_numeric(df[col], errors="coerce")
-    return pd.Series(0.0, index=df.index, dtype="float64")
+        return df[col].cast(pl.Float64, strict=False)
+    return pl.Series(col, [0.0] * len(df), dtype=pl.Float64)
 
 
-def build_household_udb(input_dir: Path, year: int) -> pd.DataFrame:
+def build_household_udb(input_dir: Path, year: int) -> pl.DataFrame:
     td = read_td(input_dir, year)
     th = read_th(input_dir, year)
 
-    hh = td.merge(th, left_on="DB030", right_on="HB030", how="inner")
+    hh = td.join(th, left_on="DB030", right_on="HB030", how="inner")
 
     n_td = len(td)
     n_merged = len(hh)
     if n_merged < n_td:
         logger.warning(
             "Year %s: %d Td households did not match Th (%d Td, %d merged)",
-            year, n_td - n_merged, n_td, n_merged,
+            year,
+            n_td - n_merged,
+            n_td,
+            n_merged,
         )
 
-    hx010 = _get(hh, "HX010").fillna(1.0)
+    hx010 = _get(hh, "HX010").fill_null(1.0)
+    db100 = _get(hh, "DB100")
 
-    out = pd.DataFrame(index=hh.index)
+    cols: dict[str, pl.Series] = {}
 
-    out["IDHH"] = pd.to_numeric(hh["DB030"], errors="coerce").astype("Int64").astype("string")
+    cols["IDHH"] = hh["DB030"].cast(pl.Int64, strict=False).cast(pl.String)
 
-    out["drgn1"] = recode_drgn1(hh["DB040"])
-    out["drgn2"] = recode_drgn2(hh["DB040"])
-    out["dwt"]   = _get(hh, "DB090")
-    out["dct"]   = 13.0
+    cols["drgn1"] = recode_drgn1(
+        hh["DB040"] if "DB040" in hh.columns else pl.Series("DB040", [""] * len(hh))
+    )
+    cols["drgn2"] = recode_drgn2(
+        hh["DB040"] if "DB040" in hh.columns else pl.Series("DB040", [""] * len(hh))
+    )
+    cols["dwt"] = _get(hh, "DB090")
+    cols["dct"] = pl.Series([13.0] * len(hh), dtype=pl.Float64)
 
-    out["drgmd"] = np.where(_get(hh, "DB100").eq(2), 1.0, 0.0)
-    out["drgru"] = np.where(_get(hh, "DB100").eq(3), 1.0, 0.0)
-    out["drgur"] = np.where(_get(hh, "DB100").eq(1), 1.0, 0.0)
+    cols["drgmd"] = (db100 == 2.0).cast(pl.Float64).fill_null(0.0)
+    cols["drgru"] = (db100 == 3.0).cast(pl.Float64).fill_null(0.0)
+    cols["drgur"] = (db100 == 1.0).cast(pl.Float64).fill_null(0.0)
 
-    out["dsu00"] = fill_zero(hh.get("DB070", pd.Series(0, index=hh.index)))
-    out["dsu01"] = fill_zero(hh.get("DB060", pd.Series(0, index=hh.index)))
+    cols["dsu00"] = fill_zero(_get(hh, "DB070"))
+    cols["dsu01"] = fill_zero(_get(hh, "DB060"))
 
-    out["hsize"]  = _get(hh, "HX040")
-    out["hh010"]  = fill_zero(hh.get("HH010", pd.Series(np.nan, index=hh.index)))
-    out["hh021"]  = fill_zero(hh.get("HH021", pd.Series(np.nan, index=hh.index)))
-    out["hh030"]  = fill_zero(hh.get("HH030", pd.Series(np.nan, index=hh.index)))
-    out["hh040"]  = fill_zero(hh.get("HH040", pd.Series(np.nan, index=hh.index)))
-    out["amrtn"]  = recode_amrtn(hh["HH021"]) if "HH021" in hh.columns else pd.Series(0.0, index=hh.index)
-    out["amrrm"]  = fill_zero(hh.get("HH030", pd.Series(np.nan, index=hh.index)))
-    out["amraw"]  = fill_zero(hh.get("HH050", pd.Series(np.nan, index=hh.index)))
-    out["amrub"]  = fill_zero(hh.get("HS021", pd.Series(np.nan, index=hh.index)))
-    out["aco"]    = fill_zero(hh.get("HS090", pd.Series(np.nan, index=hh.index)))
-    out["aca"]    = fill_zero(hh.get("HS110", pd.Series(np.nan, index=hh.index)))
+    cols["hsize"] = _get(hh, "HX040")
+    cols["hh010"] = fill_zero(_get(hh, "HH010"))
+    cols["hh021"] = fill_zero(_get(hh, "HH021"))
+    cols["hh030"] = fill_zero(_get(hh, "HH030"))
+    cols["hh040"] = fill_zero(_get(hh, "HH040"))
 
-    out["hy020"]  = fill_zero(hh.get("HY020", pd.Series(np.nan, index=hh.index)))
-    out["hy022"]  = fill_zero(hh.get("HY022", pd.Series(np.nan, index=hh.index)))
-    out["hy023"]  = fill_zero(hh.get("HY023", pd.Series(np.nan, index=hh.index)))
+    cols["amrtn"] = (
+        recode_amrtn(_get(hh, "HH021"))
+        if "HH021" in hh.columns
+        else pl.Series([0.0] * len(hh), dtype=pl.Float64)
+    )
+    cols["amrrm"] = fill_zero(_get(hh, "HH030"))
+    cols["amraw"] = fill_zero(_get(hh, "HH050"))
+    cols["amrub"] = fill_zero(_get(hh, "HS021"))
+    cols["aco"] = fill_zero(_get(hh, "HS090"))
+    cols["aca"] = fill_zero(_get(hh, "HS110"))
 
-    out["yds"]    = scale_monthly_hh(_get(hh, "HY020"), hx010)
-    out["yiy"]    = scale_monthly_hh(_get(hh, "HY090G"), hx010)
-    out["ypr"]    = scale_monthly_hh(_get(hh, "HY040G"), hx010)
-    out["ypt"]    = scale_monthly_hh(_get(hh, "HY080G"), hx010)
-    out["yptmp"]  = 0.0
-    out["bfa"]    = scale_monthly_hh(_get(hh, "HY050G"), hx010)
-    out["bho"]    = scale_monthly_hh(_get(hh, "HY070G"), hx010)
-    out["bsa"]    = scale_monthly_hh(_get(hh, "HY060G"), hx010)
-    out["bma"]    = 0.0
-    out["bch"]    = 0.0
-    out["bch00"]  = 0.0
-    out["bchdi"]  = 0.0
-    out["bchot"]  = 0.0
+    cols["hy020"] = fill_zero(_get(hh, "HY020"))
+    cols["hy022"] = fill_zero(_get(hh, "HY022"))
+    cols["hy023"] = fill_zero(_get(hh, "HY023"))
 
-    out["tad"]    = scale_monthly_hh(_get(hh, "HY145N"), hx010)
-    out["tis"]    = 0.0
-    out["tpr"]    = scale_monthly_hh(_get(hh, "HY120G"), hx010)
-    out["twl"]    = scale_monthly_hh(_get(hh, "HY120G"), hx010)
-    out["xmp"]    = scale_monthly_hh(_get(hh, "HY130G"), hx010)
-    out["xpp"]    = 0.0
+    cols["yds"] = scale_monthly_hh(_get(hh, "HY020"), hx010)
+    cols["yiy"] = scale_monthly_hh(_get(hh, "HY090G"), hx010)
+    cols["ypr"] = scale_monthly_hh(_get(hh, "HY040G"), hx010)
+    cols["ypt"] = scale_monthly_hh(_get(hh, "HY080G"), hx010)
+    cols["yptmp"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
+    cols["bfa"] = scale_monthly_hh(_get(hh, "HY050G"), hx010)
+    cols["bho"] = scale_monthly_hh(_get(hh, "HY070G"), hx010)
+    cols["bsa"] = scale_monthly_hh(_get(hh, "HY060G"), hx010)
+    cols["bma"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
+    cols["bch"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
+    cols["bch00"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
+    cols["bchdi"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
+    cols["bchot"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
+
+    cols["tad"] = scale_monthly_hh(_get(hh, "HY145N"), hx010)
+    cols["tis"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
+    cols["tpr"] = scale_monthly_hh(_get(hh, "HY120G"), hx010)
+    cols["twl"] = scale_monthly_hh(_get(hh, "HY120G"), hx010)
+    cols["xmp"] = scale_monthly_hh(_get(hh, "HY130G"), hx010)
+    cols["xpp"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
 
     hy100g = _get(hh, "HY100G")
-    hh060  = _get(hh, "HH060")
-    hh070  = _get(hh, "HH070")
+    hh060 = _get(hh, "HH060")
+    hh070 = _get(hh, "HH070")
 
-    out["xhcmomi"] = scale_monthly_hh(hy100g, hx010)
-    out["xhcmomc"] = fill_zero(hh.get("HH071", pd.Series(np.nan, index=hh.index)))
-    out["xhcrt"]   = (hh060 * hx010).fillna(0.0)
-    out["xhc"]     = (hh070 * hx010).fillna(0.0)
-    out["xhcot"]   = (out["xhc"] - out["xhcrt"] - out["xhcmomi"]).clip(lower=0.0)
+    cols["xhcmomi"] = scale_monthly_hh(hy100g, hx010)
+    cols["xhcmomc"] = fill_zero(_get(hh, "HH071"))
+    cols["xhcrt"] = (hh060 * hx010).fill_null(0.0)
+    cols["xhc"] = (hh070 * hx010).fill_null(0.0)
+    cols["xhcot"] = (cols["xhc"] - cols["xhcrt"] - cols["xhcmomi"]).clip(
+        lower_bound=0.0
+    )
 
-    out["yot"]     = scale_monthly_hh(_get(hh, "HY110G"), hx010)
+    cols["yot"] = scale_monthly_hh(_get(hh, "HY110G"), hx010)
+    cols["afc"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
+    cols["tintrch"] = pl.Series([0.0] * len(hh), dtype=pl.Float64)
 
-    out["afc"]     = 0.0
-    out["tintrch"] = 0.0
+    cols["year"] = pl.Series([year] * len(hh), dtype=pl.Int32)
 
-    out["year"] = year
-
+    out = pl.DataFrame(cols)
     logger.info("Year %s: built household UDB — %d households", year, len(out))
     return out
