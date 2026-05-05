@@ -14,7 +14,8 @@ ecv_to_udb/
 │   ├── merge.py                   ← merge, validate, export
 │   └── schemas.py                 ← pandera UDB output schemas
 │
-├── input_data/                    
+├── input_data/
+|    |---euromod_data                    
 │
 └── output/
     ├── ES_2017_a2.txt
