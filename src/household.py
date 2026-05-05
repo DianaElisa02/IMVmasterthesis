@@ -43,9 +43,6 @@ def build_household_udb(input_dir: Path, year: int) -> pl.DataFrame:
             n_merged,
         )
 
-    c = Cols(set(hh.columns))
-    db100 = c.f64("DB100")
-
     hh = hh.with_columns(
         pl.lit(1.0, dtype=pl.Float64).alias("HX010"),
         pl.lit(0.0, dtype=pl.Float64).alias("bma"),
