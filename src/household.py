@@ -10,6 +10,7 @@ person-level file in merge.py.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
 import polars as pl
@@ -24,6 +25,27 @@ from src.recode import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class Cols:
+    available: set[str]
+
+    def has(self, name: str) -> bool:
+        return name in self.available
+
+    def f64(self, name: str, default: float = 0.0) -> pl.Expr:
+        if self.has(name):
+            return pl.col(name).cast(pl.Float64, strict=False)
+        return pl.lit(default, dtype=pl.Float64)
+
+    def string(self, name: str, default: str = "") -> pl.Expr:
+        if self.has(name):
+            return pl.col(name).cast(pl.String, strict=False)
+        return pl.lit(default, dtype=pl.String)
+
+    def const_f64(self, value: float) -> pl.Expr:
+        return pl.lit(value, dtype=pl.Float64)
 
 
 def _get(df: pl.DataFrame, col: str) -> pl.Series:
@@ -50,25 +72,25 @@ def build_household_udb(input_dir: Path, year: int) -> pl.DataFrame:
             n_merged,
         )
 
-    hx010 = _get(hh, "HX010").fill_null(1.0)
-    db100 = _get(hh, "DB100")
+    c = Cols(set(hh.columns))
+    db100 = c.f64("DB100")
 
-    cols: dict[str, pl.Series] = {}
-
-    cols["IDHH"] = hh["DB030"].cast(pl.Int64, strict=False).cast(pl.String)
-
-    cols["drgn1"] = recode_drgn1(
-        hh["DB040"] if "DB040" in hh.columns else pl.Series("DB040", [""] * len(hh))
+    out = (
+        hh.lazy()
+        .select(
+            pl.col("DB030").cast(pl.Int64, strict=False).cast(pl.String).alias("IDHH"),
+            recode_drgn1(c.string("DB040")).alias("drgn1"),
+            recode_drgn2(c.string("DB040")).alias("drgn2"),
+            c.f64("DB090").alias("dwt"),
+            c.const_f64(13.0).alias("dct"),
+            (db100 == 2.0).cast(pl.Float64).fill_null(0.0).alias("drgmd"),
+            (db100 == 3.0).cast(pl.Float64).fill_null(0.0).alias("drgru"),
+            (db100 == 1.0).cast(pl.Float64).fill_null(0.0).alias("drgur"),
+        )
+        .collect()
     )
-    cols["drgn2"] = recode_drgn2(
-        hh["DB040"] if "DB040" in hh.columns else pl.Series("DB040", [""] * len(hh))
-    )
-    cols["dwt"] = _get(hh, "DB090")
-    cols["dct"] = pl.Series([13.0] * len(hh), dtype=pl.Float64)
 
-    cols["drgmd"] = (db100 == 2.0).cast(pl.Float64).fill_null(0.0)
-    cols["drgru"] = (db100 == 3.0).cast(pl.Float64).fill_null(0.0)
-    cols["drgur"] = (db100 == 1.0).cast(pl.Float64).fill_null(0.0)
+    cols: dict[str, pl.Series] = {name: out[name] for name in out.columns}
 
     cols["dsu00"] = fill_zero(_get(hh, "DB070"))
     cols["dsu01"] = fill_zero(_get(hh, "DB060"))
@@ -94,6 +116,7 @@ def build_household_udb(input_dir: Path, year: int) -> pl.DataFrame:
     cols["hy022"] = fill_zero(_get(hh, "HY022"))
     cols["hy023"] = fill_zero(_get(hh, "HY023"))
 
+    hx010 = _get(hh, "HX010").fill_null(1.0)
     cols["yds"] = scale_monthly_hh(_get(hh, "HY020"), hx010)
     cols["yiy"] = scale_monthly_hh(_get(hh, "HY090G"), hx010)
     cols["ypr"] = scale_monthly_hh(_get(hh, "HY040G"), hx010)
