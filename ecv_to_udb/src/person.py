@@ -53,7 +53,7 @@ def build_person_udb(input_dir: Path, year: int) -> pd.DataFrame:
     tr = read_tr(input_dir, year)
     tp = read_tp(input_dir, year)
 
-    person = tr.merge(tp, on="PB030", how="left", suffixes=("_tr", "_tp"))
+    person = tr.merge(tp, left_on="RB030", right_on="PB030", how="left", suffixes=("_tr", "_tp"))
 
     n_tr = len(tr)
     n_merged = len(person)
@@ -67,8 +67,9 @@ def build_person_udb(input_dir: Path, year: int) -> pd.DataFrame:
 
     out = pd.DataFrame(index=person.index)
 
-    out["IDHH"]      = person["DB030"].astype("string").str.strip()
-    out["idperson"]  = person["PB030"].astype("string").str.strip()
+    rb030 = person["RB030"].astype("string").str.strip().str.zfill(10)
+    out["IDHH"]     = rb030.str[:-2]
+    out["idperson"] = rb030
     out["idmother"]  = fill_zero(_get_raw(person, "RB230"))
     out["idfather"]  = fill_zero(_get_raw(person, "RB220"))
     out["idpartner"] = fill_zero(_get_raw(person, "RB240"))

@@ -1,14 +1,107 @@
-2026-05-05 07:14:24,261 | INFO | Starting ECV → EUROMOD UDB conversion
-2026-05-05 07:14:24,262 | INFO | Input  : /workspaces/IMVmasterthesis/ecv_to_udb/input_data
-2026-05-05 07:14:24,262 | INFO | Output : /workspaces/IMVmasterthesis/ecv_to_udb/output
-2026-05-05 07:14:24,262 | INFO | ============================================================
-2026-05-05 07:14:24,262 | INFO | Processing year 2017
-2026-05-05 07:14:24,262 | ERROR | Year 2017: missing input file — ECV TD file not found: /workspaces/IMVmasterthesis/ecv_to_udb/input_data/ECV_Td_2017.dta
-2026-05-05 07:14:24,262 | INFO | ============================================================
-2026-05-05 07:14:24,262 | INFO | Processing year 2018
-2026-05-05 07:14:24,262 | ERROR | Year 2018: missing input file — ECV TD file not found: /workspaces/IMVmasterthesis/ecv_to_udb/input_data/ECV_Td_2018.dta
-2026-05-05 07:14:24,262 | INFO | ============================================================
-2026-05-05 07:14:24,262 | INFO | Processing year 2019
-2026-05-05 07:14:24,263 | ERROR | Year 2019: missing input file — ECV TD file not found: /workspaces/IMVmasterthesis/ecv_to_udb/input_data/ECV_Td_2019.dta
-2026-05-05 07:14:24,263 | INFO | ============================================================
-2026-05-05 07:14:24,263 | ERROR | Conversion completed with failures for years: [2017, 2018, 2019]
+2026-05-05 07:26:53,079 | INFO | Starting ECV → EUROMOD UDB conversion
+2026-05-05 07:26:53,079 | INFO | Input  : /workspaces/IMVmasterthesis/ecv_to_udb/input_data
+2026-05-05 07:26:53,079 | INFO | Output : /workspaces/IMVmasterthesis/ecv_to_udb/output
+2026-05-05 07:26:53,079 | INFO | ============================================================
+2026-05-05 07:26:53,079 | INFO | Processing year 2017
+2026-05-05 07:26:53,116 | WARNING | Year 2017 | TD: 1 requested columns not found and will be skipped: ['DB070']
+2026-05-05 07:26:53,131 | INFO | Year 2017 | TD: read 13740 rows, 5 columns
+2026-05-05 07:26:53,661 | WARNING | Year 2017 | TH: 3 requested columns not found and will be skipped: ['HH071', 'HX010', 'HX090']
+2026-05-05 07:26:53,777 | INFO | Year 2017 | TH: read 13740 rows, 28 columns
+2026-05-05 07:26:53,878 | INFO | Year 2017: built household UDB — 13740 households
+2026-05-05 07:26:54,191 | WARNING | Year 2017 | TR: 1 requested columns not found and will be skipped: ['DB030']
+2026-05-05 07:26:54,251 | INFO | Year 2017 | TR: read 34911 rows, 9 columns
+2026-05-05 07:26:56,378 | WARNING | Year 2017 | TP: 5 requested columns not found and will be skipped: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
+2026-05-05 07:26:56,667 | INFO | Year 2017 | TP: read 29294 rows, 37 columns
+2026-05-05 07:26:56,668 | ERROR | Year 2017: conversion failed — 'PB030'
+Traceback (most recent call last):
+  File "/workspaces/IMVmasterthesis/ecv_to_udb/convert_ecv_to_udb.py", line 61, in main
+    person_udb    = build_person_udb(INPUT_DIR, year)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/IMVmasterthesis/ecv_to_udb/src/person.py", line 56, in build_person_udb
+    person = tr.merge(tp, on="PB030", how="left", suffixes=("_tr", "_tp"))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/site-packages/pandas/core/frame.py", line 12888, in merge
+    return merge(
+           ^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/site-packages/pandas/core/reshape/merge.py", line 385, in merge
+    op = _MergeOperation(
+         ^^^^^^^^^^^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/site-packages/pandas/core/reshape/merge.py", line 1018, in __init__
+    ) = self._get_merge_keys()
+        ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/site-packages/pandas/core/reshape/merge.py", line 1633, in _get_merge_keys
+    left_keys.append(left._get_label_or_level_values(lk))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/site-packages/pandas/core/generic.py", line 1776, in _get_label_or_level_values
+    raise KeyError(key)
+KeyError: 'PB030'
+2026-05-05 07:26:56,678 | INFO | ============================================================
+2026-05-05 07:26:56,678 | INFO | Processing year 2018
+2026-05-05 07:26:56,718 | WARNING | Year 2018 | TD: 1 requested columns not found and will be skipped: ['DB070']
+2026-05-05 07:26:56,733 | INFO | Year 2018 | TD: read 13368 rows, 5 columns
+2026-05-05 07:26:57,197 | WARNING | Year 2018 | TH: 3 requested columns not found and will be skipped: ['HH071', 'HX010', 'HX090']
+2026-05-05 07:26:57,284 | INFO | Year 2018 | TH: read 13368 rows, 28 columns
+2026-05-05 07:26:57,392 | INFO | Year 2018: built household UDB — 13368 households
+2026-05-05 07:26:57,668 | WARNING | Year 2018 | TR: 1 requested columns not found and will be skipped: ['DB030']
+2026-05-05 07:26:57,742 | INFO | Year 2018 | TR: read 33734 rows, 9 columns
+2026-05-05 07:26:59,471 | WARNING | Year 2018 | TP: 5 requested columns not found and will be skipped: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
+2026-05-05 07:26:59,824 | INFO | Year 2018 | TP: read 28372 rows, 37 columns
+2026-05-05 07:26:59,824 | ERROR | Year 2018: conversion failed — 'PB030'
+Traceback (most recent call last):
+  File "/workspaces/IMVmasterthesis/ecv_to_udb/convert_ecv_to_udb.py", line 61, in main
+    person_udb    = build_person_udb(INPUT_DIR, year)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/IMVmasterthesis/ecv_to_udb/src/person.py", line 56, in build_person_udb
+    person = tr.merge(tp, on="PB030", how="left", suffixes=("_tr", "_tp"))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/site-packages/pandas/core/frame.py", line 12888, in merge
+    return merge(
+           ^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/site-packages/pandas/core/reshape/merge.py", line 385, in merge
+    op = _MergeOperation(
+         ^^^^^^^^^^^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/site-packages/pandas/core/reshape/merge.py", line 1018, in __init__
+    ) = self._get_merge_keys()
+        ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/site-packages/pandas/core/reshape/merge.py", line 1633, in _get_merge_keys
+    left_keys.append(left._get_label_or_level_values(lk))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/site-packages/pandas/core/generic.py", line 1776, in _get_label_or_level_values
+    raise KeyError(key)
+KeyError: 'PB030'
+2026-05-05 07:26:59,826 | INFO | ============================================================
+2026-05-05 07:26:59,826 | INFO | Processing year 2019
+2026-05-05 07:26:59,971 | WARNING | Year 2019 | TD: 1 requested columns not found and will be skipped: ['DB070']
+2026-05-05 07:26:59,985 | INFO | Year 2019 | TD: read 15887 rows, 5 columns
+2026-05-05 07:27:00,770 | WARNING | Year 2019 | TH: 3 requested columns not found and will be skipped: ['HH071', 'HX010', 'HX090']
+2026-05-05 07:27:00,893 | INFO | Year 2019 | TH: read 15887 rows, 28 columns
+2026-05-05 07:27:01,012 | INFO | Year 2019: built household UDB — 15887 households
+2026-05-05 07:27:01,402 | WARNING | Year 2019 | TR: 1 requested columns not found and will be skipped: ['DB030']
+2026-05-05 07:27:01,457 | INFO | Year 2019 | TR: read 39852 rows, 9 columns
+2026-05-05 07:27:03,488 | WARNING | Year 2019 | TP: 5 requested columns not found and will be skipped: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
+2026-05-05 07:27:03,907 | INFO | Year 2019 | TP: read 33376 rows, 37 columns
+2026-05-05 07:27:03,907 | ERROR | Year 2019: conversion failed — 'PB030'
+Traceback (most recent call last):
+  File "/workspaces/IMVmasterthesis/ecv_to_udb/convert_ecv_to_udb.py", line 61, in main
+    person_udb    = build_person_udb(INPUT_DIR, year)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspaces/IMVmasterthesis/ecv_to_udb/src/person.py", line 56, in build_person_udb
+    person = tr.merge(tp, on="PB030", how="left", suffixes=("_tr", "_tp"))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/site-packages/pandas/core/frame.py", line 12888, in merge
+    return merge(
+           ^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/site-packages/pandas/core/reshape/merge.py", line 385, in merge
+    op = _MergeOperation(
+         ^^^^^^^^^^^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/site-packages/pandas/core/reshape/merge.py", line 1018, in __init__
+    ) = self._get_merge_keys()
+        ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/site-packages/pandas/core/reshape/merge.py", line 1633, in _get_merge_keys
+    left_keys.append(left._get_label_or_level_values(lk))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/site-packages/pandas/core/generic.py", line 1776, in _get_label_or_level_values
+    raise KeyError(key)
+KeyError: 'PB030'
+2026-05-05 07:27:03,909 | INFO | ============================================================
+2026-05-05 07:27:03,910 | ERROR | Conversion completed with failures for years: [2017, 2018, 2019]
