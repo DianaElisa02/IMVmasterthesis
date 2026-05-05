@@ -14,7 +14,7 @@ ecv_to_udb/
 │   ├── merge.py                   ← merge, validate, export
 │   └── schemas.py                 ← pandera UDB output schemas
 │
-├── input_data/                    ← symlink or copy of your ECV .dta files
+├── input_data/                    
 │
 └── output/
     ├── ES_2017_a2.txt
