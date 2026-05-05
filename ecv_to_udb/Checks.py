@@ -1,6 +1,3 @@
 import pandas as pd
-th = pd.read_stata("input_data/ECV_Th_2017.dta", convert_categoricals=False)
-print([c for c in th.columns if "HX" in c.upper()])
-
-th = pd.read_stata("input_data/ECV_Th_2017.dta", convert_categoricals=False)
-print(th["HX040"].head(10).tolist())
+df = pd.read_csv("output/ES_2018_a1.txt", sep="\t", low_memory=False, nrows=2)
+print([c for c in df.columns if "drgn" in c.lower()])

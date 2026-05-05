@@ -152,12 +152,12 @@ def load_euromod_output(path: Path) -> pd.DataFrame:
 
 
 def compute_regional_rmi(df: pd.DataFrame) -> pd.DataFrame:
-    recipients = df[df["il_bsarg_global"] > 0].copy()
+    recipients = df[df["bsa"] > 0].copy()
     regional = (
         recipients.groupby("drgn2")
         .agg(
-            euromod_recipients=("il_bsarg_global", "count"),
-            euromod_mean_monthly=("il_bsarg_global", "mean"),
+            euromod_recipients=("bsa", "count"),
+            euromod_mean_monthly=("bsa", "mean"),
         )
         .reset_index()
         .round(2)
