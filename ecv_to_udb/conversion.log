@@ -1,0 +1,14 @@
+2026-05-05 07:14:24,261 | INFO | Starting ECV → EUROMOD UDB conversion
+2026-05-05 07:14:24,262 | INFO | Input  : /workspaces/IMVmasterthesis/ecv_to_udb/input_data
+2026-05-05 07:14:24,262 | INFO | Output : /workspaces/IMVmasterthesis/ecv_to_udb/output
+2026-05-05 07:14:24,262 | INFO | ============================================================
+2026-05-05 07:14:24,262 | INFO | Processing year 2017
+2026-05-05 07:14:24,262 | ERROR | Year 2017: missing input file — ECV TD file not found: /workspaces/IMVmasterthesis/ecv_to_udb/input_data/ECV_Td_2017.dta
+2026-05-05 07:14:24,262 | INFO | ============================================================
+2026-05-05 07:14:24,262 | INFO | Processing year 2018
+2026-05-05 07:14:24,262 | ERROR | Year 2018: missing input file — ECV TD file not found: /workspaces/IMVmasterthesis/ecv_to_udb/input_data/ECV_Td_2018.dta
+2026-05-05 07:14:24,262 | INFO | ============================================================
+2026-05-05 07:14:24,262 | INFO | Processing year 2019
+2026-05-05 07:14:24,263 | ERROR | Year 2019: missing input file — ECV TD file not found: /workspaces/IMVmasterthesis/ecv_to_udb/input_data/ECV_Td_2019.dta
+2026-05-05 07:14:24,263 | INFO | ============================================================
+2026-05-05 07:14:24,263 | ERROR | Conversion completed with failures for years: [2017, 2018, 2019]
