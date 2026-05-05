@@ -44,7 +44,9 @@ def build_household_udb(input_dir: Path, year: int) -> pl.DataFrame:
         )
 
     hh = hh.with_columns(
-        pl.lit(1.0, dtype=pl.Float64).alias("HX010"),
+
+        pl.col("HX040").cast(pl.Float64, strict=False).fill_null(1.0).alias("HX010"),
+    
         pl.lit(0.0, dtype=pl.Float64).alias("bma"),
         pl.lit(0.0, dtype=pl.Float64).alias("bch"),
         pl.lit(0.0, dtype=pl.Float64).alias("bch00"),

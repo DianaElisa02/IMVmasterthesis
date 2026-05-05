@@ -62,6 +62,12 @@ def _read_section(
     df = pl.from_arrow(table)
     df = df.rename({c: c.upper() for c in df.columns})
 
+    if missing:
+        df = df.with_columns([
+            pl.lit(None, dtype=pl.Float64).alias(col)
+            for col in missing
+        ])
+
     logger.info("Year %s | %s: read %d rows, %d columns", year, section.upper(), len(df), len(df.columns))
     return df
 
