@@ -215,14 +215,17 @@ REGION_NAMES: dict[int, str] = {
 #   les = 3  if pl040 == 3            (employee)
 # =============================================================================
 
-PL032_TO_LES: dict[int, int] = {
-    3: 4,   # retired/pensioner
-    2: 5,   # unemployed
-    5: 6,   # student
-    7: 7,   # fulfilling domestic tasks → inactive
-    8: 7,   # other inactive
-    4: 8,   # permanently disabled → sick/disabled
-    6: 9,   # other
+PL031_TO_LES: dict[int, int] = {
+    1: 3,   # full-time employee
+    2: 3,   # part-time employee
+    3: 2,   # full-time self-employed
+    4: 2,   # part-time self-employed
+    5: 5,   # unemployed
+    6: 6,   # student
+    7: 4,   # retired
+    8: 8,   # permanently disabled
+    9: 7,   # domestic tasks → inactive
+    10: 7,  # other inactive
 }
 
 PL040_TO_LES: dict[int, int] = {

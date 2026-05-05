@@ -81,9 +81,8 @@ def build_person_udb(input_dir: Path, year: int) -> pd.DataFrame:
     out["dwt"] = fill_zero(_get_raw(person, "DB090"))
 
     out["ddi"] = recode_ddi(
-        _get_raw(person, "PL032"),
-        _get_raw(person, "PL031"),
-        _get_raw(person, "PB030"),
+    _get_raw(person, "PL031"),
+    _get_raw(person, "PB030"),
     )
     out["deh"] = recode_deh(_get(person, "PE040"))
     out["dms"] = recode_dms(
@@ -92,9 +91,9 @@ def build_person_udb(input_dir: Path, year: int) -> pd.DataFrame:
     )
 
     out["les"] = recode_les(
-        _get_raw(person, "PL032"),
-        _get_raw(person, "PL040"),
-        out["dag"],
+    _get_raw(person, "PL031"),
+    _get_raw(person, "PL040"),
+    out["dag"],
     )
 
     out["lhw"] = (

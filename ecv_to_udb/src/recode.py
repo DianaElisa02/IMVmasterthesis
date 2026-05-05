@@ -67,19 +67,17 @@ def recode_deh(pe040: pd.Series) -> pd.Series:
     return result
 
 
-def recode_ddi(pl032: pd.Series, pl031: pd.Series, pb030: pd.Series) -> pd.Series:
-    pl032_num = pd.to_numeric(pl032, errors="coerce")
+def recode_ddi(pl031: pd.Series, pb030: pd.Series) -> pd.Series:
     pl031_num = pd.to_numeric(pl031, errors="coerce")
     pb030_num = pd.to_numeric(pb030, errors="coerce")
 
-    result = pd.Series(np.nan, index=pl032.index, dtype="Float64")
-    result = result.where(~pl032_num.eq(4), other=float(DDI_DISABLED))
-    not_disabled = pl032_num.notna() & ~pl032_num.eq(4) & pl031_num.notna()
+    result = pd.Series(np.nan, index=pl031.index, dtype="Float64")
+    result = result.where(~pl031_num.eq(8), other=float(DDI_DISABLED))
+    not_disabled = pl031_num.notna() & ~pl031_num.eq(8)
     result = result.where(~not_disabled, other=float(DDI_NOT_DISABLED))
-    not_applicable = pl032_num.isna() & pb030_num.isna()
+    not_applicable = pl031_num.isna() & pb030_num.isna()
     result = result.where(~not_applicable, other=float(DDI_NOT_APPLICABLE))
     return result
-
 
 def compute_dag(rb080: pd.Series, rb010: pd.Series) -> pd.Series:
     birth_year = pd.to_numeric(rb080, errors="coerce")
@@ -109,30 +107,25 @@ def compute_oecd_m(person_df: pd.DataFrame) -> pd.Series:
     oecd = 1.0 + (agg["_adult"] - 1).clip(lower=0) * 0.5 + agg["_child"] * 0.3
     return oecd.rename("oecd_m")
 
-
-def recode_les(pl032: pd.Series, pl040: pd.Series, dag: pd.Series) -> pd.Series:
-    pl032_num = pd.to_numeric(pl032, errors="coerce").astype("Int64")
+def recode_les(pl031: pd.Series, pl040: pd.Series, dag: pd.Series) -> pd.Series:
+    pl031_num = pd.to_numeric(pl031, errors="coerce").astype("Int64")
     pl040_num = pd.to_numeric(pl040, errors="coerce").astype("Int64")
     age = pd.to_numeric(dag, errors="coerce")
 
-    result = pd.Series(pd.NA, index=pl032.index, dtype="Int64")
+    result = pd.Series(pd.NA, index=pl031.index, dtype="Int64")
 
-    # pre-school children
     result = result.where(~age.lt(6), other=0)
 
-    # pl032 primary mapping
-    for pl032_val, les_val in PL032_TO_LES.items():
-        mask = pl032_num.eq(pl032_val) & result.isna()
+    for pl031_val, les_val in PL031_TO_LES.items():
+        mask = pl031_num.eq(pl031_val) & result.isna()
         result = result.where(~mask, other=les_val)
 
-    # pl040 fallback
     for pl040_val, les_val in PL040_TO_LES.items():
         mask = pl040_num.eq(pl040_val) & result.isna()
         result = result.where(~mask, other=les_val)
 
-    # income-based imputation (mirrors EUROMOD codebook)
-    result = result.fillna(LES_DEFAULT)
-    return result.astype("Float64")
+    return result.fillna(LES_DEFAULT).astype("Float64")
+
 
 
 def recode_lindi(pl111a: pd.Series) -> pd.Series:
