@@ -157,7 +157,7 @@ def build_person_udb(input_dir: Path, year: int) -> pl.DataFrame:
                 pl.col("PL040"),
                 pl.col("_dag"),
             ).alias("les"),
-            recode_dcz_expr(pl.col("RB290")).alias("dcz"),
+            recode_dcz_expr(pl.col("PB220A")).alias("dcz"),
             zero_to_null_expr(pl.col("_lhw_sum"))
             .clip(lower_bound=1.0, upper_bound=80.0)
             .fill_null(0.0)

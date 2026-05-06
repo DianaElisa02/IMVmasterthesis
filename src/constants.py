@@ -82,8 +82,7 @@ TR_COLUMNS: list[str] = [
     "RB220",   # father's person ID → idfather
     "RB230",   # mother's person ID → idmother
     "RB240",   # partner's person ID → idpartner
-    "RB010",   # survey year (used for dag computation)
-    "RB290"
+    "RB010",   # survey year (used for dag computation
 ]
 
 TP_COLUMNS: list[str] = [
@@ -132,6 +131,7 @@ TP_COLUMNS: list[str] = [
     # EUROMOD simulates sub-components from the aggregates above.
     "PY010N",  # employee cash income net (supplementary)
     "PY050N",  # self-employment income net (supplementary)
+    "PB220A",  # nationality → dcz
 ]
 
 
