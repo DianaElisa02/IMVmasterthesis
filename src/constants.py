@@ -75,7 +75,6 @@ TH_COLUMNS: list[str] = [
 
 TR_COLUMNS: list[str] = [
     "RB030",   # person ID → idperson
-    "DB030",   # household ID link key in Tr file → idhh
     "RB050",   # personal cross-sectional weight
     "RB070",   # month of birth → dmb
     "RB080",   # year of birth (used to compute dag)
