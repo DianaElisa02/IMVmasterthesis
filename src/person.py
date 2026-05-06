@@ -127,8 +127,8 @@ def build_person_udb(input_dir: Path, year: int) -> pl.DataFrame:
             _idpartner=fill_zero(pl.col("RB240")),
         )
         .select(
-            (pl.col("RB030") // 100).cast(pl.String).alias("IDHH"),
-            pl.col("RB030").cast(pl.String).alias("idperson"),
+            (pl.col("RB030").cast(pl.Int64, strict=False) // 100).cast(pl.String).alias("IDHH"),
+            pl.col("RB030").cast(pl.Int64, strict=False).cast(pl.String).alias("idperson"),
             fill_zero(pl.col("RB230")).alias("idmother"),
             fill_zero(pl.col("RB220")).alias("idfather"),
             fill_zero(pl.col("RB240")).alias("idpartner"),

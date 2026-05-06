@@ -13,13 +13,10 @@ from pathlib import Path
 import polars as pl
 
 from src.constants import OUTPUT_MISSING_VALUE, OUTPUT_SEPARATOR, UDB_COLUMN_ORDER
-from src.schemas import PersonUdbSchema, HouseholdUdbSchema
-
+from src.schemas import PersonUdbSchema
 logger = logging.getLogger(__name__)
 
 _STRING_ID_COLS = frozenset({"idhh", "idperson"})
-
-HouseholdUdbSchema.validate(household_udb, lazy=True)
 
 def merge_and_export(
     person_udb: pl.DataFrame,
@@ -27,6 +24,11 @@ def merge_and_export(
     output_path: Path,
     year: int,
 ) -> pl.DataFrame:
+
+    logger.info("HH IDHH sample: %s", household_udb["IDHH"][:5].to_list())
+    logger.info("Person IDHH sample: %s", person_udb["IDHH"][:5].to_list())
+    logger.info("HH IDHH dtype: %s", household_udb["IDHH"].dtype)
+    logger.info("Person IDHH dtype: %s", person_udb["IDHH"].dtype)
     hh_cols    = [c for c in household_udb.columns if c != "year"]
     person_only = [c for c in person_udb.columns if c not in hh_cols or c == "IDHH"]
 
