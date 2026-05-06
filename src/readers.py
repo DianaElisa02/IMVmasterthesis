@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-import pyarrow.stata as pa_stata
+
 import pandas as pd
 import polars as pl
 
@@ -41,8 +41,8 @@ def _read_section(
     if not path.exists():
         raise FileNotFoundError(f"ECV {section.upper()} file not found: {path}")
 
-    reader = pa_stata.StataReader(str(path))
-    available_upper = {c.upper(): c for c in reader.column_labels() or reader.varlist()}
+    df_pd = pd.read_stata(path, convert_categoricals=False)
+    available_upper = {c.upper(): c for c in df_pd.columns}
 
     selected, missing = [], []
     for col in requested_columns:
@@ -54,13 +54,13 @@ def _read_section(
 
     if missing:
         logger.warning(
-            "Year %s | %s: %d requested columns not found and will be skipped: %s",
+            "Year %s | %s: %d columns absent in source, filled with null: %s",
             year, section.upper(), len(missing), missing,
         )
 
-    table = reader.read(columns=selected)
-    df = pl.from_arrow(table)
-    df = df.rename({c: c.upper() for c in df.columns})
+    df_pd = df_pd[[c for c in df_pd.columns if c.upper() in {c.upper() for c in selected}]]
+    df_pd.columns = [c.upper() for c in df_pd.columns]
+    df = pl.from_pandas(df_pd)
 
     if missing:
         df = df.with_columns([
@@ -68,9 +68,11 @@ def _read_section(
             for col in missing
         ])
 
-    logger.info("Year %s | %s: read %d rows, %d columns", year, section.upper(), len(df), len(df.columns))
+    logger.info(
+        "Year %s | %s: read %d rows, %d columns (%d null-filled)",
+        year, section.upper(), len(df), len(df.columns), len(missing),
+    )
     return df
-
 
 def read_td(input_dir: Path, year: int) -> pl.DataFrame:
     return _read_section(_ecv_path(input_dir, "td", year), TD_COLUMNS, year, "td")
