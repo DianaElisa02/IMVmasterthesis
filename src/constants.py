@@ -83,6 +83,7 @@ TR_COLUMNS: list[str] = [
     "RB230",   # mother's person ID → idmother
     "RB240",   # partner's person ID → idpartner
     "RB010",   # survey year (used for dag computation)
+    "RB290"
 ]
 
 TP_COLUMNS: list[str] = [
@@ -266,11 +267,11 @@ DMS_DEFAULT: int = 1   # single — used when pb190 is missing and no partner
 
 # Boundaries for deh recode — applied as range checks in recode.py.
 DEH_RECODE_BOUNDARIES: list[tuple[int, int, int]] = [
-    (100, 100, 1),    # primary
-    (200, 200, 2),    # lower secondary
-    (300, 399, 3),    # upper secondary
-    (400, 499, 4),    # post-secondary non-tertiary
-    (500, 800, 5),    # tertiary
+    (1, 1, 1),   # primary
+    (2, 2, 2),   # lower secondary
+    (3, 3, 3),   # upper secondary
+    (4, 4, 4),   # post-secondary non-tertiary
+    (5, 6, 5),   # tertiary
 ]
 DEH_DEFAULT: int = 0   # not completed primary
 

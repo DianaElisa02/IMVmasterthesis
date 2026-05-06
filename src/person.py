@@ -93,7 +93,6 @@ def build_person_udb(input_dir: Path, year: int) -> pl.DataFrame:
 
     person = person.with_columns(
         pl.lit(0.0).alias("dwt"),  # DB090 Missing
-        pl.lit(0.0).alias("dcz"),  # PB220A Missing
         pl.lit(0.0).alias("lunwh"),  # PL271 missing
         pl.lit(0.0).alias("bunct"),
         pl.lit(0.0).alias("bunnc"),
@@ -109,6 +108,7 @@ def build_person_udb(input_dir: Path, year: int) -> pl.DataFrame:
         pl.lit(0.0).alias("psuwd00"),
         pl.lit(0.0).alias("psuwdcm"),
         pl.lit(year).alias("year"),
+        pl.lit(0.0).alias("pdiot")
     )
     out = (
         person.lazy()
@@ -157,6 +157,7 @@ def build_person_udb(input_dir: Path, year: int) -> pl.DataFrame:
                 pl.col("PL040"),
                 pl.col("_dag"),
             ).alias("les"),
+            recode_dcz_expr(pl.col("RB290")).alias("dcz"),
             zero_to_null_expr(pl.col("_lhw_sum"))
             .clip(lower_bound=1.0, upper_bound=80.0)
             .fill_null(0.0)

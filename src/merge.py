@@ -24,11 +24,6 @@ def merge_and_export(
     output_path: Path,
     year: int,
 ) -> pl.DataFrame:
-
-    logger.info("HH IDHH sample: %s", household_udb["IDHH"][:5].to_list())
-    logger.info("Person IDHH sample: %s", person_udb["IDHH"][:5].to_list())
-    logger.info("HH IDHH dtype: %s", household_udb["IDHH"].dtype)
-    logger.info("Person IDHH dtype: %s", person_udb["IDHH"].dtype)
     hh_cols    = [c for c in household_udb.columns if c != "year"]
     person_only = [c for c in person_udb.columns if c not in hh_cols or c == "IDHH"]
 
@@ -53,12 +48,24 @@ def merge_and_export(
 
     merged = merged.rename({"IDHH": "idhh"})
 
+    for col in UDB_COLUMN_ORDER:
+        if col not in merged.columns:
+            merged = merged.with_columns(pl.lit(0.0).alias(col))
+
     present = [c for c in UDB_COLUMN_ORDER if c in merged.columns]
     extra   = [c for c in merged.columns if c not in UDB_COLUMN_ORDER and c != "year"]
     if extra:
         logger.debug("Year %s: dropping %d non-UDB columns: %s", year, len(extra), extra)
 
     merged = merged.select(present)
+
+    expected = set(UDB_COLUMN_ORDER)
+    exported = set(merged.columns)
+    missing = expected - exported
+    if missing:
+        logger.info("Columns in UDB_COLUMN_ORDER but missing from output: %s", sorted(missing))
+    else:
+        logger.info("All UDB columns present in output ✓")
 
     numeric_cols = [c for c in present if c not in _STRING_ID_COLS]
     merged = merged.with_columns(
