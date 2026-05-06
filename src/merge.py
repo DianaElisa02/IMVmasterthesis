@@ -13,12 +13,13 @@ from pathlib import Path
 import polars as pl
 
 from src.constants import OUTPUT_MISSING_VALUE, OUTPUT_SEPARATOR, UDB_COLUMN_ORDER
-from src.schemas import PersonUdbSchema
+from src.schemas import PersonUdbSchema, HouseholdUdbSchema
 
 logger = logging.getLogger(__name__)
 
 _STRING_ID_COLS = frozenset({"idhh", "idperson"})
 
+HouseholdUdbSchema.validate(household_udb, lazy=True)
 
 def merge_and_export(
     person_udb: pl.DataFrame,

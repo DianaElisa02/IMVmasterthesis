@@ -48,7 +48,6 @@ TH_COLUMNS: list[str] = [
     "HH060",   # monthly rent → xhcrt component
     "HH070",   # total housing cost → xhc
     "HH071",   # mortgage monthly capital payment → xhcmomc
-    "HX010",   # household size multiplier (number sharing income)
     "HX040",   # household size → hsize
     "HX090",   # equivalised disposable income → ydses_o
     "HY020",   # total net disposable household income → hy020, yds
