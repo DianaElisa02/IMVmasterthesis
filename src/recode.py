@@ -88,13 +88,27 @@ def recode_dms(pb190: pl.Expr, idpartner: pl.Expr) -> pl.Expr:
 
 
 def recode_deh(pe040: pl.Expr) -> pl.Expr:
-    num = pe040.cast(pl.Float64, strict=False)
+    """
+    Recode PE040 (Spanish CNED-2014 education classification) to EUROMOD deh.
+    PE040 is stored as string in Spanish ECV Stata files and must be
+    explicitly cast to numeric before applying ISCED boundaries.
+
+    PE040 values: 0=none, 100=primary, 200=lower sec, 300-354=upper sec,
+                  400-450=post-sec non-tertiary, 500=tertiary (ISCED 5+)
+    Source: INE CNED-2014 transformation table, ECV methodology notes.
+    """
+    num = (
+        pe040
+        .cast(pl.String, strict=False)
+        .str.strip_chars()
+        .cast(pl.Float64, strict=False)
+        .fill_null(0.0)
+    )
 
     result = pl.lit(float(DEH_DEFAULT), dtype=pl.Float64)
 
     for low, high, target in DEH_RECODE_BOUNDARIES:
         mask = ((num >= low) & (num <= high)).fill_null(False)
-
         result = (
             pl.when(mask)
             .then(pl.lit(float(target), dtype=pl.Float64))

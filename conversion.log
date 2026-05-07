@@ -1,44 +1,44 @@
-2026-05-06 06:34:11,269 | INFO | Starting ECV → EUROMOD UDB conversion
-2026-05-06 06:34:11,269 | INFO | Input  : /workspaces/IMVmasterthesis/input_data
-2026-05-06 06:34:11,269 | INFO | Output : /workspaces/IMVmasterthesis/output
-2026-05-06 06:34:11,269 | INFO | ============================================================
-2026-05-06 06:34:11,269 | INFO | Processing year 2017
-2026-05-06 06:34:11,321 | WARNING | Year 2017 | TD: 1 columns absent in source, filled with null: ['DB070']
-2026-05-06 06:34:11,327 | INFO | Year 2017 | TD: read 13740 rows, 6 columns (1 null-filled)
-2026-05-06 06:34:12,116 | WARNING | Year 2017 | TH: 2 columns absent in source, filled with null: ['HH071', 'HX090']
-2026-05-06 06:34:12,124 | INFO | Year 2017 | TH: read 13740 rows, 30 columns (2 null-filled)
-2026-05-06 06:34:12,134 | INFO | Year 2017: built household UDB — 13740 households
-2026-05-06 06:34:12,534 | INFO | Year 2017 | TR: read 34911 rows, 9 columns (0 null-filled)
-2026-05-06 06:34:14,906 | WARNING | Year 2017 | TP: 5 columns absent in source, filled with null: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
-2026-05-06 06:34:14,919 | INFO | Year 2017 | TP: read 29294 rows, 43 columns (5 null-filled)
-2026-05-06 06:34:14,955 | INFO | Year 2017: built person UDB — 34911 persons
-2026-05-06 06:34:14,962 | INFO | All UDB columns present in output ✓
-2026-05-06 06:34:15,178 | INFO | Year 2017: exported 34911 persons, 101 columns → /workspaces/IMVmasterthesis/output/ES_2017_a2.txt
-2026-05-06 06:34:15,178 | INFO | ============================================================
-2026-05-06 06:34:15,178 | INFO | Processing year 2018
-2026-05-06 06:34:15,225 | WARNING | Year 2018 | TD: 1 columns absent in source, filled with null: ['DB070']
-2026-05-06 06:34:15,227 | INFO | Year 2018 | TD: read 13368 rows, 6 columns (1 null-filled)
-2026-05-06 06:34:15,810 | WARNING | Year 2018 | TH: 2 columns absent in source, filled with null: ['HH071', 'HX090']
-2026-05-06 06:34:15,816 | INFO | Year 2018 | TH: read 13368 rows, 30 columns (2 null-filled)
-2026-05-06 06:34:15,825 | INFO | Year 2018: built household UDB — 13368 households
-2026-05-06 06:34:16,189 | INFO | Year 2018 | TR: read 33734 rows, 9 columns (0 null-filled)
-2026-05-06 06:34:18,387 | WARNING | Year 2018 | TP: 5 columns absent in source, filled with null: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
-2026-05-06 06:34:18,404 | INFO | Year 2018 | TP: read 28372 rows, 43 columns (5 null-filled)
-2026-05-06 06:34:18,440 | INFO | Year 2018: built person UDB — 33734 persons
-2026-05-06 06:34:18,452 | INFO | All UDB columns present in output ✓
-2026-05-06 06:34:18,619 | INFO | Year 2018: exported 33734 persons, 101 columns → /workspaces/IMVmasterthesis/output/ES_2018_a1.txt
-2026-05-06 06:34:18,619 | INFO | ============================================================
-2026-05-06 06:34:18,619 | INFO | Processing year 2019
-2026-05-06 06:34:18,659 | WARNING | Year 2019 | TD: 1 columns absent in source, filled with null: ['DB070']
-2026-05-06 06:34:18,662 | INFO | Year 2019 | TD: read 15887 rows, 6 columns (1 null-filled)
-2026-05-06 06:34:19,684 | WARNING | Year 2019 | TH: 2 columns absent in source, filled with null: ['HH071', 'HX090']
-2026-05-06 06:34:19,699 | INFO | Year 2019 | TH: read 15887 rows, 30 columns (2 null-filled)
-2026-05-06 06:34:19,711 | INFO | Year 2019: built household UDB — 15887 households
-2026-05-06 06:34:20,074 | INFO | Year 2019 | TR: read 39852 rows, 9 columns (0 null-filled)
-2026-05-06 06:34:22,680 | WARNING | Year 2019 | TP: 5 columns absent in source, filled with null: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
-2026-05-06 06:34:22,697 | INFO | Year 2019 | TP: read 33376 rows, 43 columns (5 null-filled)
-2026-05-06 06:34:22,739 | INFO | Year 2019: built person UDB — 39852 persons
-2026-05-06 06:34:22,751 | INFO | All UDB columns present in output ✓
-2026-05-06 06:34:22,918 | INFO | Year 2019: exported 39852 persons, 101 columns → /workspaces/IMVmasterthesis/output/ES_2019_b1.txt
-2026-05-06 06:34:22,919 | INFO | ============================================================
-2026-05-06 06:34:22,920 | INFO | Conversion completed successfully for all years: [2017, 2018, 2019]
+2026-05-07 06:52:28,064 | INFO | Starting ECV → EUROMOD UDB conversion
+2026-05-07 06:52:28,064 | INFO | Input  : /workspaces/IMVmasterthesis/input_data
+2026-05-07 06:52:28,064 | INFO | Output : /workspaces/IMVmasterthesis/output
+2026-05-07 06:52:28,064 | INFO | ============================================================
+2026-05-07 06:52:28,064 | INFO | Processing year 2017
+2026-05-07 06:52:28,103 | WARNING | Year 2017 | TD: 1 columns absent in source, filled with null: ['DB070']
+2026-05-07 06:52:29,757 | INFO | Year 2017 | TD: read 13740 rows, 6 columns (1 null-filled)
+2026-05-07 06:52:31,120 | WARNING | Year 2017 | TH: 2 columns absent in source, filled with null: ['HH071', 'HX090']
+2026-05-07 06:52:31,129 | INFO | Year 2017 | TH: read 13740 rows, 30 columns (2 null-filled)
+2026-05-07 06:52:32,458 | INFO | Year 2017: built household UDB — 13740 households
+2026-05-07 06:52:33,121 | INFO | Year 2017 | TR: read 34911 rows, 9 columns (0 null-filled)
+2026-05-07 06:52:35,193 | WARNING | Year 2017 | TP: 5 columns absent in source, filled with null: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
+2026-05-07 06:52:35,207 | INFO | Year 2017 | TP: read 29294 rows, 43 columns (5 null-filled)
+2026-05-07 06:52:35,361 | INFO | Year 2017: built person UDB — 34911 persons
+2026-05-07 06:52:35,374 | INFO | All UDB columns present in output ✓
+2026-05-07 06:52:35,564 | INFO | Year 2017: exported 34911 persons, 101 columns → /workspaces/IMVmasterthesis/output/ES_2017_a2.txt
+2026-05-07 06:52:35,565 | INFO | ============================================================
+2026-05-07 06:52:35,565 | INFO | Processing year 2018
+2026-05-07 06:52:35,601 | WARNING | Year 2018 | TD: 1 columns absent in source, filled with null: ['DB070']
+2026-05-07 06:52:35,603 | INFO | Year 2018 | TD: read 13368 rows, 6 columns (1 null-filled)
+2026-05-07 06:52:36,740 | WARNING | Year 2018 | TH: 2 columns absent in source, filled with null: ['HH071', 'HX090']
+2026-05-07 06:52:36,747 | INFO | Year 2018 | TH: read 13368 rows, 30 columns (2 null-filled)
+2026-05-07 06:52:36,756 | INFO | Year 2018: built household UDB — 13368 households
+2026-05-07 06:52:37,354 | INFO | Year 2018 | TR: read 33734 rows, 9 columns (0 null-filled)
+2026-05-07 06:52:39,544 | WARNING | Year 2018 | TP: 5 columns absent in source, filled with null: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
+2026-05-07 06:52:39,557 | INFO | Year 2018 | TP: read 28372 rows, 43 columns (5 null-filled)
+2026-05-07 06:52:39,598 | INFO | Year 2018: built person UDB — 33734 persons
+2026-05-07 06:52:39,610 | INFO | All UDB columns present in output ✓
+2026-05-07 06:52:39,804 | INFO | Year 2018: exported 33734 persons, 101 columns → /workspaces/IMVmasterthesis/output/ES_2018_a1.txt
+2026-05-07 06:52:39,804 | INFO | ============================================================
+2026-05-07 06:52:39,804 | INFO | Processing year 2019
+2026-05-07 06:52:39,842 | WARNING | Year 2019 | TD: 1 columns absent in source, filled with null: ['DB070']
+2026-05-07 06:52:39,845 | INFO | Year 2019 | TD: read 15887 rows, 6 columns (1 null-filled)
+2026-05-07 06:52:41,380 | WARNING | Year 2019 | TH: 2 columns absent in source, filled with null: ['HH071', 'HX090']
+2026-05-07 06:52:41,388 | INFO | Year 2019 | TH: read 15887 rows, 30 columns (2 null-filled)
+2026-05-07 06:52:41,398 | INFO | Year 2019: built household UDB — 15887 households
+2026-05-07 06:52:42,241 | INFO | Year 2019 | TR: read 39852 rows, 9 columns (0 null-filled)
+2026-05-07 06:52:44,951 | WARNING | Year 2019 | TP: 5 columns absent in source, filled with null: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
+2026-05-07 06:52:44,964 | INFO | Year 2019 | TP: read 33376 rows, 43 columns (5 null-filled)
+2026-05-07 06:52:45,012 | INFO | Year 2019: built person UDB — 39852 persons
+2026-05-07 06:52:45,024 | INFO | All UDB columns present in output ✓
+2026-05-07 06:52:45,181 | INFO | Year 2019: exported 39852 persons, 101 columns → /workspaces/IMVmasterthesis/output/ES_2019_b1.txt
+2026-05-07 06:52:45,181 | INFO | ============================================================
+2026-05-07 06:52:45,181 | INFO | Conversion completed successfully for all years: [2017, 2018, 2019]

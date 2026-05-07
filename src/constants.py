@@ -94,7 +94,7 @@ TP_COLUMNS: list[str] = [
     "PB190",   # legal marital status → dms
     "PE010",   # currently in education (1=yes, 2=no) → dec imputation
     "PE021",   # ISCED level currently attended → dec
-    "PE040",   # highest ISCED level attended (0–800) → deh
+    "PE040",   
     "PE041",   # highest ISCED level attended detailed → dehde
     "PL031",   # self-defined economic status (used in ddi fallback)
     "PL032",   # self-defined economic status (alternative) → les, ddi
@@ -267,11 +267,11 @@ DMS_DEFAULT: int = 1   # single — used when pb190 is missing and no partner
 
 # Boundaries for deh recode — applied as range checks in recode.py.
 DEH_RECODE_BOUNDARIES: list[tuple[int, int, int]] = [
-    (1, 1, 1),   # primary
-    (2, 2, 2),   # lower secondary
-    (3, 3, 3),   # upper secondary
-    (4, 4, 4),   # post-secondary non-tertiary
-    (5, 6, 5),   # tertiary
+    (100, 100, 1),   # primary (PE040=100)
+    (200, 200, 2),   # lower secondary (PE040=200)
+    (300, 399, 3),   # upper secondary — covers 300, 344, 353, 354
+    (400, 499, 4),   # post-secondary non-tertiary — covers 400, 450
+    (500, 800, 5),   # tertiary — covers 500
 ]
 DEH_DEFAULT: int = 0   # not completed primary
 
