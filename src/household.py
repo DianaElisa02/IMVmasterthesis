@@ -24,7 +24,9 @@ from src.recode import (
 logger = logging.getLogger(__name__)
 
 
-def build_household_udb(td: pl.DataFrame, th: pl.DataFrame, year: int) -> pl.DataFrame:
+def prepare_household_input(
+    td: pl.DataFrame, th: pl.DataFrame, year: int
+) -> pl.DataFrame:
     hh = td.join(th, left_on="DB030", right_on="HB030", how="inner")
 
     n_td = len(td)
@@ -38,7 +40,7 @@ def build_household_udb(td: pl.DataFrame, th: pl.DataFrame, year: int) -> pl.Dat
             n_merged,
         )
 
-    hh = hh.with_columns(
+    return hh.with_columns(
         pl.col("HX040").cast(pl.Float64, strict=False).fill_null(1.0).alias("HX010"),
         pl.lit(0.0, dtype=pl.Float64).alias("bma"),
         pl.lit(0.0, dtype=pl.Float64).alias("bch"),
@@ -54,6 +56,8 @@ def build_household_udb(td: pl.DataFrame, th: pl.DataFrame, year: int) -> pl.Dat
         pl.lit(0.0).alias("tintrch"),
     )
 
+
+def build_household_udb(hh: pl.DataFrame, year: int) -> pl.DataFrame:
     out = (
         hh.lazy()
         .select(

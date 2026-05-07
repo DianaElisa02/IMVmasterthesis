@@ -73,7 +73,7 @@ def zero_to_null_expr(x: pl.Expr) -> pl.Expr:
     )
 
 
-def build_person_udb(tr: pl.DataFrame, tp: pl.DataFrame, year: int) -> pl.DataFrame:
+def prepare_person_input(tr: pl.DataFrame, tp: pl.DataFrame, year: int) -> pl.DataFrame:
     person = tr.join(tp, left_on="RB030", right_on="PB030", how="left")
 
     n_tr = len(tr)
@@ -86,7 +86,7 @@ def build_person_udb(tr: pl.DataFrame, tp: pl.DataFrame, year: int) -> pl.DataFr
             n_merged,
         )
 
-    person = person.with_columns(
+    return person.with_columns(
         pl.lit(0.0).alias("dwt"),  # DB090 Missing
         pl.lit(0.0).alias("lunwh"),  # PL271 missing
         pl.lit(0.0).alias("bunct"),
@@ -105,6 +105,9 @@ def build_person_udb(tr: pl.DataFrame, tp: pl.DataFrame, year: int) -> pl.DataFr
         pl.lit(year).alias("year"),
         pl.lit(0.0).alias("pdiot"),
     )
+
+
+def build_person_udb(person: pl.DataFrame, year: int) -> pl.DataFrame:
     out = (
         person.lazy()
         .with_columns(
