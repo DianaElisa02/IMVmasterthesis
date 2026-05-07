@@ -13,7 +13,7 @@ from pathlib import Path
 import polars as pl
 
 from src.constants import OUTPUT_MISSING_VALUE, OUTPUT_SEPARATOR, UDB_COLUMN_ORDER
-from src.schemas import PersonUdbSchema
+from src.schemas import HouseholdUdbSchema, PersonUdbSchema
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,8 @@ def merge_and_export(
     if household_udb.select("IDHH").n_unique() != len(household_udb):
         raise ValueError(f"Year {year}: duplicate IDHH values in household_udb.")
 
+    HouseholdUdbSchema.validate(household_udb, lazy=True)
+
     merged = person_udb.select(person_only).join(
         household_udb.select(hh_cols), on="IDHH", how="left"
     )
@@ -47,6 +49,20 @@ def merge_and_export(
     if unmatched > 0:
         logger.warning(
             "Year %s: %d persons did not match a household record.", year, unmatched
+        )
+
+    actual_counts = merged.group_by("IDHH").agg(pl.len().alias("_n"))
+    hsize_mismatch = (
+        merged.select(["IDHH", "hsize"])
+        .unique(subset=["IDHH"])
+        .join(actual_counts, on="IDHH")
+        .filter(pl.col("hsize").cast(pl.Int64) != pl.col("_n"))
+    )
+    if len(hsize_mismatch) > 0:
+        logger.warning(
+            "Year %s: %d households have hsize != actual person count in merged data",
+            year,
+            len(hsize_mismatch),
         )
 
     merged = merged.rename({"IDHH": "idhh"})
