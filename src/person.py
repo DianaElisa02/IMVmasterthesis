@@ -86,25 +86,10 @@ def prepare_person_input(tr: pl.DataFrame, tp: pl.DataFrame, year: int) -> pl.Da
             n_merged,
         )
 
-    return person.with_columns(
-        pl.lit(0.0).alias("dwt"),  # DB090 Missing
-        pl.lit(0.0).alias("lunwh"),  # PL271 missing
-        pl.lit(0.0).alias("bunct"),
-        pl.lit(0.0).alias("bunnc"),
-        pl.lit(0.0).alias("bunot"),
-        pl.lit(0.0).alias("bhl00"),
-        pl.lit(0.0).alias("bhlot"),
-        pl.lit(0.0).alias("pdi00"),
-        pl.lit(0.0).alias("pdicm"),
-        pl.lit(0.0).alias("pdinc"),
-        pl.lit(0.0).alias("poa00"),
-        pl.lit(0.0).alias("poacm"),
-        pl.lit(0.0).alias("poanc"),
-        pl.lit(0.0).alias("psuwd00"),
-        pl.lit(0.0).alias("psuwdcm"),
-        pl.lit(year).alias("year"),
-        pl.lit(0.0).alias("pdiot"),
-    )
+    # All UDB placeholder columns absent from ECV (dwt, lunwh, bunct, …) are
+    # zero-filled by merge_and_export from UDB_COLUMN_ORDER — no need to add
+    # them here.
+    return person
 
 
 def build_person_udb(person: pl.DataFrame, year: int) -> pl.DataFrame:

@@ -40,20 +40,11 @@ def prepare_household_input(
             n_merged,
         )
 
+    # HX010 is used in build_household_udb for scaling monthly income variables.
+    # All other UDB placeholder columns (bma, bch, dsu00, xhcmomc, …) that are
+    # absent from ECV are zero-filled by merge_and_export from UDB_COLUMN_ORDER.
     return hh.with_columns(
         pl.col("HX040").cast(pl.Float64, strict=False).fill_null(1.0).alias("HX010"),
-        pl.lit(0.0, dtype=pl.Float64).alias("bma"),
-        pl.lit(0.0, dtype=pl.Float64).alias("bch"),
-        pl.lit(0.0, dtype=pl.Float64).alias("bch00"),
-        pl.lit(0.0, dtype=pl.Float64).alias("bchdi"),
-        pl.lit(0.0, dtype=pl.Float64).alias("bchot"),
-        pl.lit(0.0, dtype=pl.Float64).alias("xpp"),
-        pl.lit(0.0).alias("dsu00"),
-        pl.lit(0.0).alias("xhcmomc"),
-        pl.lit(0.0).alias("yptmp"),
-        pl.lit(0.0).alias("tis"),
-        pl.lit(0.0).alias("afc"),
-        pl.lit(0.0).alias("tintrch"),
     )
 
 
