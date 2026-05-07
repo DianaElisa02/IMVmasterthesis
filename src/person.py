@@ -32,6 +32,17 @@ from src.recode import (
 
 logger = logging.getLogger(__name__)
 
+# Columns requested in TR_COLUMNS/TP_COLUMNS that are absent from Spanish ECV.
+# A warning is raised if they ever become non-null (i.e. the source data changed).
+_ABSENT_FROM_ECV: frozenset[str] = frozenset({"PB060", "PE021", "PE041", "PL032", "PL271"})
+
+# Gross income columns that must be non-negative.
+_GROSS_INCOME_COLS: tuple[str, ...] = (
+    "PY010G", "PY020G", "PY021G", "PY030G", "PY035G",
+    "PY050G", "PY080G", "PY090G", "PY100G", "PY110G",
+    "PY120G", "PY130G", "PY140G",
+)
+
 
 def recode_loc_expr(isco: pl.Expr) -> pl.Expr:
     """Map ISCO-08 occupation code to EUROMOD loc category."""
@@ -74,6 +85,14 @@ def zero_to_null_expr(x: pl.Expr) -> pl.Expr:
 
 
 def prepare_person_input(tr: pl.DataFrame, tp: pl.DataFrame, year: int) -> pl.DataFrame:
+    for key, df, label in [("RB030", tr, "Tr"), ("PB030", tp, "Tp")]:
+        n_unique = df.select(key).n_unique()
+        if n_unique != len(df):
+            raise ValueError(
+                f"Year {year}: duplicate {key} keys in {label} "
+                f"({len(df)} rows, {n_unique} unique)"
+            )
+
     person = tr.join(tp, left_on="RB030", right_on="PB030", how="left")
 
     n_tr = len(tr)
@@ -86,9 +105,24 @@ def prepare_person_input(tr: pl.DataFrame, tp: pl.DataFrame, year: int) -> pl.Da
             n_merged,
         )
 
-    # All UDB placeholder columns absent from ECV (dwt, lunwh, bunct, …) are
-    # zero-filled by merge_and_export from UDB_COLUMN_ORDER — no need to add
-    # them here.
+    for col in _ABSENT_FROM_ECV:
+        if col in person.columns:
+            n = person[col].is_not_null().sum()
+            if n > 0:
+                logger.warning(
+                    "Year %s: %s expected absent from Spanish ECV but has %d non-null values",
+                    year, col, n,
+                )
+
+    for col in _GROSS_INCOME_COLS:
+        if col in person.columns:
+            n_neg = (person[col].cast(pl.Float64, strict=False) < 0).fill_null(False).sum()
+            if n_neg > 0:
+                logger.warning(
+                    "Year %s: %s has %d negative values (expected >= 0 for gross income)",
+                    year, col, n_neg,
+                )
+
     return person
 
 
