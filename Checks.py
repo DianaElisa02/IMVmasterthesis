@@ -1,6 +1,13 @@
 import pandas as pd
+from pathlib import Path
 
-def load_euromod_output(path):
+UDB_FILES = {
+    2017: Path("output/ES_2017_a2.txt"),
+    2018: Path("output/ES_2018_a1.txt"),
+    2019: Path("output/ES_2019_b1.txt"),
+}
+
+def load_udb(path):
     df = pd.read_csv(path, sep="\t", low_memory=False, dtype=str)
     for col in df.columns:
         df[col] = pd.to_numeric(
@@ -9,35 +16,27 @@ def load_euromod_output(path):
         )
     return df
 
-df = load_euromod_output("input_data/euromod_output/es_2019_std.txt")
+# Also check the raw Tp file directly
+print("=== RAW TP FILE — PE040 values ===")
+for year in [2017, 2018, 2019]:
+    try:
+        tp_path = Path(f"input_data/ECV_Tp_{year}.dta")
+        if tp_path.exists():
+            import pandas as pd
+            tp = pd.read_stata(str(tp_path), convert_categoricals=False)
+            tp.columns = [c.upper() for c in tp.columns]
+            if "PE040" in tp.columns:
+                print(f"\nYear {year} — PE040 value counts (raw Tp file):")
+                print(tp["PE040"].value_counts().sort_index().to_string())
+                print(f"Unique values: {sorted(tp['PE040'].dropna().unique().tolist())}")
+            else:
+                print(f"Year {year}: PE040 not found in Tp file")
+    except Exception as e:
+        print(f"Year {year}: could not read Tp file — {e}")
 
-murcia = df[df["drgn2"] == 62].copy()
-print(f"Total persons in Murcia (drgn2=62): {len(murcia)}")
-print(f"Weighted population: {murcia['dwt'].sum():,.0f}")
-print()
-
-# Check bsarg_s distribution
-print("bsarg_s distribution in Murcia:")
-print(murcia["bsarg_s"].describe())
-print(f"Non-zero bsarg_s: {(murcia['bsarg_s'] > 0).sum()}")
-print(f"Zero bsarg_s: {(murcia['bsarg_s'] == 0).sum()}")
-print(f"NaN bsarg_s: {murcia['bsarg_s'].isna().sum()}")
-print()
-
-# Check il_bsarg_62 (Murcia counterfactual)
-print("il_bsarg_62 distribution in Murcia:")
-print(murcia["il_bsarg_62"].describe())
-print(f"Non-zero il_bsarg_62: {(murcia['il_bsarg_62'] > 0).sum()}")
-print()
-
-# Check eligibility-related variables for Murcia
-print("les distribution in Murcia:")
-print(murcia["les"].value_counts().sort_index())
-print()
-print("dag distribution in Murcia:")
-print(murcia["dag"].describe())
-print()
-
-# Check income
-print("Mean ils_origy in Murcia:", murcia["ils_origy"].mean().round(2))
-print("Mean ils_earns in Murcia:", murcia["ils_earns"].mean().round(2))
+print("\n=== UDB OUTPUT — deh values ===")
+for year, path in UDB_FILES.items():
+    df = load_udb(path)
+    print(f"\nYear {year} — deh value counts in UDB:")
+    print(df["deh"].value_counts().sort_index().to_string())
+    print(f"Unique values: {sorted(df['deh'].dropna().unique().tolist())}")
