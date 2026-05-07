@@ -10,11 +10,9 @@ person-level file in merge.py.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 import polars as pl
 
-from src.readers import read_td, read_th
 from src.recode import (
     fill_zero,
     recode_amrtn,
@@ -26,10 +24,7 @@ from src.recode import (
 logger = logging.getLogger(__name__)
 
 
-def build_household_udb(input_dir: Path, year: int) -> pl.DataFrame:
-    td = read_td(input_dir, year)
-    th = read_th(input_dir, year)
-
+def build_household_udb(td: pl.DataFrame, th: pl.DataFrame, year: int) -> pl.DataFrame:
     hh = td.join(th, left_on="DB030", right_on="HB030", how="inner")
 
     n_td = len(td)
@@ -44,9 +39,7 @@ def build_household_udb(input_dir: Path, year: int) -> pl.DataFrame:
         )
 
     hh = hh.with_columns(
-
         pl.col("HX040").cast(pl.Float64, strict=False).fill_null(1.0).alias("HX010"),
-    
         pl.lit(0.0, dtype=pl.Float64).alias("bma"),
         pl.lit(0.0, dtype=pl.Float64).alias("bch"),
         pl.lit(0.0, dtype=pl.Float64).alias("bch00"),

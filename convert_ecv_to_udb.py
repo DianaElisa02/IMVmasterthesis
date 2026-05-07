@@ -30,6 +30,7 @@ from src.constants import EUROMOD_DATASET_NAMES, YEARS
 from src.household import build_household_udb
 from src.merge import merge_and_export
 from src.person import build_person_udb
+from src.readers import read_td, read_th, read_tp, read_tr
 
 BASE_DIR   = Path(__file__).resolve().parent
 INPUT_DIR  = BASE_DIR / "input_data"
@@ -57,8 +58,13 @@ def main() -> None:
         logger.info("=" * 60)
         logger.info("Processing year %s", year)
         try:
-            household_udb = build_household_udb(INPUT_DIR, year)
-            person_udb    = build_person_udb(INPUT_DIR, year)
+            td = read_td(INPUT_DIR, year)
+            th = read_th(INPUT_DIR, year)
+            tr = read_tr(INPUT_DIR, year)
+            tp = read_tp(INPUT_DIR, year)
+
+            household_udb = build_household_udb(td, th, year)
+            person_udb    = build_person_udb(tr, tp, year)
 
             dataset_name = EUROMOD_DATASET_NAMES[year]
             output_path  = OUTPUT_DIR / f"{dataset_name}.txt"

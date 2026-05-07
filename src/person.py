@@ -10,11 +10,9 @@ scale is computed from age data and joined back before returning.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 import polars as pl
 
-from src.readers import read_tp, read_tr
 from src.recode import (
     compute_dag,
     compute_liwftmy,
@@ -75,10 +73,7 @@ def zero_to_null_expr(x: pl.Expr) -> pl.Expr:
     )
 
 
-def build_person_udb(input_dir: Path, year: int) -> pl.DataFrame:
-    tr = read_tr(input_dir, year)
-    tp = read_tp(input_dir, year)
-
+def build_person_udb(tr: pl.DataFrame, tp: pl.DataFrame, year: int) -> pl.DataFrame:
     person = tr.join(tp, left_on="RB030", right_on="PB030", how="left")
 
     n_tr = len(tr)
@@ -108,7 +103,7 @@ def build_person_udb(input_dir: Path, year: int) -> pl.DataFrame:
         pl.lit(0.0).alias("psuwd00"),
         pl.lit(0.0).alias("psuwdcm"),
         pl.lit(year).alias("year"),
-        pl.lit(0.0).alias("pdiot")
+        pl.lit(0.0).alias("pdiot"),
     )
     out = (
         person.lazy()
@@ -127,25 +122,56 @@ def build_person_udb(input_dir: Path, year: int) -> pl.DataFrame:
             _idpartner=fill_zero(pl.col("RB240")),
         )
         .select(
-            (pl.col("RB030").cast(pl.Int64, strict=False) // 100).cast(pl.String).alias("IDHH"),
-            pl.col("RB030").cast(pl.Int64, strict=False).cast(pl.String).alias("idperson"),
+            (pl.col("RB030").cast(pl.Int64, strict=False) // 100)
+            .cast(pl.String)
+            .alias("IDHH"),
+            pl.col("RB030")
+            .cast(pl.Int64, strict=False)
+            .cast(pl.String)
+            .alias("idperson"),
             fill_zero(pl.col("RB230")).alias("idmother"),
             fill_zero(pl.col("RB220")).alias("idfather"),
             fill_zero(pl.col("RB240")).alias("idpartner"),
             fill_zero(pl.col("RB070")).alias("dmb"),
-            (pl.col("PY010G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("yem"),
-            (pl.col("PY050G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("yse"),
-            (pl.col("PY080G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("ypp"),
-            (pl.col("PY020G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("kfb"),
-            (pl.col("PY021G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("kfbcc"),
-            (pl.col("PY090G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("bun"),
-            (pl.col("PY120G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("bhl"),
-            (pl.col("PY130G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("pdi"),
-            (pl.col("PY100G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("poa"),
-            (pl.col("PY110G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("psu"),
-            (pl.col("PY140G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("bed"),
-            (pl.col("PY030G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("tscer"),
-            (pl.col("PY035G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("xpp"),
+            (
+                pl.col("PY010G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("yem"),
+            (
+                pl.col("PY050G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("yse"),
+            (
+                pl.col("PY080G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("ypp"),
+            (
+                pl.col("PY020G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("kfb"),
+            (
+                pl.col("PY021G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("kfbcc"),
+            (
+                pl.col("PY090G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("bun"),
+            (
+                pl.col("PY120G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("bhl"),
+            (
+                pl.col("PY130G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("pdi"),
+            (
+                pl.col("PY100G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("poa"),
+            (
+                pl.col("PY110G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("psu"),
+            (
+                pl.col("PY140G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("bed"),
+            (
+                pl.col("PY030G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("tscer"),
+            (
+                pl.col("PY035G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("xpp"),
             pl.col("_dag").alias("dag"),
             recode_dgn(pl.col("RB090")).alias("dgn"),
             pl.lit(13.0, dtype=pl.Float64).alias("dct"),
