@@ -1,5 +1,5 @@
 """
-compute_exposure.py
+compute_exposure_variable.py
 ===================
 Main entry point for the exposure variable pipeline.
 
