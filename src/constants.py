@@ -12,6 +12,10 @@ All other modules import from here; nothing here imports from the project.
 
 from __future__ import annotations
 
+import logging
+import sys
+from pathlib import Path
+
 YEARS: list[int] = [2017, 2018, 2019]
 
 EUROMOD_DATASET_NAMES: dict[int, str] = {
@@ -376,3 +380,54 @@ UDB_COLUMN_ORDER: list[str] = [
 OUTPUT_SEPARATOR: str = "\t"
 OUTPUT_MISSING_VALUE: str = "0"   # EUROMOD uses 0 as default for missing inputs
 OUTPUT_ENCODING: str = "utf-8"
+
+EUROMOD_OUTPUT_DIR: Path = Path("input_data/euromod_output")
+EXPOSURE_OUTPUT_DIR: Path = Path("output/exposure")
+
+# Pre-reform RMI simulation outputs (Run A)
+RMI_FILES: dict[int, Path] = {
+    2017: EUROMOD_OUTPUT_DIR / "es_2017_std.txt",
+    2018: EUROMOD_OUTPUT_DIR / "es_2018_std.txt",
+    2019: EUROMOD_OUTPUT_DIR / "es_2019_std.txt",
+}
+
+# IMV counterfactual simulation outputs (Run B — 2022 rules)
+IMV_FILES: dict[int, Path] = {
+    2017: EUROMOD_OUTPUT_DIR / "IMV_2022ruleson2017.txt",
+    2018: EUROMOD_OUTPUT_DIR / "IMV_2022ruleson2018.txt",
+    2019: EUROMOD_OUTPUT_DIR / "IMV_2022ruleson2019.txt",
+}
+
+# Regions excluded from exposure computation
+# La Rioja (23) and Aragón (24): broken RMI parameterisation in both
+EXPOSURE_EXCLUDE_REGIONS: frozenset[int] = frozenset({23, 24})
+
+RMI_INCOMPATIBLE_REGIONS: frozenset[int] = frozenset({
+    11,  # Galicia
+    53,  # Illes Balears
+    61,  # Andalucía
+})
+
+RMI_COMPLEMENTARY_REGIONS: frozenset[int] = frozenset({
+    12, 13, 21, 22, 30, 41, 42, 43,
+    51, 52, 62, 63, 64, 70,
+})
+
+# IMV statutory amounts (2022) — used for validation bounds
+# Source: Law 19/2021, updated 2022
+IMV_STATUTORY_2022: dict[str, float] = {
+    "basic_monthly":          469.93,
+    "increment_per_member":   0.30,
+    "max_multiplier":         2.20,
+    "max_monthly":            1033.85,
+    "lone_parent_supplement": 0.22,
+    "floor_monthly":          10.0,
+}
+
+# IMV administrative benchmarks (2022 national)
+# Source: INSS Estadística IMV 2022
+IMV_ADMIN_2022: dict[str, float] = {
+    "recipients":      603_000,
+    "expenditure_M":   2_100.0,
+    "mean_monthly":    290.0,
+}
