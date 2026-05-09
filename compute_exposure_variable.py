@@ -107,7 +107,7 @@ def main() -> None:
     )
 
     logger.info("Step 4: Computing regional exposure index")
-    exposure_df = compute_exposure_index(pooled, REGION_NAMES_EXPOSURE)
+    exposure_df = compute_exposure_index(pooled, REGION_NAMES)
 
     logger.info("\nRegional exposure index:")
     logger.info(

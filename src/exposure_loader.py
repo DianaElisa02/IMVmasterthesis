@@ -13,13 +13,22 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-_REQUIRED_COLS = frozenset({
+_REQUIRED_COLS_RMI = frozenset({
     "idperson", "idhh", "drgn2", "dwt", "dag",
-    "bsa00_s", "bsarg_s", "hsize", "yds", "les",
+    "bsarg_s", "yds", "les",
+})
+
+_REQUIRED_COLS_IMV = frozenset({
+    "idperson", "idhh", "drgn2", "dwt", "dag",
+    "bsa00_s", "bsarg_s", "yds", "les",
 })
 
 
-def load_euromod_output(path: Path, label: str = "") -> pd.DataFrame:
+def load_euromod_output(
+    path: Path,
+    label: str = "",
+    file_type: str = "rmi",
+) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"EUROMOD output not found: {path}")
 
@@ -36,25 +45,33 @@ def load_euromod_output(path: Path, label: str = "") -> pd.DataFrame:
             errors="coerce",
         )
 
-    missing = _REQUIRED_COLS - set(df.columns)
+    required = _REQUIRED_COLS_IMV if file_type == "imv" else _REQUIRED_COLS_RMI
+    missing = required - set(df.columns)
     if missing:
         raise ValueError(
             f"{tag}: missing required columns: {sorted(missing)}"
         )
 
-    # Fill NaN in key benefit columns with 0
-    for col in ["bsa00_s", "bsarg_s"]:
-        n_null = df[col].isna().sum()
-        if n_null > 0:
-            logger.warning("%s: %d nulls in %s — filled with 0", tag, n_null, col)
-            df[col] = df[col].fillna(0.0)
+    fill_cols = ["bsarg_s", "bsa00_s"] if file_type == "imv" else ["bsarg_s"]
+    for col in fill_cols:
+        if col in df.columns:
+            n_null = df[col].isna().sum()
+            if n_null > 0:
+                logger.warning(
+                    "%s: %d nulls in %s — filled with 0", tag, n_null, col
+                )
+                df[col] = df[col].fillna(0.0)
+
+    
+    if file_type == "rmi" and "bsa00_s" not in df.columns:
+        df = df.copy()
+        df["bsa00_s"] = 0.0
 
     logger.info(
         "%s: loaded %d persons, %d columns",
         tag, len(df), len(df.columns),
     )
     return df
-
 
 def load_all_files(
     rmi_files: dict[int, Path],
@@ -65,10 +82,10 @@ def load_all_files(
 
     for year in sorted(rmi_files):
         rmi_dfs[year] = load_euromod_output(
-            rmi_files[year], label=f"RMI {year}"
+            rmi_files[year], label=f"RMI {year}", file_type="rmi"
         )
         imv_dfs[year] = load_euromod_output(
-            imv_files[year], label=f"IMV {year}"
+            imv_files[year], label=f"IMV {year}", file_type="imv"
         )
 
     return rmi_dfs, imv_dfs

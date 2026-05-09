@@ -12,6 +12,9 @@ All other modules import from here; nothing here imports from the project.
 
 from __future__ import annotations
 
+import logging
+import sys
+from pathlib import Path
 
 YEARS: list[int] = [2017, 2018, 2019]
 

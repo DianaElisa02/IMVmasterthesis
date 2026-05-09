@@ -1,0 +1,95 @@
+2026-05-09 10:44:35,414 | INFO | ============================================================
+2026-05-09 10:44:35,414 | INFO | Starting exposure variable pipeline
+2026-05-09 10:44:35,415 | INFO | ============================================================
+2026-05-09 10:44:35,415 | INFO | Step 1: Loading EUROMOD output files
+2026-05-09 10:44:35,415 | INFO | Loading RMI 2017 → input_data/euromod_output/es_2017_std.txt
+2026-05-09 10:44:42,813 | INFO | RMI 2017: loaded 34911 persons, 322 columns
+2026-05-09 10:44:42,813 | INFO | Loading IMV 2017 → input_data/euromod_output/IMV_2022ruleson2017.txt
+2026-05-09 10:44:51,622 | INFO | IMV 2017: loaded 34911 persons, 375 columns
+2026-05-09 10:44:51,623 | INFO | Loading RMI 2018 → input_data/euromod_output/es_2018_std.txt
+2026-05-09 10:44:59,292 | INFO | RMI 2018: loaded 33734 persons, 340 columns
+2026-05-09 10:44:59,292 | INFO | Loading IMV 2018 → input_data/euromod_output/IMV_2022ruleson2018.txt
+2026-05-09 10:45:08,068 | INFO | IMV 2018: loaded 33734 persons, 375 columns
+2026-05-09 10:45:08,068 | INFO | Loading RMI 2019 → input_data/euromod_output/es_2019_std.txt
+2026-05-09 10:45:17,913 | INFO | RMI 2019: loaded 39852 persons, 343 columns
+2026-05-09 10:45:17,913 | INFO | Loading IMV 2019 → input_data/euromod_output/IMV_2022ruleson2019.txt
+2026-05-09 10:45:28,360 | INFO | IMV 2019: loaded 39852 persons, 375 columns
+2026-05-09 10:45:28,360 | INFO | Step 2: Validating IMV counterfactual simulation
+2026-05-09 10:45:28,360 | INFO | ==================================================
+2026-05-09 10:45:28,360 | INFO | Validating IMV simulation — year 2017
+2026-05-09 10:45:28,374 | INFO | [WARN] Test 1 — Benefit bounds 2017: mean=€480.80, below_floor=0, above_max=17
+2026-05-09 10:45:28,400 | INFO | [WARN] Test 2 — Monotonicity 2017: rho=-0.033 (p=0.5851)
+2026-05-09 10:45:28,526 | INFO | [PASS] Test 3 — Income means test 2017: mean_yds_rec=€4820 vs non_rec=€9409 (p=0.0000)
+2026-05-09 10:45:28,548 | INFO | [PASS] Test 6 — Formula plausibility 2017: mean_single=€379.13 vs statutory=€469.93 (diff=19.3%)
+2026-05-09 10:45:28,549 | INFO | ==================================================
+2026-05-09 10:45:28,549 | INFO | Validating IMV simulation — year 2018
+2026-05-09 10:45:28,563 | INFO | [WARN] Test 1 — Benefit bounds 2018: mean=€465.44, below_floor=0, above_max=6
+2026-05-09 10:45:28,589 | INFO | [WARN] Test 2 — Monotonicity 2018: rho=-0.266 (p=0.0000)
+2026-05-09 10:45:28,747 | INFO | [PASS] Test 3 — Income means test 2018: mean_yds_rec=€5500 vs non_rec=€9530 (p=0.0000)
+2026-05-09 10:45:28,770 | INFO | [PASS] Test 6 — Formula plausibility 2018: mean_single=€530.40 vs statutory=€469.93 (diff=12.9%)
+2026-05-09 10:45:28,771 | INFO | ==================================================
+2026-05-09 10:45:28,771 | INFO | Validating IMV simulation — year 2019
+2026-05-09 10:45:28,786 | INFO | [WARN] Test 1 — Benefit bounds 2019: mean=€434.20, below_floor=0, above_max=12
+2026-05-09 10:45:28,812 | INFO | [WARN] Test 2 — Monotonicity 2019: rho=-0.097 (p=0.0732)
+2026-05-09 10:45:28,929 | INFO | [PASS] Test 3 — Income means test 2019: mean_yds_rec=€5350 vs non_rec=€9562 (p=0.0000)
+2026-05-09 10:45:28,953 | INFO | [PASS] Test 6 — Formula plausibility 2019: mean_single=€390.01 vs statutory=€469.93 (diff=17.0%)
+2026-05-09 10:45:28,967 | INFO | [PASS] Test 4 — KS consistency 2017 vs 2018: stat=0.0464 (p=0.9118)
+2026-05-09 10:45:28,984 | INFO | [PASS] Test 4 — KS consistency 2018 vs 2019: stat=0.0479 (p=0.8574)
+2026-05-09 10:45:29,026 | INFO | [WARN] Test 5 — Regional rank 2017 vs 2018: rho=0.414 (p=0.0983)
+2026-05-09 10:45:29,073 | INFO | [WARN] Test 5 — Regional rank 2018 vs 2019: rho=0.081 (p=0.7576)
+2026-05-09 10:45:29,076 | INFO | Validation report saved → output/exposure/imv_validation_report.csv
+2026-05-09 10:45:29,076 | INFO | Validation summary: 8/16 tests passed
+2026-05-09 10:45:29,077 | INFO | Validation complete: 8/16 tests passed
+2026-05-09 10:45:29,081 | WARNING | Failed tests:
+                     test   year
+           benefit_bounds 2017.0
+             monotonicity 2017.0
+           benefit_bounds 2018.0
+             monotonicity 2018.0
+           benefit_bounds 2019.0
+             monotonicity 2019.0
+regional_rank_consistency    NaN
+regional_rank_consistency    NaN
+2026-05-09 10:45:29,081 | INFO | Step 3: Computing household-level gains
+2026-05-09 10:45:29,105 | INFO | Year 2017: excluded 2172 persons from regions [23, 24]
+2026-05-09 10:45:29,106 | INFO | Year 2017: computed gain for 32739 persons | mean gain=€4.06 | positive=1.4% | negative=0.4%
+2026-05-09 10:45:29,127 | INFO | Year 2018: excluded 2114 persons from regions [23, 24]
+2026-05-09 10:45:29,128 | INFO | Year 2018: computed gain for 31620 persons | mean gain=€3.50 | positive=1.4% | negative=0.3%
+2026-05-09 10:45:29,151 | INFO | Year 2019: excluded 2370 persons from regions [23, 24]
+2026-05-09 10:45:29,151 | INFO | Year 2019: computed gain for 37482 persons | mean gain=€3.86 | positive=1.4% | negative=0.3%
+2026-05-09 10:45:29,154 | INFO | Pooled gain dataset: 101841 person-year observations across 3 years
+2026-05-09 10:45:29,159 | INFO | Pooled gain summary: mean=€3.81 | median=€0.00 | p25=€0.00 | p75=€0.00 | min=€-1017.00 | max=€1519.80
+2026-05-09 10:45:29,160 | INFO | Step 4: Computing regional exposure index
+2026-05-09 10:45:29,199 | INFO | Regional exposure index computed for 17 regions
+2026-05-09 10:45:29,199 | INFO | Exposure range: €-0.00 to €7.89
+2026-05-09 10:45:29,200 | INFO | Regions with positive exposure (IMV > pre-reform RMI): 16
+2026-05-09 10:45:29,200 | INFO | Regions with negative exposure (IMV < pre-reform RMI): 0
+2026-05-09 10:45:29,201 | INFO | 
+Regional exposure index:
+2026-05-09 10:45:29,204 | INFO | 
+                    region  drgn2  exposure  mean_gain_pre  mean_total_post
+      Comunitat Valenciana     52      7.89           1.27             9.16
+           Ciudad de Ceuta     63      6.46           0.00             6.46
+                  Canarias     70      6.31           1.64             7.95
+                  Cataluña     51      5.93           2.55             8.47
+                 Andalucía     61      5.40           0.63             6.03
+               Extremadura     43      4.96           3.57             8.52
+          Región de Murcia     62      3.87           0.45             4.32
+                   Galicia     11      3.01           1.33             4.33
+Comunidad Foral de Navarra     22      2.40          12.98            15.38
+        Castilla-La Mancha     42      2.32           0.43             2.75
+    Principado de Asturias     12      2.08           9.74            11.82
+           Castilla y León     41      1.95           2.39             4.34
+       Comunidad de Madrid     30      0.76           2.01             2.77
+                País Vasco     21      0.57          16.95            17.52
+             Illes Balears     53      0.51           1.31             1.83
+                 Cantabria     13      0.30           4.35             4.65
+         Ciudad de Melilla     64     -0.00           2.64             2.64
+2026-05-09 10:45:29,204 | INFO | Step 5: Saving outputs
+2026-05-09 10:45:29,207 | INFO | Exposure index saved → output/exposure/exposure_index.csv
+2026-05-09 10:45:29,601 | INFO | Household gains saved → output/exposure/household_gains.csv
+2026-05-09 10:45:30,300 | INFO | Exposure plot saved → output/exposure/exposure_index.png
+2026-05-09 10:45:30,301 | INFO | ============================================================
+2026-05-09 10:45:30,301 | INFO | Exposure variable pipeline complete.
+2026-05-09 10:45:30,301 | INFO | Outputs saved to: /workspaces/IMVmasterthesis/output/exposure
+2026-05-09 10:45:30,301 | INFO | ============================================================

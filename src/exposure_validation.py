@@ -56,28 +56,33 @@ def test_benefit_bounds(
     )
     return result
  
- 
 def test_monotonicity(df: pd.DataFrame, year: int) -> dict:
+
     recipients = df[df["bsa00_s"] > 0].copy()
- 
-    rho, pval = spearmanr(recipients["hsize"], recipients["bsa00_s"])
- 
-    # Weighted mean by hsize
-    by_hsize = (
-        recipients.groupby("hsize")
+
+    hh_size = df.groupby("idhh")["idperson"].count().rename("hh_size_proxy")
+    recipients = recipients.merge(hh_size, on="idhh", how="left")
+
+    rho, pval = spearmanr(
+        recipients["hh_size_proxy"],
+        recipients["bsa00_s"]
+    )
+
+    by_size = (
+        recipients.groupby("hh_size_proxy")
         .apply(lambda x: round(
             (x["bsa00_s"] * x["dwt"]).sum() / x["dwt"].sum(), 2
         ))
         .reset_index()
         .rename(columns={0: "mean_bsa00_s"})
     )
- 
+
     result = {
         "test": "monotonicity",
         "year": year,
         "spearman_rho_hsize_benefit": round(rho, 3),
         "spearman_p": round(pval, 4),
-        "mean_by_hsize": by_hsize.to_dict("records"),
+        "mean_by_hsize": by_size.to_dict("records"),
         "pass": rho > 0 and pval < 0.05,
     }
     status = "PASS" if result["pass"] else "WARN"
@@ -197,17 +202,26 @@ def test_regional_rank_consistency(
  
     return results
  
- 
 def test_formula_plausibility(
     df: pd.DataFrame,
     year: int,
     statutory_single: float,
 ) -> dict:
-    single_rec = df[
-        (df["bsa00_s"] > 0) &
-        (df["hsize"] == 1)
+    """
+    Test 6: Benefit formula plausibility.
+    Single-person household recipients should receive approximately
+    the statutory single-person GMI amount (within 20% tolerance).
+    Uses person count per idhh as household size proxy.
+    """
+    # Compute household size proxy
+    hh_size = df.groupby("idhh")["idperson"].count().rename("hh_size_proxy")
+    df_merged = df.merge(hh_size, on="idhh", how="left")
+
+    single_rec = df_merged[
+        (df_merged["bsa00_s"] > 0) &
+        (df_merged["hh_size_proxy"] == 1)
     ].copy()
- 
+
     if len(single_rec) == 0:
         return {
             "test": "formula_plausibility",
@@ -215,13 +229,13 @@ def test_formula_plausibility(
             "pass": None,
             "note": "no single-person recipients found",
         }
- 
+
     wmean = (
         (single_rec["bsa00_s"] * single_rec["dwt"]).sum() /
         single_rec["dwt"].sum()
     )
     pct_diff = abs(wmean - statutory_single) / statutory_single
- 
+
     result = {
         "test": "formula_plausibility",
         "year": year,

@@ -1,0 +1,17 @@
+test,year,n_recipients_unweighted,n_recipients_weighted,mean_monthly_benefit,statutory_single_person_GMI,statutory_max_GMI,n_below_floor,n_above_max_110pct,pass,spearman_rho_hsize_benefit,spearman_p,mean_yds_recipients,mean_yds_non_recipients,ratio,mannwhitney_stat,mannwhitney_p,mean_bsa00_s_single_hh,statutory_single_GMI,pct_difference,n_single_recipients,note,years,ks_statistic,ks_p_value,mean_y1,mean_y2,spearman_rho,n_regions
+benefit_bounds,2017.0,273.0,378956.0,480.8,469.93,1033.85,0.0,17.0,False,,,,,,,,,,,,,,,,,,,
+monotonicity,2017.0,,,,,,,,False,-0.033,0.5851,,,,,,,,,,,,,,,,,
+income_means_test,2017.0,,,,,,,,True,,,4820.15,9409.26,0.512,2994090.0,0.0,,,,,,,,,,,,
+formula_plausibility,2017.0,,,,,,,,True,,,,,,,,379.13,469.93,19.3,40.0,within 20% of statutory single-person GMI,,,,,,,
+benefit_bounds,2018.0,270.0,392264.0,465.44,469.93,1033.85,0.0,6.0,False,,,,,,,,,,,,,,,,,,,
+monotonicity,2018.0,,,,,,,,False,-0.266,0.0,,,,,,,,,,,,,,,,,
+income_means_test,2018.0,,,,,,,,True,,,5499.62,9529.66,0.577,3159738.0,0.0,,,,,,,,,,,,
+formula_plausibility,2018.0,,,,,,,,True,,,,,,,,530.4,469.93,12.9,35.0,within 20% of statutory single-person GMI,,,,,,,
+benefit_bounds,2019.0,341.0,416633.0,434.2,469.93,1033.85,0.0,12.0,False,,,,,,,,,,,,,,,,,,,
+monotonicity,2019.0,,,,,,,,False,-0.097,0.0732,,,,,,,,,,,,,,,,,
+income_means_test,2019.0,,,,,,,,True,,,5349.97,9561.59,0.56,4502614.0,0.0,,,,,,,,,,,,
+formula_plausibility,2019.0,,,,,,,,True,,,,,,,,390.01,469.93,17.0,51.0,within 20% of statutory single-person GMI,,,,,,,
+cross_year_ks,,,,,,,,,True,,,,,,,,,,,,high p-value = distributions similar across years,2017_vs_2018,0.0464,0.9118,478.06,456.65,,
+cross_year_ks,,,,,,,,,True,,,,,,,,,,,,high p-value = distributions similar across years,2018_vs_2019,0.0479,0.8574,456.65,456.25,,
+regional_rank_consistency,,,,,,,,,False,,0.0983,,,,,,,,,,,2017_vs_2018,,,,,0.414,17.0
+regional_rank_consistency,,,,,,,,,False,,0.7576,,,,,,,,,,,2018_vs_2019,,,,,0.081,17.0
