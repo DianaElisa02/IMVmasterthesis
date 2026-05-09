@@ -10,11 +10,9 @@ person-level file in merge.py.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 import polars as pl
 
-from src.readers import read_td, read_th
 from src.recode import (
     fill_zero,
     recode_amrtn,
@@ -25,10 +23,27 @@ from src.recode import (
 
 logger = logging.getLogger(__name__)
 
+# Columns requested in TH_COLUMNS/TD_COLUMNS that are absent from Spanish ECV.
+# A warning is raised if they ever become non-null (i.e. the source data changed).
+_ABSENT_FROM_ECV: frozenset[str] = frozenset({"DB070", "HH071", "HX090"})
 
-def build_household_udb(input_dir: Path, year: int) -> pl.DataFrame:
-    td = read_td(input_dir, year)
-    th = read_th(input_dir, year)
+# Gross income columns that must be non-negative (net/adjustment columns excluded).
+_GROSS_INCOME_COLS: tuple[str, ...] = (
+    "HY040G", "HY050G", "HY060G", "HY070G", "HY080G",
+    "HY090G", "HY100G", "HY110G", "HY120G", "HY130G",
+)
+
+
+def prepare_household_input(
+    td: pl.DataFrame, th: pl.DataFrame, year: int
+) -> pl.DataFrame:
+    for key, df, label in [("DB030", td, "Td"), ("HB030", th, "Th")]:
+        n_unique = df.select(key).n_unique()
+        if n_unique != len(df):
+            raise ValueError(
+                f"Year {year}: duplicate {key} keys in {label} "
+                f"({len(df)} rows, {n_unique} unique)"
+            )
 
     hh = td.join(th, left_on="DB030", right_on="HB030", how="inner")
 
@@ -43,24 +58,42 @@ def build_household_udb(input_dir: Path, year: int) -> pl.DataFrame:
             n_merged,
         )
 
-    hh = hh.with_columns(
+    for col in _ABSENT_FROM_ECV:
+        if col in hh.columns:
+            n = hh[col].is_not_null().sum()
+            if n > 0:
+                logger.warning(
+                    "Year %s: %s expected absent from Spanish ECV but has %d non-null values",
+                    year, col, n,
+                )
 
+    for col in _GROSS_INCOME_COLS:
+        if col in hh.columns:
+            n_neg = (hh[col].cast(pl.Float64, strict=False) < 0).fill_null(False).sum()
+            if n_neg > 0:
+                logger.warning(
+                    "Year %s: %s has %d negative values (expected >= 0 for gross income)",
+                    year, col, n_neg,
+                )
+
+    # HX010 is used in build_household_udb for scaling monthly income variables.
+    # All other UDB placeholder columns (bma, bch, dsu00, xhcmomc, …) that are
+    # absent from ECV are zero-filled by merge_and_export from UDB_COLUMN_ORDER.
+    hh = hh.with_columns(
         pl.col("HX040").cast(pl.Float64, strict=False).fill_null(1.0).alias("HX010"),
-    
-        pl.lit(0.0, dtype=pl.Float64).alias("bma"),
-        pl.lit(0.0, dtype=pl.Float64).alias("bch"),
-        pl.lit(0.0, dtype=pl.Float64).alias("bch00"),
-        pl.lit(0.0, dtype=pl.Float64).alias("bchdi"),
-        pl.lit(0.0, dtype=pl.Float64).alias("bchot"),
-        pl.lit(0.0, dtype=pl.Float64).alias("xpp"),
-        pl.lit(0.0).alias("dsu00"),
-        pl.lit(0.0).alias("xhcmomc"),
-        pl.lit(0.0).alias("yptmp"),
-        pl.lit(0.0).alias("tis"),
-        pl.lit(0.0).alias("afc"),
-        pl.lit(0.0).alias("tintrch"),
     )
 
+    n_bad = (hh["HX010"] <= 0).sum()
+    if n_bad > 0:
+        raise ValueError(
+            f"Year {year}: {n_bad} households have HX010 <= 0 — "
+            "would produce inf in income scaling"
+        )
+
+    return hh
+
+
+def build_household_udb(hh: pl.DataFrame, year: int) -> pl.DataFrame:
     out = (
         hh.lazy()
         .select(

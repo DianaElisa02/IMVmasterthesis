@@ -10,11 +10,9 @@ scale is computed from age data and joined back before returning.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 import polars as pl
 
-from src.readers import read_tp, read_tr
 from src.recode import (
     compute_dag,
     compute_liwftmy,
@@ -33,6 +31,17 @@ from src.recode import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Columns requested in TR_COLUMNS/TP_COLUMNS that are absent from Spanish ECV.
+# A warning is raised if they ever become non-null (i.e. the source data changed).
+_ABSENT_FROM_ECV: frozenset[str] = frozenset({"PB060", "PE021", "PE041", "PL032", "PL271"})
+
+# Gross income columns that must be non-negative.
+_GROSS_INCOME_COLS: tuple[str, ...] = (
+    "PY010G", "PY020G", "PY021G", "PY030G", "PY035G",
+    "PY050G", "PY080G", "PY090G", "PY100G", "PY110G",
+    "PY120G", "PY130G", "PY140G",
+)
 
 
 def recode_loc_expr(isco: pl.Expr) -> pl.Expr:
@@ -75,9 +84,14 @@ def zero_to_null_expr(x: pl.Expr) -> pl.Expr:
     )
 
 
-def build_person_udb(input_dir: Path, year: int) -> pl.DataFrame:
-    tr = read_tr(input_dir, year)
-    tp = read_tp(input_dir, year)
+def prepare_person_input(tr: pl.DataFrame, tp: pl.DataFrame, year: int) -> pl.DataFrame:
+    for key, df, label in [("RB030", tr, "Tr"), ("PB030", tp, "Tp")]:
+        n_unique = df.select(key).n_unique()
+        if n_unique != len(df):
+            raise ValueError(
+                f"Year {year}: duplicate {key} keys in {label} "
+                f"({len(df)} rows, {n_unique} unique)"
+            )
 
     person = tr.join(tp, left_on="RB030", right_on="PB030", how="left")
 
@@ -91,25 +105,28 @@ def build_person_udb(input_dir: Path, year: int) -> pl.DataFrame:
             n_merged,
         )
 
-    person = person.with_columns(
-        pl.lit(0.0).alias("dwt"),  # DB090 Missing
-        pl.lit(0.0).alias("lunwh"),  # PL271 missing
-        pl.lit(0.0).alias("bunct"),
-        pl.lit(0.0).alias("bunnc"),
-        pl.lit(0.0).alias("bunot"),
-        pl.lit(0.0).alias("bhl00"),
-        pl.lit(0.0).alias("bhlot"),
-        pl.lit(0.0).alias("pdi00"),
-        pl.lit(0.0).alias("pdicm"),
-        pl.lit(0.0).alias("pdinc"),
-        pl.lit(0.0).alias("poa00"),
-        pl.lit(0.0).alias("poacm"),
-        pl.lit(0.0).alias("poanc"),
-        pl.lit(0.0).alias("psuwd00"),
-        pl.lit(0.0).alias("psuwdcm"),
-        pl.lit(year).alias("year"),
-        pl.lit(0.0).alias("pdiot")
-    )
+    for col in _ABSENT_FROM_ECV:
+        if col in person.columns:
+            n = person[col].is_not_null().sum()
+            if n > 0:
+                logger.warning(
+                    "Year %s: %s expected absent from Spanish ECV but has %d non-null values",
+                    year, col, n,
+                )
+
+    for col in _GROSS_INCOME_COLS:
+        if col in person.columns:
+            n_neg = (person[col].cast(pl.Float64, strict=False) < 0).fill_null(False).sum()
+            if n_neg > 0:
+                logger.warning(
+                    "Year %s: %s has %d negative values (expected >= 0 for gross income)",
+                    year, col, n_neg,
+                )
+
+    return person
+
+
+def build_person_udb(person: pl.DataFrame, year: int) -> pl.DataFrame:
     out = (
         person.lazy()
         .with_columns(
@@ -127,25 +144,56 @@ def build_person_udb(input_dir: Path, year: int) -> pl.DataFrame:
             _idpartner=fill_zero(pl.col("RB240")),
         )
         .select(
-            (pl.col("RB030").cast(pl.Int64, strict=False) // 100).cast(pl.String).alias("IDHH"),
-            pl.col("RB030").cast(pl.Int64, strict=False).cast(pl.String).alias("idperson"),
+            (pl.col("RB030").cast(pl.Int64, strict=False) // 100)
+            .cast(pl.String)
+            .alias("IDHH"),
+            pl.col("RB030")
+            .cast(pl.Int64, strict=False)
+            .cast(pl.String)
+            .alias("idperson"),
             fill_zero(pl.col("RB230")).alias("idmother"),
             fill_zero(pl.col("RB220")).alias("idfather"),
             fill_zero(pl.col("RB240")).alias("idpartner"),
             fill_zero(pl.col("RB070")).alias("dmb"),
-            (pl.col("PY010G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("yem"),
-            (pl.col("PY050G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("yse"),
-            (pl.col("PY080G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("ypp"),
-            (pl.col("PY020G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("kfb"),
-            (pl.col("PY021G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("kfbcc"),
-            (pl.col("PY090G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("bun"),
-            (pl.col("PY120G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("bhl"),
-            (pl.col("PY130G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("pdi"),
-            (pl.col("PY100G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("poa"),
-            (pl.col("PY110G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("psu"),
-            (pl.col("PY140G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("bed"),
-            (pl.col("PY030G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("tscer"),
-            (pl.col("PY035G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0).alias("xpp"),
+            (
+                pl.col("PY010G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("yem"),
+            (
+                pl.col("PY050G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("yse"),
+            (
+                pl.col("PY080G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("ypp"),
+            (
+                pl.col("PY020G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("kfb"),
+            (
+                pl.col("PY021G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("kfbcc"),
+            (
+                pl.col("PY090G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("bun"),
+            (
+                pl.col("PY120G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("bhl"),
+            (
+                pl.col("PY130G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("pdi"),
+            (
+                pl.col("PY100G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("poa"),
+            (
+                pl.col("PY110G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("psu"),
+            (
+                pl.col("PY140G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("bed"),
+            (
+                pl.col("PY030G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("tscer"),
+            (
+                pl.col("PY035G").cast(pl.Float64, strict=False).fill_null(0.0) / 12.0
+            ).alias("xpp"),
             pl.col("_dag").alias("dag"),
             recode_dgn(pl.col("RB090")).alias("dgn"),
             pl.lit(13.0, dtype=pl.Float64).alias("dct"),

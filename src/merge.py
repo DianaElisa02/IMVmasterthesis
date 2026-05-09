@@ -13,10 +13,12 @@ from pathlib import Path
 import polars as pl
 
 from src.constants import OUTPUT_MISSING_VALUE, OUTPUT_SEPARATOR, UDB_COLUMN_ORDER
-from src.schemas import PersonUdbSchema
+from src.schemas import HouseholdUdbSchema, PersonUdbSchema
+
 logger = logging.getLogger(__name__)
 
 _STRING_ID_COLS = frozenset({"idhh", "idperson"})
+
 
 def merge_and_export(
     person_udb: pl.DataFrame,
@@ -24,19 +26,20 @@ def merge_and_export(
     output_path: Path,
     year: int,
 ) -> pl.DataFrame:
-    hh_cols    = [c for c in household_udb.columns if c != "year"]
+    hh_cols = [c for c in household_udb.columns if c != "year"]
     person_only = [c for c in person_udb.columns if c not in hh_cols or c == "IDHH"]
 
     if household_udb.select("IDHH").n_unique() != len(household_udb):
         raise ValueError(f"Year {year}: duplicate IDHH values in household_udb.")
 
-    merged = (
-        person_udb.select(person_only)
-        .join(household_udb.select(hh_cols), on="IDHH", how="left")
+    HouseholdUdbSchema.validate(household_udb, lazy=True)
+
+    merged = person_udb.select(person_only).join(
+        household_udb.select(hh_cols), on="IDHH", how="left"
     )
 
     n_before = len(person_udb)
-    n_after  = len(merged)
+    n_after = len(merged)
     if n_after != n_before:
         raise ValueError(
             f"Year {year}: row count changed in merge ({n_before} → {n_after})."
@@ -44,7 +47,23 @@ def merge_and_export(
 
     unmatched = merged["drgn1"].is_null().sum()
     if unmatched > 0:
-        logger.warning("Year %s: %d persons did not match a household record.", year, unmatched)
+        logger.warning(
+            "Year %s: %d persons did not match a household record.", year, unmatched
+        )
+
+    actual_counts = merged.group_by("IDHH").agg(pl.len().alias("_n"))
+    hsize_mismatch = (
+        merged.select(["IDHH", "hsize"])
+        .unique(subset=["IDHH"])
+        .join(actual_counts, on="IDHH")
+        .filter(pl.col("hsize").cast(pl.Int64) != pl.col("_n"))
+    )
+    if len(hsize_mismatch) > 0:
+        logger.warning(
+            "Year %s: %d households have hsize != actual person count in merged data",
+            year,
+            len(hsize_mismatch),
+        )
 
     merged = merged.rename({"IDHH": "idhh"})
 
@@ -53,9 +72,11 @@ def merge_and_export(
             merged = merged.with_columns(pl.lit(0.0).alias(col))
 
     present = [c for c in UDB_COLUMN_ORDER if c in merged.columns]
-    extra   = [c for c in merged.columns if c not in UDB_COLUMN_ORDER and c != "year"]
+    extra = [c for c in merged.columns if c not in UDB_COLUMN_ORDER and c != "year"]
     if extra:
-        logger.debug("Year %s: dropping %d non-UDB columns: %s", year, len(extra), extra)
+        logger.debug(
+            "Year %s: dropping %d non-UDB columns: %s", year, len(extra), extra
+        )
 
     merged = merged.select(present)
 
@@ -63,7 +84,9 @@ def merge_and_export(
     exported = set(merged.columns)
     missing = expected - exported
     if missing:
-        logger.info("Columns in UDB_COLUMN_ORDER but missing from output: %s", sorted(missing))
+        logger.info(
+            "Columns in UDB_COLUMN_ORDER but missing from output: %s", sorted(missing)
+        )
     else:
         logger.info("All UDB columns present in output ✓")
 
@@ -83,6 +106,9 @@ def merge_and_export(
 
     logger.info(
         "Year %s: exported %d persons, %d columns → %s",
-        year, len(merged), len(merged.columns), output_path,
+        year,
+        len(merged),
+        len(merged.columns),
+        output_path,
     )
     return merged
