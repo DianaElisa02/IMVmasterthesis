@@ -1,13 +1,17 @@
 """
 exposure_compute.py
 ===================
-Computes the regional exposure index using PCA on three generosity dimensions.
-
+Computes the regional exposure index using PCA on gain dimensions.
+ 
 Gain dimensions (per region r, year t):
-    1. Δmean_benefit_r,t    = imv_mean_monthly_r,t - rmi_mean_monthly_r,t
-    2. Δrecipients_pc_r,t   = (imv_recipients_w_r,t - rmi_recipients_w_r,t) / pop_r,t
-    3. Δexpenditure_pc_r,t  = (imv_expenditure_r,t - rmi_expenditure_r,t) / pop_r,t
-
+    1. Δrecipients_pc_r,t   = (imv_recipients_w_r,t - rmi_recipients_w_r,t) / pop_r,t
+    2. Δexpenditure_pc_r,t  = (imv_expenditure_r,t - rmi_expenditure_r,t) / pop_r,t
+ 
+    Additionally computed but NOT included in PCA (retained for transparency):
+    Δmean_benefit_r,t = imv_mean_monthly_r,t - rmi_mean_monthly_r,t
+        → excluded because it loads negatively against the other two dimensions
+          (OLS R²=0.000 in residualisation, p=0.95), adding noise without signal.
+ 
 Where:
     imv_mean_monthly   = weighted mean of (bsa00_s + bsarg_s) among post recipients
     rmi_mean_monthly   = weighted mean of bsarg_s among pre-reform recipients
@@ -16,32 +20,35 @@ Where:
     imv_expenditure    = Σ_h((bsa00_s + bsarg_s) × dwt_h) × 12
     rmi_expenditure    = Σ_h(bsarg_s × dwt_h) × 12
     pop_r              = Σ_h dwt_h (total weighted regional population)
-
+ 
 Exposure index:
     - Average each dimension across 2017, 2018, 2019
-    - Standardize all three dimensions (mean=0, std=1)
+    - Standardize dimensions (mean=0, std=1)
     - Extract first principal component via PCA
     - Exposure_r = PC1 score for region r
-
+ 
+Default PCA dimensions (passed via compute_pca_exposure dims parameter):
+    delta_recipients_pc, delta_expenditure_pc
+ 
 For regions where RMI is INCOMPATIBLE with IMV:
     Galicia (11), Illes Balears (53), Andalucía (61)
-    bsarg_s_post is zeroed so post_protection = bsa00_s only
+    bsarg_s in the IMV run is zeroed so post_protection = bsa00_s only.
 """
-
+ 
 from __future__ import annotations
-
+ 
 import logging
 from pathlib import Path
-
+ 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-
+ 
 logger = logging.getLogger(__name__)
-
-
+ 
+ 
 def compute_regional_dimensions(
     rmi_df: pd.DataFrame,
     imv_df: pd.DataFrame,
@@ -52,20 +59,20 @@ def compute_regional_dimensions(
     imv = imv_df.copy()
     imv.loc[imv["drgn2"].isin(incompatible_regions), "bsarg_s"] = 0.0
     imv["total_post"] = imv["bsa00_s"] + imv["bsarg_s"]
-
+ 
     results = []
-
+ 
     for drgn2 in sorted(rmi_df["drgn2"].dropna().unique()):
         if drgn2 in exclude_regions:
             continue
-
+ 
         r   = rmi_df[rmi_df["drgn2"] == drgn2]
         i   = imv[imv["drgn2"] == drgn2]
         pop = r["dwt"].sum()
-
+ 
         if pop == 0:
             continue
-
+ 
         rmi_rec   = r[r["bsarg_s"] > 0]
         rmi_rec_w = rmi_rec["dwt"].sum()
         rmi_mean  = (
@@ -73,24 +80,24 @@ def compute_regional_dimensions(
             if rmi_rec_w > 0 else 0.0
         )
         rmi_exp   = (r["bsarg_s"] * r["dwt"]).sum() * 12
-
-        imv_rec    = i[i["bsa00_s"] > 0]
-        imv_rec_w  = imv_rec["dwt"].sum()
-        post_pos   = i[i["total_post"] > 0]
-        imv_mean   = (
+ 
+        imv_rec   = i[i["bsa00_s"] > 0]
+        imv_rec_w = imv_rec["dwt"].sum()
+        post_pos  = i[i["total_post"] > 0]
+        imv_mean  = (
             (post_pos["total_post"] * post_pos["dwt"]).sum() /
             post_pos["dwt"].sum()
             if post_pos["dwt"].sum() > 0 else 0.0
         )
-        imv_exp    = (i["total_post"] * i["dwt"]).sum() * 12
-
+        imv_exp   = (i["total_post"] * i["dwt"]).sum() * 12
+ 
         results.append({
             "drgn2":               int(drgn2),
             "year":                year,
             "pop":                 pop,
             "rmi_mean":            round(rmi_mean, 2),
             "imv_mean":            round(imv_mean, 2),
-            "delta_mean":          round(imv_mean - rmi_mean, 2),
+            "delta_mean":          round(imv_mean - rmi_mean, 2),   # descriptive only
             "rmi_recipients_w":    round(rmi_rec_w, 0),
             "imv_recipients_w":    round(imv_rec_w, 0),
             "delta_recipients_pc": round(
@@ -102,21 +109,32 @@ def compute_regional_dimensions(
                 (imv_exp - rmi_exp) / pop, 4
             ),
         })
-
+ 
     df = pd.DataFrame(results)
     logger.info(
         "Year %d: computed dimensions for %d regions", year, len(df)
     )
     return df
-
-
+ 
+ 
 def pool_dimensions(
     rmi_dfs: dict[int, pd.DataFrame],
     imv_dfs: dict[int, pd.DataFrame],
     exclude_regions: frozenset[int],
     incompatible_regions: frozenset[int],
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-
+    """
+    Compute and pool gain dimensions across all years.
+ 
+    Returns
+    -------
+    avg : pd.DataFrame
+        One row per region — dimensions averaged across 2017, 2018, 2019.
+        Used as input to compute_pca_exposure.
+    all_dims : pd.DataFrame
+        One row per region-year — unpooled year-by-year dimensions.
+        Used in exposure stability validation (Test 4).
+    """
     frames = []
     for year in sorted(rmi_dfs.keys()):
         frames.append(
@@ -125,161 +143,104 @@ def pool_dimensions(
                 exclude_regions, incompatible_regions,
             )
         )
-
+ 
     all_dims = pd.concat(frames, ignore_index=True)
-
+ 
     avg = (
         all_dims.groupby("drgn2")
         .agg(
-            pop                   = ("pop",                  "mean"),
-            rmi_mean              = ("rmi_mean",              "mean"),
-            imv_mean              = ("imv_mean",              "mean"),
-            delta_mean            = ("delta_mean",            "mean"),
-            rmi_recipients_w      = ("rmi_recipients_w",      "mean"),
-            imv_recipients_w      = ("imv_recipients_w",      "mean"),
-            delta_recipients_pc   = ("delta_recipients_pc",   "mean"),
-            rmi_expenditure       = ("rmi_expenditure",       "mean"),
-            imv_expenditure       = ("imv_expenditure",       "mean"),
-            delta_expenditure_pc  = ("delta_expenditure_pc",  "mean"),
+            pop                  = ("pop",                  "mean"),
+            rmi_mean             = ("rmi_mean",             "mean"),
+            imv_mean             = ("imv_mean",             "mean"),
+            delta_mean           = ("delta_mean",           "mean"),
+            rmi_recipients_w     = ("rmi_recipients_w",     "mean"),
+            imv_recipients_w     = ("imv_recipients_w",     "mean"),
+            delta_recipients_pc  = ("delta_recipients_pc",  "mean"),
+            rmi_expenditure      = ("rmi_expenditure",      "mean"),
+            imv_expenditure      = ("imv_expenditure",      "mean"),
+            delta_expenditure_pc = ("delta_expenditure_pc", "mean"),
         )
         .reset_index()
         .round(4)
     )
-
+ 
     logger.info(
         "Pooled %d years → %d regions", len(rmi_dfs), len(avg)
     )
     return avg, all_dims
-
-
-def residualize_delta_mean(pooled: pd.DataFrame) -> pd.DataFrame:
-    """
-    Partial out the pre-reform RMI mean benefit from delta_mean.
-
-    Economic rationale:
-        delta_mean = imv_mean - rmi_mean loads negatively on PC1 because
-        regions with high pre-reform RMI generosity mechanically show
-        negative delta_mean (the IMV pays less per recipient than their
-        generous regional RMI did). This mean-reversion is a mechanical
-        artifact of the starting level, not a genuine policy design signal.
-
-        Standard fix (Bartik 1991 tradition): regress delta_mean on
-        rmi_mean across regions and use the residual. The residual captures
-        the variation in benefit amount change that is orthogonal to the
-        pre-existing level — a clean measure of how much the IMV changed
-        per-recipient generosity controlling for where each region started.
-
-    Parameters
-    ----------
-    pooled : pd.DataFrame with columns delta_mean and rmi_mean.
-
-    Returns
-    -------
-    pd.DataFrame with added column delta_mean_residual.
-    Original delta_mean is preserved for transparency.
-    """
-    import statsmodels.api as sm
-
-    X = sm.add_constant(pooled["rmi_mean"].values)
-    y = pooled["delta_mean"].values
-
-    model = sm.OLS(y, X).fit()
-    pooled = pooled.copy()
-    pooled["delta_mean_residual"] = model.resid
-
-    logger.info(
-        "Residualized delta_mean — OLS: R²=%.3f | "
-        "beta_rmi_mean=%.3f (p=%.4f) | intercept=%.3f (p=%.4f)",
-        model.rsquared,
-        model.params[1], model.pvalues[1],
-        model.params[0], model.pvalues[0],
-    )
-    logger.info(
-        "delta_mean_residual: mean=%.3f | std=%.3f | "
-        "min=%.2f | max=%.2f",
-        pooled["delta_mean_residual"].mean(),
-        pooled["delta_mean_residual"].std(),
-        pooled["delta_mean_residual"].min(),
-        pooled["delta_mean_residual"].max(),
-    )
-
-    return pooled
-
-
+ 
+ 
 def compute_pca_exposure(
     pooled: pd.DataFrame,
     region_names: dict[int, str],
+    dims: list[str] | None = None,
 ) -> pd.DataFrame:
     """
-    Standardize the three gain dimensions and extract PC1 as exposure index.
-
-    PCA inputs (all averaged across 2017–2019):
-        delta_mean           — Δ mean monthly benefit (€/month)
-        delta_recipients_pc  — Δ recipients per capita (%)
-        delta_expenditure_pc — Δ annual expenditure per capita (€)
-
+    Standardize gain dimensions and extract PC1 as the exposure index.
+ 
+    Parameters
+    ----------
+    pooled : pd.DataFrame
+        Pooled average dimensions from pool_dimensions (one row per region).
+    region_names : dict[int, str]
+        Mapping from drgn2 to region name string.
+    dims : list[str] | None
+        Dimension columns to include in PCA. If None, defaults to
+        [delta_recipients_pc, delta_expenditure_pc].
+        Pass a custom list to include additional dimensions (e.g. for
+        robustness checks).
+ 
     Returns
     -------
     pd.DataFrame sorted by exposure (PC1) descending.
     PCA diagnostics stored in df.attrs.
     """
-    mean_col = (
-        "delta_mean_residual"
-        if "delta_mean_residual" in pooled.columns
-        else "delta_mean"
-    )
-    if mean_col == "delta_mean_residual":
-        logger.info(
-            "PCA using residualized delta_mean "
-            "(pre-reform level partialled out)"
-        )
-    else:
-        logger.warning(
-            "delta_mean_residual not found — using raw delta_mean. "
-            "Run residualize_delta_mean() before compute_pca_exposure()."
-        )
-
-    dims     = [mean_col, "delta_recipients_pc", "delta_expenditure_pc"]
+    if dims is None:
+        dims = ["delta_recipients_pc", "delta_expenditure_pc"]
+ 
     X        = pooled[dims].values
     scaler   = StandardScaler()
     X_scaled = scaler.fit_transform(X)
-
-    pca    = PCA(n_components=3)
+ 
+    # n_components is dynamic — matches the number of dims supplied
+    n_components = len(dims)
+    pca    = PCA(n_components=n_components)
     scores = pca.fit_transform(X_scaled)
-
-    result = pooled.copy()
+ 
+    result           = pooled.copy()
     result["exposure"] = scores[:, 0]
-    result["pc2"]      = scores[:, 1]
-    result["pc3"]      = scores[:, 2]
+    result["pc2"]      = scores[:, 1] if n_components > 1 else np.nan
+    result["pc3"]      = scores[:, 2] if n_components > 2 else np.nan
     result["region"]   = result["drgn2"].map(region_names)
-
+ 
     explained = pca.explained_variance_ratio_
     loadings  = pca.components_
-
-    logger.info(
-        "PCA explained variance: PC1=%.1f%% PC2=%.1f%% PC3=%.1f%%",
-        100*explained[0], 100*explained[1], 100*explained[2],
+ 
+    # Dynamic logging — works for any number of components
+    explained_str = " | ".join(
+        f"PC{i+1}={100*e:.1f}%%" for i, e in enumerate(explained)
     )
+    logger.info("PCA explained variance: %s", explained_str)
     logger.info("PC1 loadings:")
     for dim, loading in zip(dims, loadings[0]):
         logger.info("  %-28s : %+.3f", dim, loading)
-
+ 
     if explained[0] < 0.50:
         logger.warning(
             "PC1 explains only %.1f%% of variance — "
-            "three dimensions have low common variation. "
+            "dimensions have low common variation. "
             "Consider reporting all dimensions separately.",
             100 * explained[0],
         )
-
+ 
     result.attrs["pca_explained"] = explained
     result.attrs["pca_loadings"]  = dict(zip(dims, loadings[0]))
     result.attrs["pca_means"]     = dict(zip(dims, scaler.mean_))
     result.attrs["pca_stds"]      = dict(zip(dims, scaler.scale_))
-
+ 
     return result.sort_values("exposure", ascending=False).reset_index(drop=True)
-
-
+ 
+ 
 def plot_exposure(
     exposure_df: pd.DataFrame,
     output_dir: Path,
@@ -289,14 +250,14 @@ def plot_exposure(
       Left  — horizontal bar chart of PC1 scores by region
       Right — PC1 loadings bar chart
     """
-    explained = exposure_df.attrs.get("pca_explained", [0, 0, 0])
+    explained = exposure_df.attrs.get("pca_explained", [0, 0])
     loadings  = exposure_df.attrs.get("pca_loadings", {})
-
+ 
     fig, axes = plt.subplots(
         1, 2, figsize=(16, 7),
         gridspec_kw={"width_ratios": [3, 1]}
     )
-
+ 
     ax = axes[0]
     colors = [
         "#378ADD" if v >= 0 else "#E05C5C"
@@ -325,15 +286,15 @@ def plot_exposure(
     ax.set_title(
         "Regional exposure to IMV reform — PCA composite index\n"
         "Pooled 2017–2019, 2022 IMV rules\n"
-        "excl. La Rioja, Aragón, Ceuta",
+        "excl. La Rioja, Aragón, Ceuta, Melilla",
         fontsize=10, pad=10,
     )
     ax.grid(axis="x", alpha=0.3, linewidth=0.5)
     ax.invert_yaxis()
-
+ 
     ax2 = axes[1]
     dim_labels = {
-        "delta_mean":           "Δ Mean benefit\n(€/month, raw)",
+        "delta_mean":           "Δ Mean benefit\n(€/month)",
         "delta_mean_residual":  "Δ Mean benefit\n(€/month, residualized)",
         "delta_recipients_pc":  "Δ Recipients\n(% pop)",
         "delta_expenditure_pc": "Δ Expenditure\n(€/capita)",
@@ -353,59 +314,61 @@ def plot_exposure(
     )
     ax2.grid(axis="x", alpha=0.3, linewidth=0.5)
     ax2.set_xlim(-1.1, 1.1)
-
+ 
     plt.tight_layout()
     out_path = output_dir / "exposure_index_pca.png"
     plt.savefig(out_path, dpi=150, bbox_inches="tight")
     logger.info("PCA exposure plot saved → %s", out_path)
     plt.close()
-
-
+ 
+ 
 def save_exposure(
     exposure_df: pd.DataFrame,
     output_dir: Path,
 ) -> None:
     """
     Save exposure index and PCA diagnostics to CSV.
+    Component labels in pca_diagnostics.csv are generated dynamically
+    from the actual number of PCA components — no hardcoded PC3 assumption.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
-
+ 
     out_cols = [
         "drgn2", "region",
         "exposure",
-        "delta_mean", "delta_mean_residual",
+        "delta_mean",                # descriptive only — not in PCA
         "delta_recipients_pc", "delta_expenditure_pc",
         "rmi_mean", "imv_mean",
         "rmi_recipients_w", "imv_recipients_w",
         "rmi_expenditure", "imv_expenditure",
         "pop",
     ]
-
     out_cols = [c for c in out_cols if c in exposure_df.columns]
     exp_path = output_dir / "exposure_index.csv"
     exposure_df[out_cols].to_csv(exp_path, index=False)
     logger.info("Exposure index saved → %s", exp_path)
-
+ 
     explained = exposure_df.attrs.get("pca_explained", [])
     loadings  = exposure_df.attrs.get("pca_loadings", {})
     means     = exposure_df.attrs.get("pca_means", {})
     stds      = exposure_df.attrs.get("pca_stds", {})
-
+ 
+    # Dynamic component labels — correct for both 2-dim and 3-dim PCA
     pd.DataFrame({
-        "component": ["PC1", "PC2", "PC3"],
-        "explained_variance_pct": [round(100*e, 2) for e in explained],
+        "component":              [f"PC{i+1}" for i in range(len(explained))],
+        "explained_variance_pct": [round(100 * e, 2) for e in explained],
     }).to_csv(output_dir / "pca_diagnostics.csv", index=False)
-
+ 
     pd.DataFrame([
         {
-            "dimension": k,
+            "dimension":   k,
             "pc1_loading": round(v, 4),
             "raw_mean":    round(means.get(k, np.nan), 4),
             "raw_std":     round(stds.get(k, np.nan),  4),
         }
         for k, v in loadings.items()
     ]).to_csv(output_dir / "pca_loadings.csv", index=False)
-
+ 
     logger.info(
         "PCA diagnostics saved → %s",
         output_dir / "pca_diagnostics.csv",

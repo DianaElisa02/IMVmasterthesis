@@ -7,30 +7,6 @@ Informe RMI administrative benchmarks for 2017, 2018, and 2019.
 Validation targets:
   1. Weighted recipient count vs Informe titulares
   2. Total annual expenditure vs Informe gasto anual ejecutado
-
-NOTE — mean monthly benefit is NOT used as a correlation benchmark.
-The Informe does not publish a regional average monthly benefit directly.
-gasto_anual_por_titular / 12 is a flow measure (annual spending per
-registered recipient) that is systematically distorted by:
-  - recipient turnover within the year (partial-year spells deflate it
-    below the statutory floor for high-churn regions)
-  - supplements, housing allowances, and arrears included in the annual
-    total that EUROMOD cannot simulate
-  - multiple schemes reported jointly (e.g. Illes Balears RMI + RESOGA,
-    País Vasco income + housing supplement)
-These distortions make it an invalid comparator for EUROMOD's
-income-formula entitlement simulation. avg_monthly_admin is retained
-in CSV output for descriptive reference only.
-
-Exclusions (all years):
-  - La Rioja (drgn2=23): incomplete EUROMOD J2.0+ parameterisation
-  - Aragón (drgn2=24): pre-2021 IAI not coded in J2.0+ architecture
-  - Ceuta (drgn2=63): zero simulated recipients due to very small ECV sample
-
-Murcia (drgn2=62):
-  - Valid for 2017 and 2018
-  - Zero recipients in 2019 due to BCA probabilistic allocation
-    on small sample; excluded automatically via dropna()
 """
 
 from __future__ import annotations
@@ -43,6 +19,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import pandas as pd
 from scipy.stats import pearsonr, spearmanr
+from src.constants import INFORME_RMI
 
 logging.basicConfig(
     level=logging.INFO,

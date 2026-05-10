@@ -1,3 +1,15 @@
+"""
+constants.py
+============
+Central repository for all static mappings, recode tables, and column
+definitions used in the ECV → EUROMOD UDB conversion pipeline.
+
+All mappings are derived directly from the EUROMOD Input Data Codebook
+(EM_data_codebook_J2_0_.xlsm), Spain (ES) sheet, version J2.0+.
+Nothing in this module performs computation — it only declares values.
+All other modules import from here; nothing here imports from the project.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -6,6 +18,8 @@ from pathlib import Path
 
 YEARS: list[int] = [2017, 2018, 2019]
 
+# NOTE: verify these dataset name strings match your actual EUROMOD project
+# file names before re-running simulations.
 EUROMOD_DATASET_NAMES: dict[int, str] = {
     2017: "ES_2017_a2",
     2018: "ES_2018_a1",
@@ -89,6 +103,10 @@ TP_COLUMNS: list[str] = [
     "PE040",
     "PE041",   # highest ISCED level attended detailed → dehde
     "PL031",   # self-defined economic status (EU-SILC harmonized)
+    # NOTE: Spanish ECV contains PL031 (EU-SILC harmonized version).
+    # PL032 is a national variant — verify whether it is present and non-null
+    # in your ECV TP files. If PL032 is populated, recode_les and recode_ddi
+    # in recode.py must be updated to use PL032 instead of PL031.
     "PL032",   # self-defined economic status (national version, if present)
     "PL040",   # employment status → les fallback
     "PL051",   # occupation ISCO code → loc, lcs
@@ -126,6 +144,13 @@ TP_COLUMNS: list[str] = [
     "PB220A",  # nationality → dcz
 ]
 
+
+# =============================================================================
+# REGION MAPS
+# Source: EUROMOD codebook ES sheet, drgn1 and drgn2 derivation notes.
+# =============================================================================
+
+# INE NUTS-1 string code → EUROMOD drgn1 integer (1–7 Spain-specific scheme).
 DRGN1_MAP: dict[str, int] = {
     "ES11": 1, "ES12": 1, "ES13": 1,
     "ES21": 2, "ES22": 2, "ES23": 2, "ES24": 2,
@@ -136,6 +161,7 @@ DRGN1_MAP: dict[str, int] = {
     "ES70": 7,
 }
 
+# INE NUTS-1 string code → EUROMOD drgn2 integer.
 DRGN2_MAP: dict[str, int] = {
     "ES11": 11, "ES12": 12, "ES13": 13,
     "ES21": 21, "ES22": 22, "ES23": 23, "ES24": 24,
@@ -146,6 +172,7 @@ DRGN2_MAP: dict[str, int] = {
     "ES70": 70,
 }
 
+# Mapping from drgn2 to Autonomous Community name.
 REGION_NAMES: dict[int, str] = {
     11: "Galicia",
     12: "Principado de Asturias",
@@ -167,6 +194,11 @@ REGION_NAMES: dict[int, str] = {
     64: "Ciudad de Melilla",
     70: "Canarias",
 }
+
+
+# =============================================================================
+# EMPLOYMENT STATUS: PL031 → EUROMOD les
+# =============================================================================
 
 PL031_TO_LES: dict[int, int] = {
     1: 3,   # full-time employee
@@ -190,6 +222,11 @@ PL040_TO_LES: dict[int, int] = {
 
 LES_DEFAULT: int = 9   # other — used when both pl031 and pl040 are missing
 
+
+# =============================================================================
+# MARITAL STATUS: PB190 → EUROMOD dms
+# =============================================================================
+
 DMS_RECODE: dict[int, int] = {
     1: 1,   # single → single
     2: 2,   # married → married
@@ -198,6 +235,11 @@ DMS_RECODE: dict[int, int] = {
     5: 4,   # widowed (PB190=5) → widowed (dms=4) after swap
 }
 DMS_DEFAULT: int = 1   # single — used when pb190 is missing and no partner
+
+
+# =============================================================================
+# EDUCATION: PE040/PE041 → EUROMOD deh
+# =============================================================================
 
 DEH_RECODE_BOUNDARIES: list[tuple[int, int, int]] = [
     (100, 100, 1),   # primary (PE040=100)
@@ -208,12 +250,27 @@ DEH_RECODE_BOUNDARIES: list[tuple[int, int, int]] = [
 ]
 DEH_DEFAULT: int = 0   # not completed primary
 
+
+# =============================================================================
+# DISABILITY: PL031 → EUROMOD ddi
+# =============================================================================
+
 DDI_DISABLED: int = 1
 DDI_NOT_DISABLED: int = 0
 DDI_NOT_APPLICABLE: int = -1   # children / information not collected
 
+
+# =============================================================================
+# SEX: RB090 → EUROMOD dgn
+# =============================================================================
+
 DGN_VALID_VALUES: frozenset[int] = frozenset({1, 2})
 DGN_DEFAULT: int = 1
+
+
+# =============================================================================
+# NACE INDUSTRY: PL111A → EUROMOD lindi
+# =============================================================================
 
 LINDI_MAP: dict[str, int] = {
     "a":     1,    # agriculture and fishing
@@ -231,6 +288,11 @@ LINDI_MAP: dict[str, int] = {
     "r - u": 12,   # other services
 }
 LINDI_DEFAULT: int = 0   # not applicable
+
+
+# =============================================================================
+# UDB OUTPUT COLUMN ORDER
+# =============================================================================
 
 UDB_COLUMN_ORDER: list[str] = [
     # identifiers
@@ -280,31 +342,84 @@ OUTPUT_ENCODING: str = "utf-8"
 EUROMOD_OUTPUT_DIR: Path = Path("input_data/euromod_output")
 EXPOSURE_OUTPUT_DIR: Path = Path("output/exposure")
 
+# Pre-reform RMI simulation outputs (Run A)
 RMI_FILES: dict[int, Path] = {
     2017: EUROMOD_OUTPUT_DIR / "es_2017_std.txt",
     2018: EUROMOD_OUTPUT_DIR / "es_2018_std.txt",
     2019: EUROMOD_OUTPUT_DIR / "es_2019_std.txt",
 }
 
+# IMV counterfactual simulation outputs (Run B — 2022 rules)
 IMV_FILES: dict[int, Path] = {
     2017: EUROMOD_OUTPUT_DIR / "IMV_2022ruleson2017.txt",
     2018: EUROMOD_OUTPUT_DIR / "IMV_2022ruleson2018.txt",
     2019: EUROMOD_OUTPUT_DIR / "IMV_2022ruleson2019.txt",
 }
 
+# Regions excluded from exposure computation entirely.
+# La Rioja (23), Aragón (24): broken RMI parameterisation in EUROMOD.
+# Ceuta (63), Melilla (64): too small for reliable regional estimates.
 EXPOSURE_EXCLUDE_REGIONS: frozenset[int] = frozenset({23, 24, 63, 64})
 
+# Regions where the EUROMOD RMI simulation is unreliable (near-identical
+# policy spine shared with other regions). For these, bsarg_s in the IMV
+# run is zeroed so post-reform protection = bsa00_s (pure IMV) only.
 RMI_INCOMPATIBLE_REGIONS: frozenset[int] = frozenset({
     11,  # Galicia
     53,  # Illes Balears
     61,  # Andalucía
 })
 
+# Regions with independently coded RMI rules in EUROMOD — the simulation
+# gain is considered reliable for these.
+# FIX: Ceuta (63) and Melilla (64) removed — they are in EXPOSURE_EXCLUDE_REGIONS
+# and should not appear here. Previously their presence was inconsistent and
+# could cause confusion if this set were iterated over independently.
 RMI_COMPLEMENTARY_REGIONS: frozenset[int] = frozenset({
     12, 13, 21, 22, 30, 41, 42, 43,
     51, 52, 62, 70,
 })
 
+# IMV statutory amounts (2022) — used for validation bounds
+# Source: Law 19/2021, updated 2022
+IMV_STATUTORY_2022: dict[str, float] = {
+    "basic_monthly":          469.93,
+    "increment_per_member":   0.30,
+    "max_multiplier":         2.20,
+    "max_monthly":            1033.85,
+    "lone_parent_supplement": 0.22,
+    "floor_monthly":          10.0,
+}
+
+# IMV administrative benchmarks (2022 national)
+# Source: INSS Estadística IMV 2022
+# NOTE: not used in formal validation — simulation applies 2022 rules to
+# 2017–2019 household data, so administrative 2022 outcomes reflect a
+# different income distribution and actual take-up. Retained for reference.
+IMV_ADMIN_2022: dict[str, float] = {
+    "recipients":      603_000,
+    "expenditure_M":   2_100.0,
+    "mean_monthly":    290.0,
+}
+
+# =============================================================================
+# INFORME RMI REGIONAL BENCHMARKS — pre-reform administrative data
+# Source: Informe de Rentas Mínimas de Inserción, Ministerio de Derechos
+#         Sociales y Agenda 2030, Cuadro 7 and Cuadro 8.
+#
+# Used in:
+#   - RMIeuromod_validation.py  (RMI simulation validation)
+#   - src/exposure_validation.py (institutional consistency check)
+#
+# Fields per region-year:
+#   titulares:              recipient households (Cuadro 7)
+#   gasto_anual_ejecutado:  total annual expenditure in € (Cuadro 8)
+#   gasto_anual_por_titular: expenditure / titulares — DESCRIPTIVE ONLY,
+#                            not used as correlation benchmark (flow measure
+#                            contaminated by turnover and supplements)
+#
+# Excluded from exposure pipeline: La Rioja (23), Aragón (24), Ceuta (63)
+# =============================================================================
 
 INFORME_RMI: dict[int, list[dict]] = {
 
@@ -331,25 +446,25 @@ INFORME_RMI: dict[int, list[dict]] = {
     ],
 
     2018: [
-        {"region": "Andalucía",          "drgn2": 61, "titulares": 17883,  "gasto_anual_ejecutado":  53710000.00, "gasto_anual_por_titular": 3003.66},
-        {"region": "Aragón",             "drgn2": 24, "titulares": 9894,   "gasto_anual_ejecutado":  48502000.00, "gasto_anual_por_titular": 4902.38},
-        {"region": "Asturias",           "drgn2": 12, "titulares": 22305,  "gasto_anual_ejecutado": 124548000.00, "gasto_anual_por_titular": 5584.11},
-        {"region": "Illes Balears",      "drgn2": 53, "titulares": 9714,   "gasto_anual_ejecutado":  21330000.00, "gasto_anual_por_titular": 2196.11},
-        {"region": "Canarias",           "drgn2": 70, "titulares": 11592,  "gasto_anual_ejecutado":  42620000.00, "gasto_anual_por_titular": 3676.40},
-        {"region": "Cantabria",          "drgn2": 13, "titulares": 5365,   "gasto_anual_ejecutado":  30990000.00, "gasto_anual_por_titular": 5775.67},
-        {"region": "Castilla-La Mancha", "drgn2": 42, "titulares": 3544,   "gasto_anual_ejecutado":   9440000.00, "gasto_anual_por_titular": 2663.89},
-        {"region": "Castilla y León",    "drgn2": 41, "titulares": 14536,  "gasto_anual_ejecutado":  71880000.00, "gasto_anual_por_titular": 4944.90},
-        {"region": "Cataluña",           "drgn2": 51, "titulares": 28572,  "gasto_anual_ejecutado": 240510000.00, "gasto_anual_por_titular": 8417.56},
-        {"region": "Ceuta",              "drgn2": 63, "titulares": 266,    "gasto_anual_ejecutado":    441534.06, "gasto_anual_por_titular": 1659.91},
-        {"region": "Extremadura",        "drgn2": 43, "titulares": 5982,   "gasto_anual_ejecutado":  48430000.00, "gasto_anual_por_titular": 8096.62},
-        {"region": "Galicia",            "drgn2": 11, "titulares": 14238,  "gasto_anual_ejecutado":  55320000.00, "gasto_anual_por_titular": 3885.31},
-        {"region": "Madrid",             "drgn2": 30, "titulares": 33000,  "gasto_anual_ejecutado": 152560000.00, "gasto_anual_por_titular": 4623.03},
-        {"region": "Melilla",            "drgn2": 64, "titulares": 784,    "gasto_anual_ejecutado":   3306000.00, "gasto_anual_por_titular": 4217.55},
-        {"region": "Murcia",             "drgn2": 62, "titulares": 5856,   "gasto_anual_ejecutado":  16520000.00, "gasto_anual_por_titular": 2821.62},
-        {"region": "Navarra",            "drgn2": 22, "titulares": 16078,  "gasto_anual_ejecutado": 103520000.00, "gasto_anual_por_titular": 6438.65},
-        {"region": "País Vasco",         "drgn2": 21, "titulares": 72341,  "gasto_anual_ejecutado": 438560000.00, "gasto_anual_por_titular": 6062.42},
+        {"region": "Andalucía",          "drgn2": 61, "titulares": 17883,  "gasto_anual_ejecutado":  53714504.64, "gasto_anual_por_titular": 3003.66},
+        {"region": "Aragón",             "drgn2": 24, "titulares": 9894,   "gasto_anual_ejecutado":  48504116.60, "gasto_anual_por_titular": 4902.38},
+        {"region": "Asturias",           "drgn2": 12, "titulares": 22305,  "gasto_anual_ejecutado": 124553633.74, "gasto_anual_por_titular": 5584.11},
+        {"region": "Illes Balears",      "drgn2": 53, "titulares": 9714,   "gasto_anual_ejecutado":  21333051.92, "gasto_anual_por_titular": 2196.11},
+        {"region": "Canarias",           "drgn2": 70, "titulares": 11592,  "gasto_anual_ejecutado":  42616784.64, "gasto_anual_por_titular": 3676.40},
+        {"region": "Cantabria",          "drgn2": 13, "titulares": 5365,   "gasto_anual_ejecutado":  30986481.62, "gasto_anual_por_titular": 5775.67},
+        {"region": "Castilla-La Mancha", "drgn2": 42, "titulares": 3544,   "gasto_anual_ejecutado":   9440813.89, "gasto_anual_por_titular": 2663.89},
+        {"region": "Castilla y León",    "drgn2": 41, "titulares": 14536,  "gasto_anual_ejecutado":  71879041.10, "gasto_anual_por_titular": 4944.90},
+        {"region": "Cataluña",           "drgn2": 51, "titulares": 28572,  "gasto_anual_ejecutado": 240506407.21, "gasto_anual_por_titular": 8417.56},
+        {"region": "Ceuta",              "drgn2": 63, "titulares": 266,    "gasto_anual_ejecutado":    441535.08, "gasto_anual_por_titular": 1659.91},
+        {"region": "Extremadura",        "drgn2": 43, "titulares": 5982,   "gasto_anual_ejecutado":  48434000.00, "gasto_anual_por_titular": 8096.62},
+        {"region": "Galicia",            "drgn2": 11, "titulares": 14238,  "gasto_anual_ejecutado":  55319059.66, "gasto_anual_por_titular": 3885.31},
+        {"region": "Madrid",             "drgn2": 30, "titulares": 33000,  "gasto_anual_ejecutado": 152559867.63, "gasto_anual_por_titular": 4623.03},
+        {"region": "Melilla",            "drgn2": 64, "titulares": 784,    "gasto_anual_ejecutado":   3306558.16, "gasto_anual_por_titular": 4217.55},
+        {"region": "Murcia",             "drgn2": 62, "titulares": 5856,   "gasto_anual_ejecutado":  16523433.80, "gasto_anual_por_titular": 2821.62},
+        {"region": "Navarra",            "drgn2": 22, "titulares": 16078,  "gasto_anual_ejecutado": 103520674.39, "gasto_anual_por_titular": 6438.65},
+        {"region": "País Vasco",         "drgn2": 21, "titulares": 72341,  "gasto_anual_ejecutado": 438561747.00, "gasto_anual_por_titular": 6062.42},
         {"region": "La Rioja",           "drgn2": 23, "titulares": 2941,   "gasto_anual_ejecutado":  12590000.00, "gasto_anual_por_titular": 4280.86},
-        {"region": "C. Valenciana",      "drgn2": 52, "titulares": 18411,  "gasto_anual_ejecutado":  44880000.00, "gasto_anual_por_titular": 2437.64},
+        {"region": "C. Valenciana",      "drgn2": 52, "titulares": 18411,  "gasto_anual_ejecutado":  44879309.72, "gasto_anual_por_titular": 2437.64},
     ],
 
     2019: [
@@ -375,19 +490,29 @@ INFORME_RMI: dict[int, list[dict]] = {
     ],
 }
 
-
-
-IMV_STATUTORY_2022: dict[str, float] = {
-    "basic_monthly":          469.93,
-    "increment_per_member":   0.30,
-    "max_multiplier":         2.20,
-    "max_monthly":            1033.85,
-    "lone_parent_supplement": 0.22,
-    "floor_monthly":          10.0,
-}
-
-IMV_ADMIN_2022: dict[str, float] = {
-    "recipients":      603_000,
-    "expenditure_M":   2_100.0,
-    "mean_monthly":    290.0,
+# Population denominators per Autonomous Community (INE, mid-year estimates)
+# Used to compute per-capita coverage and expenditure rates in validation.
+# Source: INE Padrón Municipal de Habitantes
+REGION_POPULATION: dict[int, dict[int, int]] = {
+    2017: {
+        11: 2708339, 12: 1034960, 13: 582905,
+        21: 2178049, 22: 640647,  30: 6466996,
+        41: 2440188, 42: 2041631, 43: 1087905,
+        51: 7496276, 52: 4941509, 53: 1115999,
+        61: 8379248, 62: 1474449, 70: 2127685,
+    },
+    2018: {
+        11: 2701743, 12: 1022800, 13: 581292,
+        21: 2193093, 22: 643709,  30: 6578079,
+        41: 2422985, 42: 2032881, 43: 1082218,
+        51: 7566431, 52: 4974986, 53: 1128908,
+        61: 8384408, 62: 1478509, 70: 2127685,
+    },
+    2019: {
+        11: 2699499, 12: 1018761, 13: 582905,
+        21: 2207776, 22: 654214,  30: 6663394,
+        41: 2407766, 42: 2035642, 43: 1063987,
+        51: 7675217, 52: 5003769, 53: 1149460,
+        61: 8464411, 62: 1493898, 70: 2153389,
+    },
 }
