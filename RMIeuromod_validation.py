@@ -60,7 +60,7 @@ EUROMOD_FILES = {
 }
 
 # Excluded from all years — see module docstring
-EXCLUDE_REGIONS: set[int] = {23, 24, 63}
+EXCLUDE_REGIONS: set[int] = {63}
 
 SAVE_CSV = True  # set False to skip CSV export
 
