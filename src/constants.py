@@ -400,7 +400,7 @@ IMV_FILES: dict[int, Path] = {
 
 # Regions excluded from exposure computation
 # La Rioja (23) and Aragón (24): broken RMI parameterisation in both
-EXPOSURE_EXCLUDE_REGIONS: frozenset[int] = frozenset({23, 24, 63})
+EXPOSURE_EXCLUDE_REGIONS: frozenset[int] = frozenset({23, 24, 63, 64})
 
 RMI_INCOMPATIBLE_REGIONS: frozenset[int] = frozenset({
     11,  # Galicia
