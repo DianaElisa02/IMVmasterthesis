@@ -1,4 +1,4 @@
 dimension,pc1_loading,raw_mean,raw_std
-delta_mean_residual,-0.2624,-0.0,63.7281
-delta_recipients_pc,0.7007,0.0609,0.9025
-delta_expenditure_pc,0.6635,38.6209,27.7259
+delta_mean_residual,-0.2803,0.0,67.2534
+delta_recipients_pc,0.7023,0.1044,0.8885
+delta_expenditure_pc,0.6544,38.4152,26.8732

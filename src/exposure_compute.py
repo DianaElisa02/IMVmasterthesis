@@ -115,7 +115,7 @@ def pool_dimensions(
     imv_dfs: dict[int, pd.DataFrame],
     exclude_regions: frozenset[int],
     incompatible_regions: frozenset[int],
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     frames = []
     for year in sorted(rmi_dfs.keys()):
@@ -149,7 +149,7 @@ def pool_dimensions(
     logger.info(
         "Pooled %d years → %d regions", len(rmi_dfs), len(avg)
     )
-    return avg
+    return avg, all_dims
 
 
 def residualize_delta_mean(pooled: pd.DataFrame) -> pd.DataFrame:

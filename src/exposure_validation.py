@@ -62,7 +62,7 @@ def test_monotonicity(df: pd.DataFrame, year: int) -> dict:
 
     hh_size = df.groupby("idhh")["idperson"].count().rename("hh_size_proxy")
     recipients = recipients.merge(hh_size, on="idhh", how="left")
-
+    recipients = recipients.drop_duplicates(subset="idhh")
     rho, pval = spearmanr(
         recipients["hh_size_proxy"],
         recipients["bsa00_s"]
@@ -94,6 +94,7 @@ def test_monotonicity(df: pd.DataFrame, year: int) -> dict:
  
  
 def test_income_means_test(df: pd.DataFrame, year: int) -> dict:
+    df = df.drop_duplicates(subset="idhh")
     recipients     = df[df["bsa00_s"] > 0]["yds"].dropna()
     non_recipients = df[df["bsa00_s"] == 0]["yds"].dropna()
  
@@ -129,11 +130,21 @@ def test_cross_year_consistency(
 ) -> list[dict]:
     results = []
     years = sorted(imv_dfs.keys())
+
+
  
     for i in range(len(years) - 1):
         y1, y2 = years[i], years[i + 1]
-        dist1 = imv_dfs[y1][imv_dfs[y1]["bsa00_s"] > 0]["bsa00_s"].dropna()
-        dist2 = imv_dfs[y2][imv_dfs[y2]["bsa00_s"] > 0]["bsa00_s"].dropna()
+        dist1 = (
+            imv_dfs[y1][imv_dfs[y1]["bsa00_s"] > 0]
+            .drop_duplicates(subset="idhh")["bsa00_s"]
+            .dropna()
+        )
+        dist2 = (
+            imv_dfs[y2][imv_dfs[y2]["bsa00_s"] > 0]
+            .drop_duplicates(subset="idhh")["bsa00_s"]
+            .dropna()
+        )
  
         stat, pval = ks_2samp(dist1, dist2)
  
