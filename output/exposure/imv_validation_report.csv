@@ -13,5 +13,5 @@ income_means_test,2019.0,,,,,,,,True,,,5349.97,9561.59,0.56,4502614.0,0.0,,,,,,,
 formula_plausibility,2019.0,,,,,,,,True,,,,,,,,390.01,469.93,17.0,51.0,within 20% of statutory single-person GMI,,,,,,,
 cross_year_ks,,,,,,,,,True,,,,,,,,,,,,high p-value = distributions similar across years,2017_vs_2018,0.0464,0.9118,478.06,456.65,,
 cross_year_ks,,,,,,,,,True,,,,,,,,,,,,high p-value = distributions similar across years,2018_vs_2019,0.0479,0.8574,456.65,456.25,,
-regional_rank_consistency,,,,,,,,,False,,0.1878,,,,,,,,,,,2017_vs_2018,,,,,0.347,16.0
-regional_rank_consistency,,,,,,,,,False,,0.77,,,,,,,,,,,2018_vs_2019,,,,,-0.079,16.0
+regional_rank_consistency,,,,,,,,,False,,0.1913,,,,,,,,,,,2017_vs_2018,,,,,0.357,15.0
+regional_rank_consistency,,,,,,,,,False,,0.771,,,,,,,,,,,2018_vs_2019,,,,,-0.082,15.0

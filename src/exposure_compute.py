@@ -23,10 +23,6 @@ Exposure index:
     - Extract first principal component via PCA
     - Exposure_r = PC1 score for region r
 
-Excluded regions:
-    La Rioja (23), Aragón (24) — broken EUROMOD J2.0+ parameterisation
-    Ceuta (63) — zero pre-reform recipients, extreme outlier in delta_mean
-
 For regions where RMI is INCOMPATIBLE with IMV:
     Galicia (11), Illes Balears (53), Andalucía (61)
     bsarg_s_post is zeroed so post_protection = bsa00_s only
@@ -53,9 +49,6 @@ def compute_regional_dimensions(
     exclude_regions: frozenset[int],
     incompatible_regions: frozenset[int],
 ) -> pd.DataFrame:
-    """
-    Compute the three generosity dimensions for each region in one year.
-    """
     imv = imv_df.copy()
     imv.loc[imv["drgn2"].isin(incompatible_regions), "bsarg_s"] = 0.0
     imv["total_post"] = imv["bsa00_s"] + imv["bsarg_s"]
@@ -123,9 +116,7 @@ def pool_dimensions(
     exclude_regions: frozenset[int],
     incompatible_regions: frozenset[int],
 ) -> pd.DataFrame:
-    """
-    Compute dimensions for each year and average across 2017–2019.
-    """
+
     frames = []
     for year in sorted(rmi_dfs.keys()):
         frames.append(
@@ -161,6 +152,60 @@ def pool_dimensions(
     return avg
 
 
+def residualize_delta_mean(pooled: pd.DataFrame) -> pd.DataFrame:
+    """
+    Partial out the pre-reform RMI mean benefit from delta_mean.
+
+    Economic rationale:
+        delta_mean = imv_mean - rmi_mean loads negatively on PC1 because
+        regions with high pre-reform RMI generosity mechanically show
+        negative delta_mean (the IMV pays less per recipient than their
+        generous regional RMI did). This mean-reversion is a mechanical
+        artifact of the starting level, not a genuine policy design signal.
+
+        Standard fix (Bartik 1991 tradition): regress delta_mean on
+        rmi_mean across regions and use the residual. The residual captures
+        the variation in benefit amount change that is orthogonal to the
+        pre-existing level — a clean measure of how much the IMV changed
+        per-recipient generosity controlling for where each region started.
+
+    Parameters
+    ----------
+    pooled : pd.DataFrame with columns delta_mean and rmi_mean.
+
+    Returns
+    -------
+    pd.DataFrame with added column delta_mean_residual.
+    Original delta_mean is preserved for transparency.
+    """
+    import statsmodels.api as sm
+
+    X = sm.add_constant(pooled["rmi_mean"].values)
+    y = pooled["delta_mean"].values
+
+    model = sm.OLS(y, X).fit()
+    pooled = pooled.copy()
+    pooled["delta_mean_residual"] = model.resid
+
+    logger.info(
+        "Residualized delta_mean — OLS: R²=%.3f | "
+        "beta_rmi_mean=%.3f (p=%.4f) | intercept=%.3f (p=%.4f)",
+        model.rsquared,
+        model.params[1], model.pvalues[1],
+        model.params[0], model.pvalues[0],
+    )
+    logger.info(
+        "delta_mean_residual: mean=%.3f | std=%.3f | "
+        "min=%.2f | max=%.2f",
+        pooled["delta_mean_residual"].mean(),
+        pooled["delta_mean_residual"].std(),
+        pooled["delta_mean_residual"].min(),
+        pooled["delta_mean_residual"].max(),
+    )
+
+    return pooled
+
+
 def compute_pca_exposure(
     pooled: pd.DataFrame,
     region_names: dict[int, str],
@@ -178,7 +223,23 @@ def compute_pca_exposure(
     pd.DataFrame sorted by exposure (PC1) descending.
     PCA diagnostics stored in df.attrs.
     """
-    dims     = ["delta_mean", "delta_recipients_pc", "delta_expenditure_pc"]
+    mean_col = (
+        "delta_mean_residual"
+        if "delta_mean_residual" in pooled.columns
+        else "delta_mean"
+    )
+    if mean_col == "delta_mean_residual":
+        logger.info(
+            "PCA using residualized delta_mean "
+            "(pre-reform level partialled out)"
+        )
+    else:
+        logger.warning(
+            "delta_mean_residual not found — using raw delta_mean. "
+            "Run residualize_delta_mean() before compute_pca_exposure()."
+        )
+
+    dims     = [mean_col, "delta_recipients_pc", "delta_expenditure_pc"]
     X        = pooled[dims].values
     scaler   = StandardScaler()
     X_scaled = scaler.fit_transform(X)
@@ -272,7 +333,8 @@ def plot_exposure(
 
     ax2 = axes[1]
     dim_labels = {
-        "delta_mean":           "Δ Mean benefit\n(€/month)",
+        "delta_mean":           "Δ Mean benefit\n(€/month, raw)",
+        "delta_mean_residual":  "Δ Mean benefit\n(€/month, residualized)",
         "delta_recipients_pc":  "Δ Recipients\n(% pop)",
         "delta_expenditure_pc": "Δ Expenditure\n(€/capita)",
     }
@@ -311,12 +373,15 @@ def save_exposure(
     out_cols = [
         "drgn2", "region",
         "exposure",
-        "delta_mean", "delta_recipients_pc", "delta_expenditure_pc",
+        "delta_mean", "delta_mean_residual",
+        "delta_recipients_pc", "delta_expenditure_pc",
         "rmi_mean", "imv_mean",
         "rmi_recipients_w", "imv_recipients_w",
         "rmi_expenditure", "imv_expenditure",
         "pop",
     ]
+
+    out_cols = [c for c in out_cols if c in exposure_df.columns]
     exp_path = output_dir / "exposure_index.csv"
     exposure_df[out_cols].to_csv(exp_path, index=False)
     logger.info("Exposure index saved → %s", exp_path)

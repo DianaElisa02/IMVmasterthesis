@@ -1,55 +1,55 @@
-2026-05-09 14:33:05,357 | INFO | ============================================================
-2026-05-09 14:33:05,357 | INFO | Starting exposure variable pipeline — PCA approach
-2026-05-09 14:33:05,357 | INFO | ============================================================
-2026-05-09 14:33:05,357 | INFO | Excluded regions: La Rioja (23), Aragón (24), Ceuta (63)
-2026-05-09 14:33:05,357 | INFO | Incompatible regions (bsarg_s_post=0): Galicia (11), Illes Balears (53), Andalucía (61)
-2026-05-09 14:33:05,358 | INFO | Step 1: Loading EUROMOD output files
-2026-05-09 14:33:05,358 | INFO | Loading RMI 2017 → input_data/euromod_output/es_2017_std.txt
-2026-05-09 14:33:12,618 | INFO | RMI 2017: loaded 34911 persons, 322 columns
-2026-05-09 14:33:12,618 | INFO | Loading IMV 2017 → input_data/euromod_output/IMV_2022ruleson2017.txt
-2026-05-09 14:33:20,758 | INFO | IMV 2017: loaded 34911 persons, 375 columns
-2026-05-09 14:33:20,758 | INFO | Loading RMI 2018 → input_data/euromod_output/es_2018_std.txt
-2026-05-09 14:33:27,981 | INFO | RMI 2018: loaded 33734 persons, 340 columns
-2026-05-09 14:33:27,981 | INFO | Loading IMV 2018 → input_data/euromod_output/IMV_2022ruleson2018.txt
-2026-05-09 14:33:35,785 | INFO | IMV 2018: loaded 33734 persons, 375 columns
-2026-05-09 14:33:35,785 | INFO | Loading RMI 2019 → input_data/euromod_output/es_2019_std.txt
-2026-05-09 14:33:44,398 | INFO | RMI 2019: loaded 39852 persons, 343 columns
-2026-05-09 14:33:44,398 | INFO | Loading IMV 2019 → input_data/euromod_output/IMV_2022ruleson2019.txt
-2026-05-09 14:33:53,857 | INFO | IMV 2019: loaded 39852 persons, 375 columns
-2026-05-09 14:33:53,857 | INFO | Step 2: Validating IMV counterfactual simulation
-2026-05-09 14:33:53,857 | INFO | ==================================================
-2026-05-09 14:33:53,857 | INFO | Validating IMV simulation — year 2017
-2026-05-09 14:33:53,870 | INFO | [WARN] Test 1 — Benefit bounds 2017: mean=€480.80, below_floor=0, above_max=17
-2026-05-09 14:33:53,900 | INFO | [WARN] Test 2 — Monotonicity 2017: rho=-0.033 (p=0.5851)
-2026-05-09 14:33:54,011 | INFO | [PASS] Test 3 — Income means test 2017: mean_yds_rec=€4820 vs non_rec=€9409 (p=0.0000)
-2026-05-09 14:33:54,034 | INFO | [PASS] Test 6 — Formula plausibility 2017: mean_single=€379.13 vs statutory=€469.93 (diff=19.3%)
-2026-05-09 14:33:54,034 | INFO | ==================================================
-2026-05-09 14:33:54,034 | INFO | Validating IMV simulation — year 2018
-2026-05-09 14:33:54,045 | INFO | [WARN] Test 1 — Benefit bounds 2018: mean=€465.44, below_floor=0, above_max=6
-2026-05-09 14:33:54,070 | INFO | [WARN] Test 2 — Monotonicity 2018: rho=-0.266 (p=0.0000)
-2026-05-09 14:33:54,173 | INFO | [PASS] Test 3 — Income means test 2018: mean_yds_rec=€5500 vs non_rec=€9530 (p=0.0000)
-2026-05-09 14:33:54,193 | INFO | [PASS] Test 6 — Formula plausibility 2018: mean_single=€530.40 vs statutory=€469.93 (diff=12.9%)
-2026-05-09 14:33:54,193 | INFO | ==================================================
-2026-05-09 14:33:54,193 | INFO | Validating IMV simulation — year 2019
-2026-05-09 14:33:54,206 | INFO | [WARN] Test 1 — Benefit bounds 2019: mean=€434.20, below_floor=0, above_max=12
-2026-05-09 14:33:54,232 | INFO | [WARN] Test 2 — Monotonicity 2019: rho=-0.097 (p=0.0732)
-2026-05-09 14:33:54,343 | INFO | [PASS] Test 3 — Income means test 2019: mean_yds_rec=€5350 vs non_rec=€9562 (p=0.0000)
-2026-05-09 14:33:54,365 | INFO | [PASS] Test 6 — Formula plausibility 2019: mean_single=€390.01 vs statutory=€469.93 (diff=17.0%)
-2026-05-09 14:33:54,378 | INFO | [PASS] Test 4 — KS consistency 2017 vs 2018: stat=0.0464 (p=0.9118)
-2026-05-09 14:33:54,394 | INFO | [PASS] Test 4 — KS consistency 2018 vs 2019: stat=0.0479 (p=0.8574)
-2026-05-09 14:33:54,435 | INFO | [WARN] Test 5 — Regional rank 2017 vs 2018: rho=0.347 (p=0.1878)
-2026-05-09 14:33:54,475 | INFO | [WARN] Test 5 — Regional rank 2018 vs 2019: rho=-0.079 (p=0.7700)
-2026-05-09 14:33:54,478 | INFO | Validation report saved → output/exposure/imv_validation_report.csv
-2026-05-09 14:33:54,478 | INFO | Validation summary: 8/16 tests passed
-2026-05-09 14:33:54,479 | INFO | Validation: 8/16 tests passed
-2026-05-09 14:33:54,479 | INFO | Step 3: Computing generosity dimensions (delta_mean, delta_recipients_pc, delta_expenditure_pc)
-2026-05-09 14:33:54,755 | INFO | Year 2017: computed dimensions for 16 regions
-2026-05-09 14:33:55,063 | INFO | Year 2018: computed dimensions for 16 regions
-2026-05-09 14:33:55,351 | INFO | Year 2019: computed dimensions for 16 regions
-2026-05-09 14:33:55,368 | INFO | Pooled 3 years → 16 regions
-2026-05-09 14:33:55,368 | INFO | 
+2026-05-10 07:08:40,244 | INFO | ============================================================
+2026-05-10 07:08:40,244 | INFO | Starting exposure variable pipeline — PCA approach
+2026-05-10 07:08:40,244 | INFO | ============================================================
+2026-05-10 07:08:40,245 | INFO | Excluded regions: La Rioja (23), Aragón (24), Ceuta (63)
+2026-05-10 07:08:40,245 | INFO | Incompatible regions (bsarg_s_post=0): Galicia (11), Illes Balears (53), Andalucía (61)
+2026-05-10 07:08:40,245 | INFO | Step 1: Loading EUROMOD output files
+2026-05-10 07:08:40,245 | INFO | Loading RMI 2017 → input_data/euromod_output/es_2017_std.txt
+2026-05-10 07:08:48,556 | INFO | RMI 2017: loaded 34911 persons, 322 columns
+2026-05-10 07:08:48,556 | INFO | Loading IMV 2017 → input_data/euromod_output/IMV_2022ruleson2017.txt
+2026-05-10 07:08:57,376 | INFO | IMV 2017: loaded 34911 persons, 375 columns
+2026-05-10 07:08:57,376 | INFO | Loading RMI 2018 → input_data/euromod_output/es_2018_std.txt
+2026-05-10 07:09:05,407 | INFO | RMI 2018: loaded 33734 persons, 340 columns
+2026-05-10 07:09:05,407 | INFO | Loading IMV 2018 → input_data/euromod_output/IMV_2022ruleson2018.txt
+2026-05-10 07:09:13,914 | INFO | IMV 2018: loaded 33734 persons, 375 columns
+2026-05-10 07:09:13,914 | INFO | Loading RMI 2019 → input_data/euromod_output/es_2019_std.txt
+2026-05-10 07:09:23,533 | INFO | RMI 2019: loaded 39852 persons, 343 columns
+2026-05-10 07:09:23,533 | INFO | Loading IMV 2019 → input_data/euromod_output/IMV_2022ruleson2019.txt
+2026-05-10 07:09:33,733 | INFO | IMV 2019: loaded 39852 persons, 375 columns
+2026-05-10 07:09:33,733 | INFO | Step 2: Validating IMV counterfactual simulation
+2026-05-10 07:09:33,733 | INFO | ==================================================
+2026-05-10 07:09:33,733 | INFO | Validating IMV simulation — year 2017
+2026-05-10 07:09:33,755 | INFO | [WARN] Test 1 — Benefit bounds 2017: mean=€480.80, below_floor=0, above_max=17
+2026-05-10 07:09:33,821 | INFO | [WARN] Test 2 — Monotonicity 2017: rho=-0.033 (p=0.5851)
+2026-05-10 07:09:33,929 | INFO | [PASS] Test 3 — Income means test 2017: mean_yds_rec=€4820 vs non_rec=€9409 (p=0.0000)
+2026-05-10 07:09:33,952 | INFO | [PASS] Test 6 — Formula plausibility 2017: mean_single=€379.13 vs statutory=€469.93 (diff=19.3%)
+2026-05-10 07:09:33,953 | INFO | ==================================================
+2026-05-10 07:09:33,953 | INFO | Validating IMV simulation — year 2018
+2026-05-10 07:09:33,965 | INFO | [WARN] Test 1 — Benefit bounds 2018: mean=€465.44, below_floor=0, above_max=6
+2026-05-10 07:09:33,998 | INFO | [WARN] Test 2 — Monotonicity 2018: rho=-0.266 (p=0.0000)
+2026-05-10 07:09:34,096 | INFO | [PASS] Test 3 — Income means test 2018: mean_yds_rec=€5500 vs non_rec=€9530 (p=0.0000)
+2026-05-10 07:09:34,117 | INFO | [PASS] Test 6 — Formula plausibility 2018: mean_single=€530.40 vs statutory=€469.93 (diff=12.9%)
+2026-05-10 07:09:34,118 | INFO | ==================================================
+2026-05-10 07:09:34,118 | INFO | Validating IMV simulation — year 2019
+2026-05-10 07:09:34,133 | INFO | [WARN] Test 1 — Benefit bounds 2019: mean=€434.20, below_floor=0, above_max=12
+2026-05-10 07:09:34,163 | INFO | [WARN] Test 2 — Monotonicity 2019: rho=-0.097 (p=0.0732)
+2026-05-10 07:09:34,284 | INFO | [PASS] Test 3 — Income means test 2019: mean_yds_rec=€5350 vs non_rec=€9562 (p=0.0000)
+2026-05-10 07:09:34,307 | INFO | [PASS] Test 6 — Formula plausibility 2019: mean_single=€390.01 vs statutory=€469.93 (diff=17.0%)
+2026-05-10 07:09:34,327 | INFO | [PASS] Test 4 — KS consistency 2017 vs 2018: stat=0.0464 (p=0.9118)
+2026-05-10 07:09:34,344 | INFO | [PASS] Test 4 — KS consistency 2018 vs 2019: stat=0.0479 (p=0.8574)
+2026-05-10 07:09:34,388 | INFO | [WARN] Test 5 — Regional rank 2017 vs 2018: rho=0.357 (p=0.1913)
+2026-05-10 07:09:34,433 | INFO | [WARN] Test 5 — Regional rank 2018 vs 2019: rho=-0.082 (p=0.7710)
+2026-05-10 07:09:34,438 | INFO | Validation report saved → output/exposure/imv_validation_report.csv
+2026-05-10 07:09:34,439 | INFO | Validation summary: 8/16 tests passed
+2026-05-10 07:09:34,439 | INFO | Validation: 8/16 tests passed
+2026-05-10 07:09:34,439 | INFO | Step 3: Computing generosity dimensions (delta_mean, delta_recipients_pc, delta_expenditure_pc)
+2026-05-10 07:09:34,734 | INFO | Year 2017: computed dimensions for 15 regions
+2026-05-10 07:09:35,075 | INFO | Year 2018: computed dimensions for 15 regions
+2026-05-10 07:09:35,358 | INFO | Year 2019: computed dimensions for 15 regions
+2026-05-10 07:09:35,385 | INFO | Pooled 3 years → 15 regions
+2026-05-10 07:09:35,386 | INFO | 
 Pooled dimensions (averaged 2017-2019):
-2026-05-09 14:33:55,372 | INFO | 
+2026-05-10 07:09:35,394 | INFO | 
  drgn2  delta_mean  delta_recipients_pc  delta_expenditure_pc
     11    114.2433               0.5005               36.0682
     12     49.3033              -1.1630               24.8863
@@ -65,39 +65,41 @@ Pooled dimensions (averaged 2017-2019):
     53    -56.1000               0.3538                6.2525
     61    130.2000               1.0754               64.7864
     62     28.2933               1.0327               46.3547
-    64    192.7200              -0.3722               -1.1939
     70     27.3633               0.5375               75.5715
-2026-05-09 14:33:55,372 | INFO | Step 4: Extracting PC1 via PCA
-2026-05-09 14:33:55,607 | INFO | PCA explained variance: PC1=56.2% PC2=28.6% PC3=15.2%
-2026-05-09 14:33:55,608 | INFO | PC1 loadings:
-2026-05-09 14:33:55,608 | INFO |   delta_mean                   : -0.419
-2026-05-09 14:33:55,608 | INFO |   delta_recipients_pc          : +0.651
-2026-05-09 14:33:55,608 | INFO |   delta_expenditure_pc         : +0.633
-2026-05-09 14:33:55,609 | INFO | 
+2026-05-10 07:09:35,395 | INFO | Step 3.5: Residualizing delta_mean (partialling out pre-reform RMI level)
+2026-05-10 07:09:37,365 | INFO | Residualized delta_mean — OLS: R²=0.003 | beta_rmi_mean=0.030 (p=0.8518) | intercept=22.549 (p=0.7604)
+2026-05-10 07:09:37,366 | INFO | delta_mean_residual: mean=-0.000 | std=65.965 | min=-93.24 | max=138.07
+2026-05-10 07:09:37,366 | INFO | Step 4: Extracting PC1 via PCA
+2026-05-10 07:09:37,366 | INFO | PCA using residualized delta_mean (pre-reform level partialled out)
+2026-05-10 07:09:37,626 | INFO | PCA explained variance: PC1=52.6% PC2=32.7% PC3=14.7%
+2026-05-10 07:09:37,627 | INFO | PC1 loadings:
+2026-05-10 07:09:37,627 | INFO |   delta_mean_residual          : -0.262
+2026-05-10 07:09:37,627 | INFO |   delta_recipients_pc          : +0.701
+2026-05-10 07:09:37,627 | INFO |   delta_expenditure_pc         : +0.663
+2026-05-10 07:09:37,628 | INFO | 
 Regional exposure index (PC1):
-2026-05-09 14:33:55,612 | INFO | 
+2026-05-10 07:09:37,631 | INFO | 
                     region  drgn2  exposure  delta_mean  delta_recipients_pc  delta_expenditure_pc
-      Comunitat Valenciana     52  1.661511     60.4733               0.6376               94.7167
-                  Cataluña     51  1.477597    -51.0533               0.2267               71.0996
-               Extremadura     43  1.370940     -9.4800               0.7533               59.5556
-                  Canarias     70  1.353865     27.3633               0.5375               75.5715
-          Región de Murcia     62  1.066572     28.2933               1.0327               46.3547
-                 Andalucía     61  0.918571    130.2000               1.0754               64.7864
-        Castilla-La Mancha     42  0.565358    -11.2967               0.6015               27.8392
-             Illes Balears     53  0.161871    -56.1000               0.3538                6.2525
-                   Galicia     11 -0.051849    114.2433               0.5005               36.0682
-           Castilla y León     41 -0.084925     39.8833               0.2517               23.5181
-       Comunidad de Madrid     30 -0.595046     48.9800               0.0629                9.1915
-                 Cantabria     13 -0.837039      5.6033              -0.4347                3.5866
-Comunidad Foral de Navarra     22 -0.894378    -17.7467              -1.4573               29.0213
-    Principado de Asturias     12 -1.155649     49.3033              -1.1630               24.8863
-         Ciudad de Melilla     64 -1.977597    192.7200              -0.3722               -1.1939
-                País Vasco     21 -2.979804    180.2967              -2.0655                6.8659
-2026-05-09 14:33:55,612 | INFO | Step 5: Saving outputs
-2026-05-09 14:33:55,615 | INFO | Exposure index saved → output/exposure/exposure_index.csv
-2026-05-09 14:33:55,617 | INFO | PCA diagnostics saved → output/exposure/pca_diagnostics.csv
-2026-05-09 14:33:56,222 | INFO | PCA exposure plot saved → output/exposure/exposure_index_pca.png
-2026-05-09 14:33:56,222 | INFO | ============================================================
-2026-05-09 14:33:56,222 | INFO | Exposure pipeline complete.
-2026-05-09 14:33:56,222 | INFO | Outputs: /workspaces/IMVmasterthesis/output/exposure
-2026-05-09 14:33:56,222 | INFO | ============================================================
+      Comunitat Valenciana     52  1.686424     60.4733               0.6376               94.7167
+                  Canarias     70  1.290351     27.3633               0.5375               75.5715
+                  Cataluña     51  1.289839    -51.0533               0.2267               71.0996
+               Extremadura     43  1.231755     -9.4800               0.7533               59.5556
+                 Andalucía     61  1.013280    130.2000               1.0754               64.7864
+          Región de Murcia     62  0.955389     28.2933               1.0327               46.3547
+        Castilla-La Mancha     42  0.347848    -11.2967               0.6015               27.8392
+                   Galicia     11 -0.048963    114.2433               0.5005               36.0682
+             Illes Balears     53 -0.188057    -56.1000               0.3538                6.2525
+           Castilla y León     41 -0.234164     39.8833               0.2517               23.5181
+       Comunidad de Madrid     30 -0.763045     48.9800               0.0629                9.1915
+                 Cantabria     13 -1.104124      5.6033              -0.4347                3.5866
+Comunidad Foral de Navarra     22 -1.165092    -17.7467              -1.4573               29.0213
+    Principado de Asturias     12 -1.332170     49.3033              -1.1630               24.8863
+                País Vasco     21 -2.979269    180.2967              -2.0655                6.8659
+2026-05-10 07:09:37,632 | INFO | Step 5: Saving outputs
+2026-05-10 07:09:37,634 | INFO | Exposure index saved → output/exposure/exposure_index.csv
+2026-05-10 07:09:37,640 | INFO | PCA diagnostics saved → output/exposure/pca_diagnostics.csv
+2026-05-10 07:09:38,117 | INFO | PCA exposure plot saved → output/exposure/exposure_index_pca.png
+2026-05-10 07:09:38,118 | INFO | ============================================================
+2026-05-10 07:09:38,118 | INFO | Exposure pipeline complete.
+2026-05-10 07:09:38,118 | INFO | Outputs: /workspaces/IMVmasterthesis/output/exposure
+2026-05-10 07:09:38,118 | INFO | ============================================================
