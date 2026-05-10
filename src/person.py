@@ -1,10 +1,5 @@
 """
 person.py
-=========
-Builds the person-level UDB variables from raw ECV Tr and Tp sections.
-
-Returns a Polars DataFrame with one row per person. The OECD equivalence
-scale is computed from age data and joined back before returning.
 """
 
 from __future__ import annotations
@@ -32,11 +27,8 @@ from src.recode import (
 
 logger = logging.getLogger(__name__)
 
-# Columns requested in TR_COLUMNS/TP_COLUMNS that are absent from Spanish ECV.
-# A warning is raised if they ever become non-null (i.e. the source data changed).
 _ABSENT_FROM_ECV: frozenset[str] = frozenset({"PB060", "PE021", "PE041", "PL032", "PL271"})
 
-# Gross income columns that must be non-negative.
 _GROSS_INCOME_COLS: tuple[str, ...] = (
     "PY010G", "PY020G", "PY021G", "PY030G", "PY035G",
     "PY050G", "PY080G", "PY090G", "PY100G", "PY110G",
@@ -45,33 +37,30 @@ _GROSS_INCOME_COLS: tuple[str, ...] = (
 
 
 def recode_loc_expr(isco: pl.Expr) -> pl.Expr:
-    """Map ISCO-08 occupation code to EUROMOD loc category."""
     num = isco.cast(pl.Int64, strict=False).fill_null(0)
-
     result = pl.lit(-1.0, dtype=pl.Float64)
-
     result = (
         pl.when(num.is_in([1, 2, 3]).fill_null(False))
         .then(pl.lit(0.0, dtype=pl.Float64))
         .otherwise(result)
     )
-
     for tens in range(1, 10):
         lo, hi = tens * 10, tens * 10 + 9
         mask = ((num >= lo) & (num <= hi)).fill_null(False)
-
         result = (
-            pl.when(mask).then(pl.lit(float(tens), dtype=pl.Float64)).otherwise(result)
+            pl.when(mask)
+            .then(pl.lit(float(tens), dtype=pl.Float64))
+            .otherwise(result)
         )
-
     return result.cast(pl.Float64)
 
 
 def recode_dcz_expr(pb220a: pl.Expr) -> pl.Expr:
     num = pb220a.cast(pl.Int64, strict=False)
-
     return (
-        num.replace([1, 2, 3], [1, 2, 3], default=None).cast(pl.Float64).fill_null(1.0)
+        num.replace([1, 2, 3], [1, 2, 3], default=None)
+        .cast(pl.Float64)
+        .fill_null(1.0)
     )
 
 
@@ -100,9 +89,7 @@ def prepare_person_input(tr: pl.DataFrame, tp: pl.DataFrame, year: int) -> pl.Da
     if n_merged != n_tr:
         logger.warning(
             "Year %s: row count changed after Tr-Tp join (%d → %d)",
-            year,
-            n_tr,
-            n_merged,
+            year, n_tr, n_merged,
         )
 
     for col in _ABSENT_FROM_ECV:
@@ -212,7 +199,8 @@ def build_person_udb(person: pl.DataFrame, year: int) -> pl.DataFrame:
             .cast(pl.Float64)
             .alias("lhw"),
             compute_liwmy(
-                pl.col("PL073"), pl.col("PL074"), pl.col("PL075"), pl.col("PL076")
+                pl.col("PL073"), pl.col("PL074"),
+                pl.col("PL075"), pl.col("PL076"),
             ).alias("liwmy"),
             compute_liwftmy(
                 pl.col("PL073"),
@@ -249,9 +237,44 @@ def build_person_udb(person: pl.DataFrame, year: int) -> pl.DataFrame:
             .is_in([1, 2, 3, 11, 23, 34, 54])
             .cast(pl.Float64)
             .alias("lcs"),
+
+            pl.when(
+                pl.col("PE010")
+                .cast(pl.Float64, strict=False)
+                .eq(1.0)
+                .fill_null(False)
+            )
+            .then(pl.lit(1.0, dtype=pl.Float64))
+            .otherwise(pl.lit(0.0, dtype=pl.Float64))
+            .alias("dsu00"),
         )
         .collect()
     )
+
+    out = out.with_columns(
+        pl.when(
+            pl.col("les").is_in([2.0, 3.0])
+            & (pl.col("liwmy") == 0.0)
+            & (pl.col("yem") > 0.0)
+        )
+        .then(pl.lit(1.0, dtype=pl.Float64))
+        .otherwise(pl.col("liwmy"))
+        .alias("liwmy")
+    )
+
+    n_floored = (
+        out.filter(
+            pl.col("les").is_in([2.0, 3.0])
+            & (pl.col("liwmy") == 1.0)
+            & (pl.col("yem") > 0.0)
+        ).height
+    )
+    if n_floored > 0:
+        logger.info(
+            "Year %s: floored liwmy to 1 month for %d employed persons "
+            "with positive earnings and zero months worked",
+            year, n_floored,
+        )
 
     oecd_df = compute_oecd_m(out.select(["IDHH", "dag"]))
     out = out.join(oecd_df, on="IDHH", how="left").with_columns(

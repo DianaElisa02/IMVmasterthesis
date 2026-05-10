@@ -1,10 +1,5 @@
 """
 household.py
-============
-Builds the household-level UDB variables from raw ECV Td and Th sections.
-
-Returns a Polars DataFrame with one row per household. Merged onto the
-person-level file in merge.py.
 """
 
 from __future__ import annotations
@@ -23,11 +18,8 @@ from src.recode import (
 
 logger = logging.getLogger(__name__)
 
-# Columns requested in TH_COLUMNS/TD_COLUMNS that are absent from Spanish ECV.
-# A warning is raised if they ever become non-null (i.e. the source data changed).
 _ABSENT_FROM_ECV: frozenset[str] = frozenset({"DB070", "HH071", "HX090"})
 
-# Gross income columns that must be non-negative (net/adjustment columns excluded).
 _GROSS_INCOME_COLS: tuple[str, ...] = (
     "HY040G", "HY050G", "HY060G", "HY070G", "HY080G",
     "HY090G", "HY100G", "HY110G", "HY120G", "HY130G",
@@ -52,10 +44,7 @@ def prepare_household_input(
     if n_merged < n_td:
         logger.warning(
             "Year %s: %d Td households did not match Th (%d Td, %d merged)",
-            year,
-            n_td - n_merged,
-            n_td,
-            n_merged,
+            year, n_td - n_merged, n_td, n_merged,
         )
 
     for col in _ABSENT_FROM_ECV:
@@ -76,9 +65,6 @@ def prepare_household_input(
                     year, col, n_neg,
                 )
 
-    # HX010 is used in build_household_udb for scaling monthly income variables.
-    # All other UDB placeholder columns (bma, bch, dsu00, xhcmomc, …) that are
-    # absent from ECV are zero-filled by merge_and_export from UDB_COLUMN_ORDER.
     hh = hh.with_columns(
         pl.col("HX040").cast(pl.Float64, strict=False).fill_null(1.0).alias("HX010"),
     )
@@ -101,7 +87,7 @@ def build_household_udb(hh: pl.DataFrame, year: int) -> pl.DataFrame:
             recode_drgn1(pl.col("DB040")).alias("drgn1"),
             recode_drgn2(pl.col("DB040")).alias("drgn2"),
             pl.col("DB090").alias("dwt"),
-            pl.lit(13.0).alias("dct"),  # Introduce dct column fixed at 13
+            pl.lit(13.0).alias("dct"),
             (pl.col("DB100").cast(pl.Float64, strict=False) == 2.0)
             .cast(pl.Float64)
             .fill_null(strategy="zero")
@@ -116,7 +102,19 @@ def build_household_udb(hh: pl.DataFrame, year: int) -> pl.DataFrame:
             .alias("drgur"),
             fill_zero(pl.col("DB060")).alias("dsu01"),
             pl.col("HX040").cast(pl.Float64, strict=False).alias("hsize"),
-            fill_zero(pl.col("HH010")).alias("hh010"),
+            # ------------------------------------------------------------------
+            # FIX — hh010: recode missing or zero to 1 (flat/apartment)
+            # Valid EUROMOD Spain values: 1=flat, 2=house, 3=other, 4=tent/mobile
+            # 0 is undefined — previously produced by fill_zero for null HH010
+            # Source: EUROMOD codebook ES sheet, hh010 derivation notes
+            # ------------------------------------------------------------------
+            pl.when(
+                pl.col("HH010").cast(pl.Float64, strict=False).is_null()
+                | (pl.col("HH010").cast(pl.Float64, strict=False) == 0.0)
+            )
+            .then(pl.lit(1.0, dtype=pl.Float64))
+            .otherwise(pl.col("HH010").cast(pl.Float64, strict=False))
+            .alias("hh010"),
             fill_zero(pl.col("HH021")).alias("hh021"),
             fill_zero(pl.col("HH030")).alias("hh030"),
             fill_zero(pl.col("HH040")).alias("hh040"),
@@ -157,6 +155,16 @@ def build_household_udb(hh: pl.DataFrame, year: int) -> pl.DataFrame:
         )
         .collect()
     )
+
+    n_fixed = hh.filter(
+        pl.col("HH010").cast(pl.Float64, strict=False).is_null()
+        | (pl.col("HH010").cast(pl.Float64, strict=False) == 0.0)
+    ).height
+    if n_fixed > 0:
+        logger.info(
+            "Year %s: recoded hh010=0/null to 1 for %d households",
+            year, n_fixed,
+        )
 
     logger.info("Year %s: built household UDB — %d households", year, len(out))
     return out
