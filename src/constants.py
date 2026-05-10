@@ -1,15 +1,3 @@
-"""
-constants.py
-============
-Central repository for all static mappings, recode tables, and column
-definitions used in the ECV → EUROMOD UDB conversion pipeline.
-
-All mappings are derived directly from the EUROMOD Input Data Codebook
-(EM_data_codebook_J2_0_.xlsm), Spain (ES) sheet, version J2.0+.
-Nothing in this module performs computation — it only declares values.
-All other modules import from here; nothing here imports from the project.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -96,12 +84,12 @@ TP_COLUMNS: list[str] = [
     "PB100",   # month of interview → ddt
     "PB110",   # year of interview → ddt
     "PB190",   # legal marital status → dms
-    "PE010",   # currently in education (1=yes, 2=no) → dec imputation
+    "PE010",   # currently in education (1=yes, 2=no) → dsu00
     "PE021",   # ISCED level currently attended → dec
-    "PE040",   
+    "PE040",
     "PE041",   # highest ISCED level attended detailed → dehde
-    "PL031",   # self-defined economic status (used in ddi fallback)
-    "PL032",   # self-defined economic status (alternative) → les, ddi
+    "PL031",   # self-defined economic status (EU-SILC harmonized)
+    "PL032",   # self-defined economic status (national version, if present)
     "PL040",   # employment status → les fallback
     "PL051",   # occupation ISCO code → loc, lcs
     "PL060",   # hours worked per week in main job → lhw
@@ -138,21 +126,6 @@ TP_COLUMNS: list[str] = [
     "PB220A",  # nationality → dcz
 ]
 
-
-# =============================================================================
-# REGION MAPS
-# Source: EUROMOD codebook ES sheet, drgn1 and drgn2 derivation notes.
-# =============================================================================
-
-# INE NUTS-1 string code → EUROMOD drgn1 integer (1–7 Spain-specific scheme).
-# Codebook derivation:
-#   drgn1 = 1 if db040 in {ES11, ES12, ES13}       Noroeste
-#   drgn1 = 2 if db040 in {ES21, ES22, ES23, ES24}  Noreste
-#   drgn1 = 3 if db040 == ES30                       Madrid
-#   drgn1 = 4 if db040 in {ES41, ES42, ES43}         Centro
-#   drgn1 = 5 if db040 in {ES51, ES52, ES53}         Este
-#   drgn1 = 6 if db040 in {ES61, ES62, ES63, ES64}   Sur
-#   drgn1 = 7 if db040 == ES70                       Canarias
 DRGN1_MAP: dict[str, int] = {
     "ES11": 1, "ES12": 1, "ES13": 1,
     "ES21": 2, "ES22": 2, "ES23": 2, "ES24": 2,
@@ -163,9 +136,6 @@ DRGN1_MAP: dict[str, int] = {
     "ES70": 7,
 }
 
-# INE NUTS-1 string code → EUROMOD drgn2 integer.
-# Codebook derivation: drgn2 = destring(substr(db040, 3, 2))
-# i.e. numeric part of "ES51" → 51.
 DRGN2_MAP: dict[str, int] = {
     "ES11": 11, "ES12": 12, "ES13": 13,
     "ES21": 21, "ES22": 22, "ES23": 23, "ES24": 24,
@@ -176,8 +146,6 @@ DRGN2_MAP: dict[str, int] = {
     "ES70": 70,
 }
 
-# Mapping from drgn2 to Autonomous Community name.
-# Used only for logging and validation output — not fed to EUROMOD.
 REGION_NAMES: dict[int, str] = {
     11: "Galicia",
     12: "Principado de Asturias",
@@ -200,24 +168,6 @@ REGION_NAMES: dict[int, str] = {
     70: "Canarias",
 }
 
-
-# =============================================================================
-# EMPLOYMENT STATUS: PL032 → EUROMOD les
-# Source: EUROMOD codebook ES sheet, les derivation notes.
-#
-# EUROMOD Spain derives les primarily from pl032:
-#   les = 4  if pl032 == 3   (retired/pensioner)
-#   les = 5  if pl032 == 2   (unemployed)
-#   les = 6  if pl032 == 5   (student)
-#   les = 7  if pl032 == 7   (fulfilling domestic tasks)
-#   les = 7  if pl032 == 8   (other inactive)
-#   les = 8  if pl032 == 4   (permanently disabled)
-#   les = 9  if pl032 == 6   (other)
-# Fallback via pl040 when pl032 is missing:
-#   les = 2  if pl040 in {1, 2, 4}   (self-employed/employer/family worker)
-#   les = 3  if pl040 == 3            (employee)
-# =============================================================================
-
 PL031_TO_LES: dict[int, int] = {
     1: 3,   # full-time employee
     2: 3,   # part-time employee
@@ -238,18 +188,7 @@ PL040_TO_LES: dict[int, int] = {
     4: 2,   # contributing family worker → self-employed
 }
 
-LES_DEFAULT: int = 9   # other — used when both pl032 and pl040 are missing
-
-
-# =============================================================================
-# MARITAL STATUS: PB190 → EUROMOD dms
-# Source: EUROMOD codebook ES sheet, dms derivation notes.
-#
-# gen dms = pb190
-# recode dms (5=4) (4=5)
-# EU-SILC PB190: 1=single, 2=married, 3=separated, 4=divorced, 5=widowed
-# EUROMOD dms after recode: 1=single, 2=married, 3=separated, 4=widowed, 5=divorced
-# =============================================================================
+LES_DEFAULT: int = 9   # other — used when both pl031 and pl040 are missing
 
 DMS_RECODE: dict[int, int] = {
     1: 1,   # single → single
@@ -260,16 +199,6 @@ DMS_RECODE: dict[int, int] = {
 }
 DMS_DEFAULT: int = 1   # single — used when pb190 is missing and no partner
 
-
-# =============================================================================
-# EDUCATION: PE040/PE041 → EUROMOD deh
-# Source: EUROMOD codebook ES sheet, deh derivation notes.
-#
-# gen deh = pe041
-# recode deh (100=1)(200=2)(300/399=3)(400/499=4)(500/800=5)
-# =============================================================================
-
-# Boundaries for deh recode — applied as range checks in recode.py.
 DEH_RECODE_BOUNDARIES: list[tuple[int, int, int]] = [
     (100, 100, 1),   # primary (PE040=100)
     (200, 200, 2),   # lower secondary (PE040=200)
@@ -279,37 +208,12 @@ DEH_RECODE_BOUNDARIES: list[tuple[int, int, int]] = [
 ]
 DEH_DEFAULT: int = 0   # not completed primary
 
-
-# =============================================================================
-# DISABILITY: PL032 → EUROMOD ddi
-# Source: EUROMOD codebook ES sheet, ddi derivation notes.
-#
-# ddi = 1   if pl032 == 4
-# ddi = 0   if pl032 != 4 & pl031 != .
-# ddi = -1  if pl032 == . & pb030 == .  (children — not applicable)
-# =============================================================================
-
 DDI_DISABLED: int = 1
 DDI_NOT_DISABLED: int = 0
 DDI_NOT_APPLICABLE: int = -1   # children / information not collected
 
-
-# =============================================================================
-# SEX: RB090 → EUROMOD dgn
-# Source: EUROMOD codebook ES sheet, dgn derivation notes.
-#
-# dgn = rb090   (1=male, 2=female — no recode for Spain)
-# =============================================================================
-
 DGN_VALID_VALUES: frozenset[int] = frozenset({1, 2})
 DGN_DEFAULT: int = 1
-
-
-# =============================================================================
-# NACE INDUSTRY: PL111A → EUROMOD lindi
-# Source: EUROMOD codebook ES sheet, lindi derivation notes.
-# PL111A in Spanish ECV is a lowercase string letter code.
-# =============================================================================
 
 LINDI_MAP: dict[str, int] = {
     "a":     1,    # agriculture and fishing
@@ -327,14 +231,6 @@ LINDI_MAP: dict[str, int] = {
     "r - u": 12,   # other services
 }
 LINDI_DEFAULT: int = 0   # not applicable
-
-
-# =============================================================================
-# UDB OUTPUT COLUMN ORDER
-# Defines the column order in the output .txt file.
-# Columns not produced by this pipeline default to 0 inside EUROMOD.
-# Order follows the codebook variable groupings.
-# =============================================================================
 
 UDB_COLUMN_ORDER: list[str] = [
     # identifiers
@@ -384,22 +280,18 @@ OUTPUT_ENCODING: str = "utf-8"
 EUROMOD_OUTPUT_DIR: Path = Path("input_data/euromod_output")
 EXPOSURE_OUTPUT_DIR: Path = Path("output/exposure")
 
-# Pre-reform RMI simulation outputs (Run A)
 RMI_FILES: dict[int, Path] = {
     2017: EUROMOD_OUTPUT_DIR / "es_2017_std.txt",
     2018: EUROMOD_OUTPUT_DIR / "es_2018_std.txt",
     2019: EUROMOD_OUTPUT_DIR / "es_2019_std.txt",
 }
 
-# IMV counterfactual simulation outputs (Run B — 2022 rules)
 IMV_FILES: dict[int, Path] = {
     2017: EUROMOD_OUTPUT_DIR / "IMV_2022ruleson2017.txt",
     2018: EUROMOD_OUTPUT_DIR / "IMV_2022ruleson2018.txt",
     2019: EUROMOD_OUTPUT_DIR / "IMV_2022ruleson2019.txt",
 }
 
-# Regions excluded from exposure computation
-# La Rioja (23) and Aragón (24): broken RMI parameterisation in both
 EXPOSURE_EXCLUDE_REGIONS: frozenset[int] = frozenset({23, 24, 63, 64})
 
 RMI_INCOMPATIBLE_REGIONS: frozenset[int] = frozenset({
@@ -410,11 +302,9 @@ RMI_INCOMPATIBLE_REGIONS: frozenset[int] = frozenset({
 
 RMI_COMPLEMENTARY_REGIONS: frozenset[int] = frozenset({
     12, 13, 21, 22, 30, 41, 42, 43,
-    51, 52, 62, 63, 64, 70,
+    51, 52, 62, 70,
 })
 
-# IMV statutory amounts (2022) — used for validation bounds
-# Source: Law 19/2021, updated 2022
 IMV_STATUTORY_2022: dict[str, float] = {
     "basic_monthly":          469.93,
     "increment_per_member":   0.30,
@@ -424,8 +314,6 @@ IMV_STATUTORY_2022: dict[str, float] = {
     "floor_monthly":          10.0,
 }
 
-# IMV administrative benchmarks (2022 national)
-# Source: INSS Estadística IMV 2022
 IMV_ADMIN_2022: dict[str, float] = {
     "recipients":      603_000,
     "expenditure_M":   2_100.0,

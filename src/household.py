@@ -1,7 +1,3 @@
-"""
-household.py
-"""
-
 from __future__ import annotations
 
 import logging
@@ -66,14 +62,13 @@ def prepare_household_input(
                 )
 
     hh = hh.with_columns(
-        pl.col("HX040").cast(pl.Float64, strict=False).fill_null(1.0).alias("HX010"),
+        pl.col("HX040").cast(pl.Float64, strict=False).fill_null(1.0).alias("_hsize_raw"),
     )
 
-    n_bad = (hh["HX010"] <= 0).sum()
+    n_bad = (hh["_hsize_raw"] <= 0).sum()
     if n_bad > 0:
         raise ValueError(
-            f"Year {year}: {n_bad} households have HX010 <= 0 — "
-            "would produce inf in income scaling"
+            f"Year {year}: {n_bad} households have HX040 <= 0"
         )
 
     return hh
@@ -102,12 +97,6 @@ def build_household_udb(hh: pl.DataFrame, year: int) -> pl.DataFrame:
             .alias("drgur"),
             fill_zero(pl.col("DB060")).alias("dsu01"),
             pl.col("HX040").cast(pl.Float64, strict=False).alias("hsize"),
-            # ------------------------------------------------------------------
-            # FIX — hh010: recode missing or zero to 1 (flat/apartment)
-            # Valid EUROMOD Spain values: 1=flat, 2=house, 3=other, 4=tent/mobile
-            # 0 is undefined — previously produced by fill_zero for null HH010
-            # Source: EUROMOD codebook ES sheet, hh010 derivation notes
-            # ------------------------------------------------------------------
             pl.when(
                 pl.col("HH010").cast(pl.Float64, strict=False).is_null()
                 | (pl.col("HH010").cast(pl.Float64, strict=False) == 0.0)
@@ -127,25 +116,27 @@ def build_household_udb(hh: pl.DataFrame, year: int) -> pl.DataFrame:
             fill_zero(pl.col("HY022")).alias("hy022"),
             fill_zero(pl.col("HY023")).alias("hy023"),
             recode_amrtn(pl.col("HH021")).alias("amrtn"),
-            scale_monthly(pl.col("HY020"), pl.col("HX010")).alias("yds"),
-            scale_monthly(pl.col("HY090G"), pl.col("HX010")).alias("yiy"),
-            scale_monthly(pl.col("HY040G"), pl.col("HX010")).alias("ypr"),
-            scale_monthly(pl.col("HY080G"), pl.col("HX010")).alias("ypt"),
-            scale_monthly(pl.col("HY050G"), pl.col("HX010")).alias("bfa"),
-            scale_monthly(pl.col("HY070G"), pl.col("HX010")).alias("bho"),
-            scale_monthly(pl.col("HY060G"), pl.col("HX010")).alias("bsa"),
-            scale_monthly(pl.col("HY145N"), pl.col("HX010")).alias("tad"),
-            scale_monthly(pl.col("HY120G"), pl.col("HX010")).alias("tpr"),
-            scale_monthly(pl.col("HY120G"), pl.col("HX010")).alias("twl"),
-            scale_monthly(pl.col("HY130G"), pl.col("HX010")).alias("xmp"),
-            scale_monthly(pl.col("HY100G"), pl.col("HX010")).alias("xhcmomi"),
-            (pl.col("HH060").cast(pl.Float64, strict=False) * pl.col("HX010"))
+            scale_monthly(pl.col("HY020")).alias("yds"),
+            scale_monthly(pl.col("HY090G")).alias("yiy"),
+            scale_monthly(pl.col("HY040G")).alias("ypr"),
+            scale_monthly(pl.col("HY080G")).alias("ypt"),
+            scale_monthly(pl.col("HY050G")).alias("bfa"),
+            scale_monthly(pl.col("HY070G")).alias("bho"),
+            scale_monthly(pl.col("HY060G")).alias("bsa"),
+            scale_monthly(pl.col("HY145N")).alias("tad"),
+            scale_monthly(pl.col("HY120G")).alias("tpr"),
+            scale_monthly(pl.col("HY120G")).alias("twl"),
+            scale_monthly(pl.col("HY130G")).alias("xmp"),
+            scale_monthly(pl.col("HY100G")).alias("xhcmomi"),
+            scale_monthly(pl.col("HY110G")).alias("yot"),
+            pl.col("HH060")
+            .cast(pl.Float64, strict=False)
             .fill_null(0.0)
             .alias("xhcrt"),
-            (pl.col("HH070").cast(pl.Float64, strict=False) * pl.col("HX010"))
+            pl.col("HH070")
+            .cast(pl.Float64, strict=False)
             .fill_null(0.0)
             .alias("xhc"),
-            scale_monthly(pl.col("HY110G"), pl.col("HX010")).alias("yot"),
             pl.lit(year, dtype=pl.Int32).alias("year"),
         )
         .with_columns(

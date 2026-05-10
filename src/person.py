@@ -1,7 +1,3 @@
-"""
-person.py
-"""
-
 from __future__ import annotations
 
 import logging
@@ -211,15 +207,16 @@ def build_person_udb(person: pl.DataFrame, year: int) -> pl.DataFrame:
                 pl.col("PL076"),
             ).alias("liwptmy"),
             compute_liwwh(pl.col("PL200")).alias("liwwh"),
+            
             pl.col("PL080")
             .cast(pl.Float64, strict=False)
-            .clip(upper_bound=12)
+            .clip(lower_bound=0, upper_bound=12)
             .fill_null(0.0)
             .cast(pl.Float64)
             .alias("lunmy"),
             pl.col("PL085")
             .cast(pl.Float64, strict=False)
-            .clip(upper_bound=12)
+            .clip(lower_bound=0, upper_bound=12)
             .fill_null(0.0)
             .cast(pl.Float64)
             .alias("lpemy"),
@@ -237,7 +234,6 @@ def build_person_udb(person: pl.DataFrame, year: int) -> pl.DataFrame:
             .is_in([1, 2, 3, 11, 23, 34, 54])
             .cast(pl.Float64)
             .alias("lcs"),
-
             pl.when(
                 pl.col("PE010")
                 .cast(pl.Float64, strict=False)

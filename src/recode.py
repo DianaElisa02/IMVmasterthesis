@@ -1,12 +1,3 @@
-"""
-recode.py
-=========
-All recoding logic for the ECV → EUROMOD UDB conversion pipeline.
-
-Each function takes one or more polars Series and returns a Series.
-No file I/O is performed here. All mappings reference constants.py.
-"""
-
 from __future__ import annotations
 
 import polars as pl
@@ -73,7 +64,6 @@ def recode_dgn(rb090: pl.Expr) -> pl.Expr:
 
 
 def recode_dms(pb190: pl.Expr, idpartner: pl.Expr) -> pl.Expr:
-    # idpartner not needed: all remaining nulls fall back to DMS_DEFAULT anyway
     num = pb190.cast(pl.Int64, strict=False)
 
     return (
@@ -88,15 +78,6 @@ def recode_dms(pb190: pl.Expr, idpartner: pl.Expr) -> pl.Expr:
 
 
 def recode_deh(pe040: pl.Expr) -> pl.Expr:
-    """
-    Recode PE040 (Spanish CNED-2014 education classification) to EUROMOD deh.
-    PE040 is stored as string in Spanish ECV Stata files and must be
-    explicitly cast to numeric before applying ISCED boundaries.
-
-    PE040 values: 0=none, 100=primary, 200=lower sec, 300-354=upper sec,
-                  400-450=post-sec non-tertiary, 500=tertiary (ISCED 5+)
-    Source: INE CNED-2014 transformation table, ECV methodology notes.
-    """
     num = (
         pe040
         .cast(pl.String, strict=False)
@@ -242,11 +223,9 @@ def recode_amrtn(hh021: pl.Expr) -> pl.Expr:
     ).cast(pl.Float64)
 
 
-def scale_monthly(annual: pl.Expr, hx010: pl.Expr) -> pl.Expr:
+def scale_monthly(annual: pl.Expr) -> pl.Expr:
     ann = annual.cast(pl.Float64, strict=False).fill_null(0.0)
-    scale = hx010.cast(pl.Float64, strict=False).fill_null(1.0)
-
-    return (ann / 12.0 * scale).cast(pl.Float64)
+    return (ann / 12.0).cast(pl.Float64)
 
 
 def compute_liwmy(

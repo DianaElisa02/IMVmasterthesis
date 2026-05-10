@@ -1,13 +1,3 @@
-"""
-schemas.py
-==========
-Pandera/Polars schemas validating UDB output before export.
-
-PersonUdbSchema  — applied to the final merged (person + household) DataFrame.
-HouseholdUdbSchema — applied to household_udb before the merge, using the
-                     uppercase "IDHH" key that build_household_udb returns.
-"""
-
 from __future__ import annotations
 
 import pandera.polars as pa
@@ -48,24 +38,12 @@ PersonUdbSchema = pa.DataFrameSchema(
             pl.Float64,
             checks=pa.Check.isin(
                 [
-                    11.0,
-                    12.0,
-                    13.0,
-                    21.0,
-                    22.0,
-                    23.0,
-                    24.0,
+                    11.0, 12.0, 13.0,
+                    21.0, 22.0, 23.0, 24.0,
                     30.0,
-                    41.0,
-                    42.0,
-                    43.0,
-                    51.0,
-                    52.0,
-                    53.0,
-                    61.0,
-                    62.0,
-                    63.0,
-                    64.0,
+                    41.0, 42.0, 43.0,
+                    51.0, 52.0, 53.0,
+                    61.0, 62.0, 63.0, 64.0,
                     70.0,
                 ]
             ),
@@ -74,6 +52,10 @@ PersonUdbSchema = pa.DataFrameSchema(
         "drgmd": pa.Column(pl.Float64, checks=pa.Check.isin([0.0, 1.0]), nullable=True),
         "drgru": pa.Column(pl.Float64, checks=pa.Check.isin([0.0, 1.0]), nullable=True),
         "drgur": pa.Column(pl.Float64, checks=pa.Check.isin([0.0, 1.0]), nullable=True),
+        "dsu00": pa.Column(
+
+            pl.Float64, checks=pa.Check.isin([0.0, 1.0]), nullable=True
+        ),
         "dsu01": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
         # ── Labour market ─────────────────────────────────────────────────────
         "les": pa.Column(
@@ -115,8 +97,12 @@ PersonUdbSchema = pa.DataFrameSchema(
             pl.Float64, checks=[pa.Check.ge(1.0), pa.Check.le(20.0)], nullable=True
         ),
         "oecd_m": pa.Column(pl.Float64, checks=pa.Check.ge(1.0), nullable=True),
-        # ── Housing ───────────────────────────────────────────────────────────
-        "hh010": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
+
+        "hh010": pa.Column(
+            pl.Float64,
+            checks=pa.Check.isin([1.0, 2.0, 3.0, 4.0]),
+            nullable=True,
+        ),
         "hh021": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
         "hh030": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
         "hh040": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
@@ -168,8 +154,6 @@ PersonUdbSchema = pa.DataFrameSchema(
 )
 
 
-# Applied to household_udb (before merge) — uses "IDHH" (uppercase) as returned
-# by build_household_udb.
 HouseholdUdbSchema = pa.DataFrameSchema(
     {
         "IDHH": pa.Column(pl.String, nullable=False, unique=True),
@@ -181,24 +165,12 @@ HouseholdUdbSchema = pa.DataFrameSchema(
             pl.Float64,
             checks=pa.Check.isin(
                 [
-                    11.0,
-                    12.0,
-                    13.0,
-                    21.0,
-                    22.0,
-                    23.0,
-                    24.0,
+                    11.0, 12.0, 13.0,
+                    21.0, 22.0, 23.0, 24.0,
                     30.0,
-                    41.0,
-                    42.0,
-                    43.0,
-                    51.0,
-                    52.0,
-                    53.0,
-                    61.0,
-                    62.0,
-                    63.0,
-                    64.0,
+                    41.0, 42.0, 43.0,
+                    51.0, 52.0, 53.0,
+                    61.0, 62.0, 63.0, 64.0,
                     70.0,
                 ]
             ),
@@ -211,7 +183,11 @@ HouseholdUdbSchema = pa.DataFrameSchema(
         "hsize": pa.Column(
             pl.Float64, checks=[pa.Check.ge(1.0), pa.Check.le(20.0)], nullable=True
         ),
-        "hh010": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
+        "hh010": pa.Column(
+            pl.Float64,
+            checks=pa.Check.isin([1.0, 2.0, 3.0, 4.0]),
+            nullable=True,
+        ),
         "hh021": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
         "hh030": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
         "hh040": pa.Column(pl.Float64, checks=pa.Check.ge(0.0), nullable=True),
