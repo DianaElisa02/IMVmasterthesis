@@ -1,16 +1,16 @@
-test,year,n_recipients_unweighted,n_recipients_weighted,mean_monthly_benefit,statutory_single_GMI,statutory_max_GMI,n_below_floor,n_above_max_110pct,pass,n_hh_recipients,n_hh_non_recipients,mean_yds_recipients,mean_yds_non_recipients,ratio,mannwhitney_stat,mannwhitney_p,mean_bsa00_s_single_hh,pct_difference,n_single_hh_recipients,note,years,spearman_rho,spearman_p,n_regions
-benefit_bounds,2017.0,295.0,410599.0,444.88,469.93,1033.85,168.0,14.0,False,,,,,,,,,,,,,,,
-income_means_test,2017.0,,,,,,,,True,200.0,13540.0,1375.61,2415.18,0.57,828148.0,0.0,,,,,,,,
-formula_plausibility,2017.0,,,,469.93,,,,True,,,,,,,,377.38,19.7,38.0,within 20% of statutory single-person GMI,,,,
-benefit_bounds,2018.0,288.0,409528.0,445.37,469.93,1033.85,151.0,6.0,False,,,,,,,,,,,,,,,
-income_means_test,2018.0,,,,,,,,True,200.0,13168.0,1440.96,2456.35,0.587,850094.0,0.0,,,,,,,,
-formula_plausibility,2018.0,,,,469.93,,,,True,,,,,,,,527.63,12.3,37.0,within 20% of statutory single-person GMI,,,,
-benefit_bounds,2019.0,360.0,447092.0,407.67,469.93,1033.85,197.0,7.0,False,,,,,,,,,,,,,,,
-income_means_test,2019.0,,,,,,,,True,236.0,15651.0,1409.49,2474.97,0.569,1097830.0,0.0,,,,,,,,
-formula_plausibility,2019.0,,,,469.93,,,,True,,,,,,,,390.01,17.0,51.0,within 20% of statutory single-person GMI,,,,
-exposure_dimension_stability,,,,,,,,,False,,,,,,,,,,,,2017_vs_2018,0.568,0.0272,15.0
-exposure_dimension_stability,,,,,,,,,False,,,,,,,,,,,,2018_vs_2019,0.504,0.0557,15.0
-regional_rank_consistency,,,,,,,,,True,,,,,,,,,,,"nationally uniform programme — regional variation driven by ECV income distribution, not simulation rules",2017_vs_2018,0.396,0.1435,15.0
-regional_rank_consistency,,,,,,,,,True,,,,,,,,,,,"nationally uniform programme — regional variation driven by ECV income distribution, not simulation rules",2018_vs_2019,0.018,0.9496,15.0
-institutional_consistency_coverage,,,,,,,,,True,,,,,,,,,,,negative rho expected: lower RMI coverage → higher IMV exposure,,-0.757,0.0011,15.0
-institutional_consistency_expenditure,,,,,,,,,True,,,,,,,,,,,negative rho expected: lower RMI expenditure pc → higher IMV exposure,,-0.729,0.0021,15.0
+test,year,n_recipients_unweighted,n_recipients_weighted,mean_monthly_benefit,statutory_single_GMI,statutory_max_GMI,n_below_floor,n_above_max_110pct,pass,n_hh_recipients,n_hh_non_recipients,mean_yds_recipients,mean_yds_non_recipients,ratio,mannwhitney_stat,mannwhitney_p,mean_bsa00_s_single_hh,pct_difference,n_single_hh_recipients,note,dimension,years,spearman_rho,spearman_p,n_regions,admin_benchmark,primary_spec
+benefit_bounds,2017.0,295.0,410599.0,444.88,469.93,1033.85,0.0,14.0,False,,,,,,,,,,,,,,,,,,
+income_means_test,2017.0,,,,,,,,True,200.0,13540.0,1375.61,2415.18,0.57,828148.0,0.0,,,,,,,,,,,
+formula_plausibility,2017.0,,,,469.93,,,,True,,,,,,,,377.38,19.7,38.0,within 20% of statutory single-person GMI,,,,,,,
+benefit_bounds,2018.0,288.0,409528.0,445.37,469.93,1033.85,0.0,6.0,False,,,,,,,,,,,,,,,,,,
+income_means_test,2018.0,,,,,,,,True,200.0,13168.0,1440.96,2456.35,0.587,850094.0,0.0,,,,,,,,,,,
+formula_plausibility,2018.0,,,,469.93,,,,True,,,,,,,,527.63,12.3,37.0,within 20% of statutory single-person GMI,,,,,,,
+benefit_bounds,2019.0,360.0,447092.0,407.67,469.93,1033.85,0.0,7.0,False,,,,,,,,,,,,,,,,,,
+income_means_test,2019.0,,,,,,,,True,236.0,15651.0,1409.49,2474.97,0.569,1097830.0,0.0,,,,,,,,,,,
+formula_plausibility,2019.0,,,,469.93,,,,True,,,,,,,,390.01,17.0,51.0,within 20% of statutory single-person GMI,,,,,,,
+exposure_dimension_stability_sim,,,,,,,,,False,,,,,,,,,,,stability of per-year simulated delta — hybrid deltas more stable by construction (administrative RMI baseline removes ECV noise),delta_exp_sim_yr,2017_vs_2018,0.568,0.0272,15.0,,
+exposure_dimension_stability_sim,,,,,,,,,False,,,,,,,,,,,stability of per-year simulated delta — hybrid deltas more stable by construction (administrative RMI baseline removes ECV noise),delta_exp_sim_yr,2018_vs_2019,0.504,0.0557,15.0,,
+regional_rank_consistency,,,,,,,,,True,,,,,,,,,,,"nationally uniform programme — regional variation driven by ECV income distribution, not simulation rules",,2017_vs_2018,0.396,0.1435,15.0,,
+regional_rank_consistency,,,,,,,,,True,,,,,,,,,,,"nationally uniform programme — regional variation driven by ECV income distribution, not simulation rules",,2018_vs_2019,0.018,0.9496,15.0,,
+institutional_consistency_test7,,,,,,,,,True,,,,,,,,,,,negative rho expected: lower RMI coverage → higher IMV exposure,,,-0.779,0.0006,15.0,coverage_rate_mean,exposure_composite_hybrid
+institutional_consistency_test8,,,,,,,,,True,,,,,,,,,,,negative rho expected: lower RMI spending → higher IMV exposure,,,-0.693,0.0042,15.0,exp_pc_mean,exposure_composite_hybrid

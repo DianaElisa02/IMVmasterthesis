@@ -78,6 +78,7 @@ def test_benefit_bounds(
     year: int,
     statutory_min: float,
     statutory_max: float,
+    floor_monthly: float = 10.0,
 ) -> dict:
     """
     Test 1: bsa00_s must be above the payment floor (€10) and below
@@ -90,7 +91,7 @@ def test_benefit_bounds(
     n = len(recipients)
     w = recipients["dwt"].sum()
 
-    below_floor = (recipients["bsa00_s"] < statutory_min).sum()
+    below_floor = (recipients["bsa00_s"] < floor_monthly).sum()
     above_max   = (recipients["bsa00_s"] > statutory_max * 1.10).sum()
     wmean       = (recipients["bsa00_s"] * recipients["dwt"]).sum() / w
 
@@ -226,38 +227,64 @@ def test_exposure_dimension_stability(
     exclude_regions: frozenset[int],
 ) -> list[dict]:
     """
-    Test 4: delta_expenditure_pc should rank regions consistently across
-    simulation years. High Spearman stability (rho > 0.7) confirms the
-    pooled exposure index is not dominated by a single anomalous ECV wave.
+    Test 4: Per-year delta_exp_sim_yr should rank regions consistently
+    across simulation years. High Spearman stability (rho > 0.70) confirms
+    the pooled exposure index is not dominated by one anomalous ECV wave.
 
-    Uses the year-by-year (unpooled) dimensions dataframe from
-    pool_dimensions, filtered to exclude broken regions.
+    Uses all_dims (year-by-year) from pool_dimensions.
+    Column name updated to delta_exp_sim_yr (renamed from delta_expenditure_pc
+    in exposure_dimensions.py).
+
+    Two stability checks:
+      4a — delta_exp_sim_yr  (fully simulated, primary stability check)
+      4b — informative only: logged but always pass=True since hybrid
+           dimensions are not in all_dims (computed only from pooled averages)
     """
-    dims = all_dims[~all_dims["drgn2"].isin(exclude_regions)].copy()
+    dims  = all_dims[~all_dims["drgn2"].isin(exclude_regions)].copy()
     years = sorted(dims["year"].unique())
     results = []
 
     for i in range(len(years) - 1):
         y1, y2 = years[i], years[i + 1]
-        d1 = dims[dims["year"] == y1].set_index("drgn2")["delta_expenditure_pc"]
-        d2 = dims[dims["year"] == y2].set_index("drgn2")["delta_expenditure_pc"]
 
-        common = d1.index.intersection(d2.index)
+        # Test 4a — simulated delta stability
+        col = "delta_exp_sim_yr"
+        if col not in dims.columns:
+            logger.warning(
+                "Test 4 — column '%s' not found in all_dims — skipping", col
+            )
+            continue
+
+        d1 = dims[dims["year"] == y1].set_index("drgn2")[col].dropna()
+        d2 = dims[dims["year"] == y2].set_index("drgn2")[col].dropna()
+
+        common    = d1.index.intersection(d2.index)
         rho, pval = spearmanr(d1[common], d2[common])
 
         result = {
-            "test":         "exposure_dimension_stability",
+            "test":         "exposure_dimension_stability_sim",
+            "dimension":    col,
             "years":        f"{y1}_vs_{y2}",
             "spearman_rho": round(rho, 3),
             "spearman_p":   round(pval, 4),
             "n_regions":    len(common),
-            "pass": rho > 0.70 and pval < 0.05,
+            "pass":         rho > 0.70 and pval < 0.05,
+            "note": (
+                "stability of per-year simulated delta — "
+                "hybrid deltas more stable by construction "
+                "(administrative RMI baseline removes ECV noise)"
+            ),
         }
         status = "PASS" if result["pass"] else "WARN"
         logger.info(
-            "[%s] Test 4 — Exposure dimension stability "
-            "(delta_expenditure_pc) %d vs %d: rho=%.3f (p=%.4f)",
+            "[%s] Test 4 — Dimension stability (delta_exp_sim_yr) "
+            "%d vs %d: rho=%.3f (p=%.4f)",
             status, y1, y2, rho, pval,
+        )
+        logger.info(
+            "       [INFO] Hybrid specs (delta_exp_hybrid, delta_cov_hybrid) "
+            "are more stable by construction — administrative RMI baseline "
+            "is fixed across ECV waves, removing sampling noise from RMI side."
         )
         results.append(result)
 
@@ -336,20 +363,22 @@ def test_institutional_consistency(
     """
     Tests 7 and 8: The exposure index should correlate negatively with
     pre-reform RMI generosity. Regions where the RMI provided less
-    protection (lower coverage, lower spending) should show higher IMV
-    exposure — they gained more from the national reform.
+    protection (lower coverage, lower spending) should gain more from
+    the national IMV reform — expected negative Spearman correlation.
 
     Test 7: Spearman(exposure, pre-reform RMI coverage rate)
-        coverage_rate = titulares / population (averaged 2017–2019)
+        coverage_rate = titulares / population × 1000 (averaged 2017–2019)
         Expected sign: negative
 
     Test 8: Spearman(exposure, pre-reform RMI expenditure per capita)
         exp_pc = gasto_anual_ejecutado / population (averaged 2017–2019)
         Expected sign: negative
 
-    Uses pooled 2017–2019 Informe data averaged across years, restricted
-    to regions present in both the exposure index and the Informe.
+    Pass/fail based on exposure_composite_hybrid (primary spec).
+    All five specifications correlated and logged for comparison.
     """
+    from src.exposure_index import SPECS
+
     results = []
 
     # Build pooled pre-reform admin measures (average across 2017-2019)
@@ -364,9 +393,9 @@ def test_institutional_consistency(
             if pop is None or pop == 0:
                 continue
             records.append({
-                "drgn2":        drgn2,
-                "year":         year,
-                "coverage_rate": row["titulares"] / pop * 1000,  # per 1000 pop
+                "drgn2":         drgn2,
+                "year":          year,
+                "coverage_rate": row["titulares"] / pop * 1000,
                 "exp_pc":        row["gasto_anual_ejecutado"] / pop,
             })
 
@@ -375,13 +404,16 @@ def test_institutional_consistency(
         .groupby("drgn2")
         .agg(
             coverage_rate_mean=("coverage_rate", "mean"),
-            exp_pc_mean=("exp_pc", "mean"),
+            exp_pc_mean       =("exp_pc",        "mean"),
         )
         .reset_index()
     )
 
-    # Merge with exposure index on drgn2
-    merged = exposure_df[["drgn2", "exposure"]].merge(admin, on="drgn2", how="inner")
+    # All spec columns present in exposure_df
+    all_spec_cols = ["drgn2"] + [
+        s["name"] for s in SPECS if s["name"] in exposure_df.columns
+    ]
+    merged = exposure_df[all_spec_cols].merge(admin, on="drgn2", how="inner")
 
     if len(merged) < 5:
         logger.warning(
@@ -390,43 +422,54 @@ def test_institutional_consistency(
         )
         return []
 
-    # Test 7 — coverage rate
-    rho7, p7 = spearmanr(merged["coverage_rate_mean"], merged["exposure"])
-    result7 = {
-        "test":         "institutional_consistency_coverage",
-        "n_regions":    len(merged),
-        "spearman_rho": round(rho7, 3),
-        "spearman_p":   round(p7, 4),
-        # Negative correlation expected: lower pre-reform coverage → higher exposure
-        "pass": rho7 < 0 and p7 < 0.10,
-        "note": "negative rho expected: lower RMI coverage → higher IMV exposure",
-    }
-    status7 = "PASS" if result7["pass"] else "WARN"
-    logger.info(
-        "[%s] Test 7 — Institutional consistency (coverage rate): "
-        "rho=%.3f (p=%.4f) — expected negative",
-        status7, rho7, p7,
-    )
-    results.append(result7)
+    primary_col = "exposure_composite_hybrid"
 
-    # Test 8 — expenditure per capita
-    rho8, p8 = spearmanr(merged["exp_pc_mean"], merged["exposure"])
-    result8 = {
-        "test":         "institutional_consistency_expenditure",
-        "n_regions":    len(merged),
-        "spearman_rho": round(rho8, 3),
-        "spearman_p":   round(p8, 4),
-        # Negative correlation expected: lower pre-reform spending → higher exposure
-        "pass": rho8 < 0 and p8 < 0.10,
-        "note": "negative rho expected: lower RMI expenditure pc → higher IMV exposure",
-    }
-    status8 = "PASS" if result8["pass"] else "WARN"
-    logger.info(
-        "[%s] Test 8 — Institutional consistency (expenditure pc): "
-        "rho=%.3f (p=%.4f) — expected negative",
-        status8, rho8, p8,
-    )
-    results.append(result8)
+    for test_num, admin_col, test_label, note in [
+        (7, "coverage_rate_mean",
+         "coverage rate (titulares/pop×1000)",
+         "negative rho expected: lower RMI coverage → higher IMV exposure"),
+        (8, "exp_pc_mean",
+         "expenditure per capita",
+         "negative rho expected: lower RMI spending → higher IMV exposure"),
+    ]:
+        # Primary spec — determines pass/fail
+        if primary_col in merged.columns:
+            rho_p, p_p = spearmanr(merged[admin_col], merged[primary_col])
+        else:
+            rho_p, p_p = np.nan, np.nan
+
+        result = {
+            "test":         f"institutional_consistency_test{test_num}",
+            "admin_benchmark": admin_col,
+            "primary_spec": primary_col,
+            "n_regions":    len(merged),
+            "spearman_rho": round(rho_p, 3) if not np.isnan(rho_p) else None,
+            "spearman_p":   round(p_p,   4) if not np.isnan(p_p)   else None,
+            "pass":         (rho_p < 0 and p_p < 0.10)
+                            if not np.isnan(rho_p) else False,
+            "note":         note,
+        }
+        status = "PASS" if result["pass"] else "WARN"
+        logger.info(
+            "[%s] Test %d — Institutional consistency (%s): "
+            "%s rho=%.3f (p=%.4f)",
+            status, test_num, test_label, primary_col,
+            rho_p if not np.isnan(rho_p) else 0,
+            p_p   if not np.isnan(p_p)   else 1,
+        )
+
+        # Log all other specs for comparison
+        for spec in SPECS:
+            col = spec["name"]
+            if col == primary_col or col not in merged.columns:
+                continue
+            r_, p_ = spearmanr(merged[admin_col], merged[col])
+            logger.info(
+                "       [INFO] Test %d (%s): rho=%.3f (p=%.4f)",
+                test_num, col, r_, p_,
+            )
+
+        results.append(result)
 
     return results
 
@@ -443,6 +486,7 @@ def run_validation(
     region_population: dict[int, dict[int, int]],
     statutory_single: float,
     statutory_max: float,
+    floor_monthly: float,
     exclude_regions: frozenset[int],
     output_dir: Path,
 ) -> pd.DataFrame:
@@ -451,24 +495,16 @@ def run_validation(
 
     Parameters
     ----------
-    imv_dfs : dict[int, pd.DataFrame]
-        EUROMOD IMV simulation outputs by year (person-level).
-    all_dims : pd.DataFrame
-        Year-by-year (unpooled) exposure dimensions from pool_dimensions.
-    exposure_df : pd.DataFrame
-        Final regional exposure index with drgn2 and exposure columns.
-    informe_rmi : dict[int, list[dict]]
-        Pre-reform Informe RMI administrative data from constants.INFORME_RMI.
-    region_population : dict[int, dict[int, int]]
-        Regional population denominators from constants.REGION_POPULATION.
-    statutory_single : float
-        IMV guaranteed income threshold for single adult (formula parameter).
-    statutory_max : float
-        IMV maximum monthly benefit (formula parameter).
-    exclude_regions : frozenset[int]
-        Regions excluded from all exposure computations.
-    output_dir : Path
-        Directory for output CSV.
+    imv_dfs           : EUROMOD IMV simulation outputs by year (person-level).
+    all_dims          : Year-by-year dimensions from pool_dimensions.
+    exposure_df       : Final regional exposure index — all specifications.
+    informe_rmi       : INFORME_RMI dict from constants.
+    region_population : REGION_POPULATION dict from constants.
+    statutory_single  : IMV GMI threshold for single adult (formula parameter).
+    statutory_max     : IMV maximum monthly benefit (formula parameter).
+    floor_monthly     : IMV minimum payment floor (€10).
+    exclude_regions   : Regions excluded from all exposure computations.
+    output_dir        : Directory for output CSV.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     all_results: list[dict] = []
@@ -479,7 +515,7 @@ def run_validation(
         logger.info("Validating IMV simulation — year %d", year)
 
         all_results.append(
-            test_benefit_bounds(df, year, statutory_single, statutory_max)
+            test_benefit_bounds(df, year, statutory_single, statutory_max, floor_monthly)
         )
         all_results.append(
             test_income_means_test(df, year)

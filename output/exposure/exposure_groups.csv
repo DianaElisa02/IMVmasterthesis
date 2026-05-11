@@ -1,0 +1,41 @@
+drgn2,region,group,group_description,imv_mean_group,rmi_mean_group,exposure_group,n_hh_rmi_avg,n_hh_imv_avg
+11,Galicia,unemployed_head,Households where reference person is unemployed (les=5),759.69,426.87,332.82,1.0,3.0
+12,Principado de Asturias,unemployed_head,Households where reference person is unemployed (les=5),811.9,503.05,308.86,2.3,2.0
+13,Cantabria,unemployed_head,Households where reference person is unemployed (les=5),279.28,467.6,-188.32,1.3,0.7
+21,País Vasco,unemployed_head,Households where reference person is unemployed (les=5),813.75,625.01,188.74,6.0,3.7
+22,Comunidad Foral de Navarra,unemployed_head,Households where reference person is unemployed (les=5),67.39,980.59,-913.2,0.7,0.3
+30,Comunidad de Madrid,unemployed_head,Households where reference person is unemployed (les=5),415.42,382.98,32.43,4.3,3.7
+41,Castilla y León,unemployed_head,Households where reference person is unemployed (les=5),577.73,515.16,62.57,0.3,3.0
+42,Castilla-La Mancha,unemployed_head,Households where reference person is unemployed (les=5),316.32,412.19,-95.86,1.3,2.3
+43,Extremadura,unemployed_head,Households where reference person is unemployed (les=5),267.3,287.87,-20.57,1.3,3.7
+51,Cataluña,unemployed_head,Households where reference person is unemployed (les=5),491.14,620.13,-128.99,3.0,5.7
+52,Comunitat Valenciana,unemployed_head,Households where reference person is unemployed (les=5),658.93,269.35,389.58,0.3,4.0
+53,Illes Balears,unemployed_head,Households where reference person is unemployed (les=5),94.82,121.7,-26.88,0.7,1.0
+61,Andalucía,unemployed_head,Households where reference person is unemployed (les=5),653.57,305.27,348.29,2.0,11.7
+62,Región de Murcia,unemployed_head,Households where reference person is unemployed (les=5),608.76,537.84,70.92,0.3,3.0
+70,Canarias,unemployed_head,Households where reference person is unemployed (les=5),370.79,385.08,-14.28,3.7,4.7
+12,Principado de Asturias,single_parent,Single adult with at least one child (dag < 18),765.03,565.17,199.86,0.7,1.0
+13,Cantabria,single_parent,Single adult with at least one child (dag < 18),169.74,541.34,-371.61,1.3,0.7
+21,País Vasco,single_parent,Single adult with at least one child (dag < 18),520.99,750.4,-229.41,3.0,0.3
+30,Comunidad de Madrid,single_parent,Single adult with at least one child (dag < 18),1052.53,544.65,507.87,1.0,1.0
+41,Castilla y León,single_parent,Single adult with at least one child (dag < 18),309.09,398.25,-89.16,0.3,2.0
+42,Castilla-La Mancha,single_parent,Single adult with at least one child (dag < 18),286.61,288.33,-1.72,2.0,1.3
+51,Cataluña,single_parent,Single adult with at least one child (dag < 18),160.48,1050.38,-889.9,0.7,5.0
+53,Illes Balears,single_parent,Single adult with at least one child (dag < 18),242.0,594.5,-352.5,0.3,1.0
+61,Andalucía,single_parent,Single adult with at least one child (dag < 18),247.66,527.08,-279.42,0.3,2.3
+70,Canarias,single_parent,Single adult with at least one child (dag < 18),562.71,467.42,95.29,2.0,1.0
+11,Galicia,low_income,Households with yds below national median,532.8,404.76,128.04,6.0,12.0
+12,Principado de Asturias,low_income,Households with yds below national median,555.36,455.16,100.21,20.0,9.0
+13,Cantabria,low_income,Households with yds below national median,366.25,424.51,-58.26,8.7,5.7
+21,País Vasco,low_income,Households with yds below national median,982.53,673.49,309.04,34.3,7.7
+22,Comunidad Foral de Navarra,low_income,Households with yds below national median,875.36,644.07,231.28,12.3,3.0
+30,Comunidad de Madrid,low_income,Households with yds below national median,529.68,395.54,134.14,31.0,12.3
+41,Castilla y León,low_income,Households with yds below national median,489.55,393.51,96.04,9.7,12.0
+42,Castilla-La Mancha,low_income,Households with yds below national median,377.07,344.12,32.95,7.0,11.7
+43,Extremadura,low_income,Households with yds below national median,437.71,460.75,-23.04,11.0,13.3
+51,Cataluña,low_income,Households with yds below national median,502.0,643.09,-141.09,23.3,34.3
+52,Comunitat Valenciana,low_income,Households with yds below national median,553.89,430.9,122.99,5.7,16.0
+53,Illes Balears,low_income,Households with yds below national median,319.57,279.7,39.86,4.3,4.7
+61,Andalucía,low_income,Households with yds below national median,475.44,355.27,120.18,7.3,43.3
+62,Región de Murcia,low_income,Households with yds below national median,369.37,450.31,-80.94,2.3,14.0
+70,Canarias,low_income,Households with yds below national median,504.15,462.39,41.76,23.0,9.7
