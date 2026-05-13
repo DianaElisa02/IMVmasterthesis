@@ -18,8 +18,6 @@ from pathlib import Path
 
 YEARS: list[int] = [2017, 2018, 2019]
 
-# NOTE: verify these dataset name strings match your actual EUROMOD project
-# file names before re-running simulations.
 EUROMOD_DATASET_NAMES: dict[int, str] = {
     2017: "ES_2017_a2",
     2018: "ES_2018_a1",
@@ -145,11 +143,6 @@ TP_COLUMNS: list[str] = [
 ]
 
 
-# =============================================================================
-# REGION MAPS
-# Source: EUROMOD codebook ES sheet, drgn1 and drgn2 derivation notes.
-# =============================================================================
-
 # INE NUTS-1 string code → EUROMOD drgn1 integer (1–7 Spain-specific scheme).
 DRGN1_MAP: dict[str, int] = {
     "ES11": 1, "ES12": 1, "ES13": 1,
@@ -195,11 +188,6 @@ REGION_NAMES: dict[int, str] = {
     70: "Canarias",
 }
 
-
-# =============================================================================
-# EMPLOYMENT STATUS: PL031 → EUROMOD les
-# =============================================================================
-
 PL031_TO_LES: dict[int, int] = {
     1: 3,   # full-time employee
     2: 3,   # part-time employee
@@ -222,11 +210,6 @@ PL040_TO_LES: dict[int, int] = {
 
 LES_DEFAULT: int = 9   # other — used when both pl031 and pl040 are missing
 
-
-# =============================================================================
-# MARITAL STATUS: PB190 → EUROMOD dms
-# =============================================================================
-
 DMS_RECODE: dict[int, int] = {
     1: 1,   # single → single
     2: 2,   # married → married
@@ -235,11 +218,6 @@ DMS_RECODE: dict[int, int] = {
     5: 4,   # widowed (PB190=5) → widowed (dms=4) after swap
 }
 DMS_DEFAULT: int = 1   # single — used when pb190 is missing and no partner
-
-
-# =============================================================================
-# EDUCATION: PE040/PE041 → EUROMOD deh
-# =============================================================================
 
 DEH_RECODE_BOUNDARIES: list[tuple[int, int, int]] = [
     (100, 100, 1),   # primary (PE040=100)
@@ -251,26 +229,13 @@ DEH_RECODE_BOUNDARIES: list[tuple[int, int, int]] = [
 DEH_DEFAULT: int = 0   # not completed primary
 
 
-# =============================================================================
-# DISABILITY: PL031 → EUROMOD ddi
-# =============================================================================
-
 DDI_DISABLED: int = 1
 DDI_NOT_DISABLED: int = 0
 DDI_NOT_APPLICABLE: int = -1   # children / information not collected
 
-
-# =============================================================================
-# SEX: RB090 → EUROMOD dgn
-# =============================================================================
-
 DGN_VALID_VALUES: frozenset[int] = frozenset({1, 2})
 DGN_DEFAULT: int = 1
 
-
-# =============================================================================
-# NACE INDUSTRY: PL111A → EUROMOD lindi
-# =============================================================================
 
 LINDI_MAP: dict[str, int] = {
     "a":     1,    # agriculture and fishing
@@ -288,11 +253,6 @@ LINDI_MAP: dict[str, int] = {
     "r - u": 12,   # other services
 }
 LINDI_DEFAULT: int = 0   # not applicable
-
-
-# =============================================================================
-# UDB OUTPUT COLUMN ORDER
-# =============================================================================
 
 UDB_COLUMN_ORDER: list[str] = [
     # identifiers
@@ -361,27 +321,17 @@ IMV_FILES: dict[int, Path] = {
 # Ceuta (63), Melilla (64): too small for reliable regional estimates.
 EXPOSURE_EXCLUDE_REGIONS: frozenset[int] = frozenset({23, 24, 63, 64})
 
-# Regions where the EUROMOD RMI simulation is unreliable (near-identical
-# policy spine shared with other regions). For these, bsarg_s in the IMV
-# run is zeroed so post-reform protection = bsa00_s (pure IMV) only.
 RMI_INCOMPATIBLE_REGIONS: frozenset[int] = frozenset({
     11,  # Galicia
     53,  # Illes Balears
     61,  # Andalucía
 })
 
-# Regions with independently coded RMI rules in EUROMOD — the simulation
-# gain is considered reliable for these.
-# FIX: Ceuta (63) and Melilla (64) removed — they are in EXPOSURE_EXCLUDE_REGIONS
-# and should not appear here. Previously their presence was inconsistent and
-# could cause confusion if this set were iterated over independently.
 RMI_COMPLEMENTARY_REGIONS: frozenset[int] = frozenset({
     12, 13, 21, 22, 30, 41, 42, 43,
     51, 52, 62, 70,
 })
 
-# IMV statutory amounts (2022) — used for validation bounds
-# Source: Law 19/2021, updated 2022
 IMV_STATUTORY_2022: dict[str, float] = {
     "basic_monthly":          469.93,
     "increment_per_member":   0.30,
@@ -391,11 +341,6 @@ IMV_STATUTORY_2022: dict[str, float] = {
     "floor_monthly":          10.0,
 }
 
-# IMV administrative benchmarks (2022 national)
-# Source: INSS Estadística IMV 2022
-# NOTE: not used in formal validation — simulation applies 2022 rules to
-# 2017–2019 household data, so administrative 2022 outcomes reflect a
-# different income distribution and actual take-up. Retained for reference.
 IMV_ADMIN_2022: dict[str, float] = {
     "recipients":      603_000,
     "expenditure_M":   2_100.0,
@@ -490,9 +435,6 @@ INFORME_RMI: dict[int, list[dict]] = {
     ],
 }
 
-# Population denominators per Autonomous Community (INE, mid-year estimates)
-# Used to compute per-capita coverage and expenditure rates in validation.
-# Source: INE Padrón Municipal de Habitantes
 REGION_POPULATION: dict[int, dict[int, int]] = {
     2017: {
         11: 2708339, 12: 1034960, 13: 582905,
