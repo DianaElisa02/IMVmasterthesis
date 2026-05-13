@@ -539,14 +539,29 @@ BALANCE_OUTCOMES: list[str] = [
     "income_net_annual",
 ]
 
+# Safe controls: pre-determined, cannot be affected by the IMV reform
 BALANCE_CONTROLS: list[str] = [
     "hh_size",
-    "any_unemployed_hh",
-    "single_parent_hh",
-    "homeowner",
     "n_children",
+    "homeowner",
     "any_high_education_hh",
+    "single_parent_hh",
 ]
+
+# Extended controls: includes labour market variables that may be
+# endogenous to the reform — used in robustness checks only
+BALANCE_CONTROLS_EXTENDED: list[str] = [
+    "hh_size",
+    "n_children",
+    "homeowner",
+    "any_high_education_hh",
+    "single_parent_hh",
+    "any_unemployed_hh",
+    "any_employed_hh",
+]
+
+# Flag: whether to add region-specific linear time trends as robustness
+EVENT_STUDY_REGION_TREND: bool = False   # set True for robustness run
 
 BALANCE_PRIMARY_SPEC: str = "exposure_composite_hybrid"
 

@@ -17,6 +17,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import polars as pl
+import numpy as np
 
 from src.event_study import build_event_study_data, run_event_study
 from src.constants import EVENT_STUDY_REFERENCE_YEAR
@@ -74,8 +75,8 @@ def plot_event_study(
     post = coef_table[coef_table["year"] >  EVENT_STUDY_REFERENCE_YEAR]
 
     for subset, color, label in [
-        (pre,  "steelblue",  "Pre-reform"),
-        (post, "darkorange", "Post-reform"),
+        (pre,  "steelblue",  "Pre-reform (95% CI, cluster-robust)"),
+        (post, "darkorange", "Post-reform (95% CI, cluster-robust)"),
     ]:
         ax.errorbar(
             subset["year"], subset["coef"],
@@ -110,15 +111,18 @@ def plot_event_study(
     ax.legend(fontsize=10)
     ax.grid(axis="y", alpha=0.3)
 
+    ax.text(
+        0.01, 0.01,
+        "CIs are cluster-robust with 15 clusters — indicative only.\n"
+        "Use wild cluster bootstrap (Webb, B=9999) for formal inference.",
+        transform=ax.transAxes, fontsize=7.5,
+        color="grey", va="bottom", style="italic"
+    )
+
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)
     plt.close()
     logger.info("Plot saved: %s", output_path)
-
-
-# =============================================================================
-# MAIN
-# =============================================================================
 
 def main() -> None:
     logger.info("=== IMV DiD — run_event_study.py ===")
@@ -131,26 +135,50 @@ def main() -> None:
     for outcome in ["matdep", "poverty", "income_net_annual"]:
         logger.info("--- Outcome: %s ---", outcome)
 
-        coef_table, result = run_event_study(panel, outcome=outcome)
+        coef_table, result, wbt_results = run_event_study(panel, outcome=outcome)
 
         # Print coefficients
         print(f"\n=== Event study — {outcome} ===")
         print(coef_table.to_string(index=False, float_format="{:.4f}".format))
 
-        # Pre-trend joint test: are 2017 and 2018 coefficients jointly zero?
+        # Pre-trend joint F-test (cluster-robust)
         pre_cols = ["yr_2017_x_exposure", "yr_2018_x_exposure"]
         pre_cols_present = [c for c in pre_cols if c in result.params.index]
         if pre_cols_present:
-            constraints = ", ".join([f"{c} = 0" for c in pre_cols_present])
-            joint_test = result.f_test(constraints)
-            print(f"\nPre-trend joint F-test (2017, 2018 = 0):")
-            print(f"  F-stat  = {float(joint_test.fvalue):.4f}")
-            print(f"  p-value = {float(joint_test.pvalue):.4f}")
-            if float(joint_test.pvalue) > 0.1:
-                print("  → Pre-trends not rejected at 10% — parallel trends supported")
-            else:
-                print("  → WARNING: Pre-trends rejected — parallel trends concern")
+            param_names = result.params.index.tolist()
+            R = np.zeros((len(pre_cols_present), len(param_names)))
+            for i, col in enumerate(pre_cols_present):
+                if col in param_names:
+                    R[i, param_names.index(col)] = 1.0
+                else:
+                    logger.warning("Pre-trend column %s not in params — skipping", col)
 
+            joint_test = result.f_test(R)
+            f_stat  = float(np.squeeze(joint_test.fvalue))
+            p_value = float(joint_test.pvalue)
+
+            print(f"\nPre-trend joint F-test (2017, 2018 jointly = 0):")
+            print(f"  F-stat  = {f_stat:.4f}")
+            print(f"  p-value = {p_value:.4f} (cluster-robust, indicative only — 15 clusters)")
+
+            # Wild bootstrap results (computed inside run_event_study)
+            if wbt_results:
+                print(f"\n  Wild cluster bootstrap (Webb weights, B=9999):")
+                for col, p_wbt in wbt_results.items():
+                    print(f"    {col}: p = {p_wbt:.4f}")
+                print(
+                    "  Note: wild bootstrap reports individual p-values.\n"
+                    "  Joint pre-trend test uses cluster-robust F-stat above."
+                )
+            else:
+                print("  Wild bootstrap not available — install wildboottest.")
+
+            if p_value > 0.1:
+                print("  → Pre-trends not rejected at 10% (cluster-robust)")
+            else:
+                print("  → WARNING: Pre-trends rejected at 10% (cluster-robust)")
+
+        # Save coefficients
         coef_table.to_csv(
             OUTPUT_DIR / f"event_study_{outcome}.csv", index=False
         )
@@ -161,8 +189,6 @@ def main() -> None:
             OUTPUT_DIR / f"event_study_{outcome}.png",
         )
 
-    logger.info("Event study complete. Results saved to %s", OUTPUT_DIR)
-
-
+        logger.info("Event study complete. Results saved to %s", OUTPUT_DIR)
 if __name__ == "__main__":
     main()

@@ -40,6 +40,11 @@ Design decisions
 5. PRIMARY SPEC ONLY
    Event study uses exposure_composite_hybrid only. Robustness across
    alternative specs is checked in the baseline DiD, not here.
+
+6. REGION-SPECIFIC LINEAR TRENDS
+   When EVENT_STUDY_REGION_TREND=True in constants.py, adds region ×
+   linear time trend terms to absorb pre-existing differential trends.
+   Used as robustness check for the income pre-trend concern.
 """
 
 from __future__ import annotations
@@ -53,9 +58,12 @@ import statsmodels.api as sm
 
 from src.constants import (
     BALANCE_CONTROLS,
-    EXPOSURE_SPECS,
+    BALANCE_CONTROLS_EXTENDED,
+    EVENT_STUDY_REGION_TREND,
     EVENT_STUDY_REFERENCE_YEAR,
     EVENT_STUDY_YEARS,
+    EXPOSURE_SPECS,
+    REGION_NAMES,
 )
 
 logger = logging.getLogger(__name__)
@@ -105,23 +113,28 @@ def run_event_study(
     panel: pl.DataFrame,
     outcome: str = "matdep",
     controls: list[str] | None = None,
-) -> tuple[pd.DataFrame, object]:
+    extended_controls: bool = False,
+) -> tuple[pd.DataFrame, object, dict[str, float]]:
     """
     Estimate the event study via WLS with region and year FE.
 
     Parameters
     ----------
-    panel    : panel with event study columns from build_event_study_data()
-    outcome  : outcome variable — "matdep", "poverty", or "income_net_annual"
-    controls : household-level controls — defaults to BALANCE_CONTROLS
+    panel            : panel with event study columns from build_event_study_data()
+    outcome          : outcome variable — "matdep", "poverty", or "income_net_annual"
+    controls         : household-level controls — defaults to BALANCE_CONTROLS
+    extended_controls: if True, use BALANCE_CONTROLS_EXTENDED (includes labour vars)
 
     Returns
     -------
-    coef_table : pd.DataFrame — year, coef, se, ci_low, ci_high
-    result     : statsmodels RegressionResultsWrapper — full model output
+    coef_table  : pd.DataFrame — year, coef, se, ci_low, ci_high, pval
+    result      : statsmodels RegressionResultsWrapper — full model output
+    wbt_results : dict — wild bootstrap p-values for pre-reform interactions
     """
+    # ── Controls ──────────────────────────────────────────────────────────────
     if controls is None:
-        controls = [c for c in BALANCE_CONTROLS if c in panel.columns]
+        ctrl_list = BALANCE_CONTROLS_EXTENDED if extended_controls else BALANCE_CONTROLS
+        controls = [c for c in ctrl_list if c in panel.columns]
 
     interaction_cols = [f"yr_{y}_x_exposure" for y in EVENT_STUDY_YEARS]
     year_dummy_cols  = [f"yr_{y}" for y in EVENT_STUDY_YEARS]
@@ -136,35 +149,76 @@ def run_event_study(
     keep = [c for c in keep if c in panel.columns]
 
     df = panel.select(keep).to_pandas().dropna(subset=[outcome] + interaction_cols)
+    df = df.reset_index(drop=True)
     logger.info("Estimation sample: %d observations", len(df))
 
     # ── Region fixed effects via dummies ──────────────────────────────────────
-    # With repeated cross-sections, household ID is unique within year so
-    # entity FE cannot absorb region effects. We add region dummies explicitly.
-    # drop_first=True drops one region to avoid perfect multicollinearity
-    # with the constant.
+    # drop_first=True drops the region with the lowest drgn2 code as reference.
     region_dummies = pd.get_dummies(
         df["drgn2"], prefix="reg", drop_first=True
     ).astype(float)
-    df = pd.concat([df.reset_index(drop=True), region_dummies], axis=1)
+    df = pd.concat([df, region_dummies], axis=1)
     region_cols = region_dummies.columns.tolist()
 
-    # ── Regressors ────────────────────────────────────────────────────────────
-    # Year × exposure interactions: these are the coefficients of interest
-    # Year dummies: absorb aggregate year shocks (year FE)
-    # Region dummies: absorb time-invariant regional characteristics (region FE)
-    # Controls: household-level controls to reduce residual variance
-    regressors = interaction_cols + year_dummy_cols + region_cols + controls
+    # ── Log reference region ──────────────────────────────────────────────────
+    all_regions = sorted(df["drgn2"].unique().tolist())
+    ref_region_code = all_regions[0]
+    ref_region_name = REGION_NAMES.get(int(ref_region_code), str(ref_region_code))
+    logger.info(
+        "Region FE reference category: drgn2=%d (%s) — "
+        "all region effects interpreted relative to this region",
+        ref_region_code, ref_region_name,
+    )
+
+    # ── Optional: region-specific linear time trends ──────────────────────────
+    # Absorbs pre-existing differential trends across regions.
+    # Addresses income pre-trend concern (F=2.72, p=0.100 without trends).
+    # Activated by EVENT_STUDY_REGION_TREND = True in constants.py.
+    trend_cols: list[str] = []
+    if EVENT_STUDY_REGION_TREND:
+        df["year_centered"] = df["year"] - EVENT_STUDY_REFERENCE_YEAR
+        for reg_col in region_cols:
+            trend_col = f"{reg_col}_trend"
+            df[trend_col] = df[reg_col] * df["year_centered"]
+            trend_cols.append(trend_col)
+        logger.info(
+            "Region-specific linear time trends added: %d trend terms",
+            len(trend_cols),
+        )
+
+    # ── Build regressors ──────────────────────────────────────────────────────
+    # Order: interactions (coefs of interest) | year dummies (year FE) |
+    #        region dummies (region FE) | trends (robustness) | controls
+    regressors = (
+        interaction_cols
+        + year_dummy_cols
+        + region_cols
+        + trend_cols
+        + controls
+    )
     regressors = [c for c in regressors if c in df.columns]
 
     X = sm.add_constant(df[regressors])
     y = df[outcome]
     w = df["weight_hh"]
 
+    # ── Rank check ────────────────────────────────────────────────────────────
+    rank   = np.linalg.matrix_rank(X.values)
+    n_cols = X.shape[1]
+    if rank < n_cols:
+        logger.warning(
+            "RANK DEFICIENCY: design matrix rank=%d but has %d columns. "
+            "Perfect multicollinearity detected — check region dummies vs "
+            "year × exposure interactions. Dropped columns will have NaN coefs.",
+            rank, n_cols,
+        )
+    else:
+        logger.info(
+            "Design matrix rank check passed: rank=%d = n_cols=%d ✓",
+            rank, n_cols,
+        )
+
     # ── Estimate WLS with cluster-robust SEs ──────────────────────────────────
-    # Cluster at region level (drgn2). Note: with 15 clusters, these SEs
-    # should be treated as indicative only — wild bootstrap is needed for
-    # valid inference (implemented in run_baseline_did.py).
     model  = sm.WLS(y, X, weights=w)
     result = model.fit(
         cov_type="cluster",
@@ -172,9 +226,37 @@ def run_event_study(
     )
 
     logger.info(
-        "Event study estimated — outcome: %s | R²=%.4f | N=%d",
+        "Event study estimated — outcome: %s | R²=%.4f | N=%d | "
+        "region trends: %s",
         outcome, result.rsquared, int(result.nobs),
+        "yes" if EVENT_STUDY_REGION_TREND else "no",
     )
+
+    # ── Wild cluster bootstrap for pre-reform interactions ────────────────────
+    wbt_results: dict[str, float] = {}
+    pre_cols = ["yr_2017_x_exposure", "yr_2018_x_exposure"]
+    pre_cols_present = [c for c in pre_cols if c in result.params.index]
+
+    try:
+        from wildboottest.wildboottest import wildboottest
+        for col in pre_cols_present:
+            wbt = wildboottest(
+                model,
+                cluster=df["drgn2"].values,
+                param=col,
+                B=9999,
+                weights_type="webb",
+                seed=42,
+            )
+            wbt_results[col] = float(wbt["p_value"])
+        logger.info("Wild cluster bootstrap complete: %s", wbt_results)
+    except ImportError:
+        logger.warning(
+            "wildboottest not installed — run: pip install wildboottest. "
+            "Cluster-robust p-values used instead."
+        )
+    except Exception as e:
+        logger.warning("wildboottest failed: %s — cluster-robust SEs used instead", e)
 
     # ── Extract interaction coefficients ──────────────────────────────────────
     rows = []
@@ -206,4 +288,4 @@ def run_event_study(
         .sort_values("year")
         .reset_index(drop=True)
     )
-    return coef_table, result
+    return coef_table, result, wbt_results
