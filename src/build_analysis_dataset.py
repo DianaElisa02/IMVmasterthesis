@@ -31,11 +31,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# =============================================================================
-# PATHS — edit here only
-# =============================================================================
 
-BASE_PATH     = Path(r"C:/Users/diana/Documents/Master-Policy Economics/Thesis")
+BASE_PATH = Path("/workspaces/IMVmasterthesis")
 EXPOSURE_PATH = BASE_PATH / "output" / "exposure" / "exposure_index.csv"
 OUTPUT_DIR    = BASE_PATH / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
