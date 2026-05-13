@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 BASE_PATH = Path("/workspaces/IMVmasterthesis/input_data")
 EXPOSURE_PATH = Path("/workspaces/IMVmasterthesis") / "output" / "exposure" / "exposure_index.csv"
-OUTPUT_DIR    = BASE_PATH / "output"
+OUTPUT_DIR = Path("/workspaces/IMVmasterthesis") / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 ANALYSIS_OUTPUT = OUTPUT_DIR / "analysis_dataset.parquet"
@@ -58,7 +58,6 @@ def make_checks(panel: pl.DataFrame) -> pl.DataFrame:
             "pct_matdep_missing":     100 * g.filter(pl.col("matdep").is_null()).height / len(g),
             "pct_poverty_missing":    100 * g.filter(pl.col("poverty").is_null()).height / len(g),
             "pct_income_missing":     100 * g.filter(pl.col("income_net_annual").is_null()).height / len(g),
-            "pct_head_age_available": 100 * g.filter(pl.col("head_age").is_not_null()).height / len(g),
         })
     return pl.DataFrame(rows)
 

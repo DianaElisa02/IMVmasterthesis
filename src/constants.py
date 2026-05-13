@@ -461,14 +461,12 @@ ANALYSIS_YEARS: list[int] = list(range(2017, 2026))
 # Columns needed from Th for the DiD — extends TH_COLUMNS with the two
 # INE-computed outcome indicators that are not in the EUROMOD UDB pipeline.
 ANALYSIS_TH_COLUMNS: list[str] = [
-    "HB030",      # household ID (Th link key)
-    "HB080",      # person ID of responsible person 1 → head proxy
-    "HX040",      # household size (INE-computed)
-    "HX090",      # equivalised disposable income (for descriptives)
-    "HY020",      # total net disposable income (fallback if HY020N absent)
-    "HY020N",     # net disposable income — PRIMARY income outcome
-    "HH021",      # tenure status (control)
-    "VHMATDEP",   # severe material deprivation — PRIMARY outcome
+    "HB030",      # household ID
+    "HX040",      # household size
+    "HX240",      # consumption units
+    "HY020",      # net disposable income
+    "HH021",      # tenure status
+    "vhMATDEP",   # severe material deprivation — PRIMARY outcome
     "vhPobreza",  # at-risk-of-poverty — secondary outcome
 ]
 

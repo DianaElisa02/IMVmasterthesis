@@ -199,56 +199,30 @@ def _build_person_attributes(
     logger.info("Year %s: person attributes built — %d persons", year, len(person))
     return person
 
-
 def _aggregate_to_household(person: pl.DataFrame, year: int) -> pl.DataFrame:
-    """
-    Aggregate person-level attributes to household level.
-    Returns one row per household_id with:
-      - any_unemployed_hh: 1 if any member has labour_group == "unemployed"
-    """
     agg = person.group_by("household_id").agg(
         pl.col("labour_group").eq("unemployed").any().cast(pl.Float64)
-        .alias("any_unemployed_hh"),
+            .alias("any_unemployed_hh"),
+        pl.col("labour_group").eq("employed").any().cast(pl.Float64)
+            .alias("any_employed_hh"),
+        pl.col("labour_group").is_not_null().all().cast(pl.Float64)
+            .alias("all_inactive_hh"),
+        pl.col("age").lt(18).sum().cast(pl.Float64)
+            .alias("n_children"),
+        pl.col("age").ge(18).sum().cast(pl.Float64)
+            .alias("n_adults"),
+        pl.col("sex").eq("female").any().cast(pl.Float64)
+            .alias("any_female_hh"),
+        pl.col("education_group").eq("high").any().cast(pl.Float64)
+            .alias("any_high_education_hh"),
+    )
+    agg = agg.with_columns(
+        pl.when(
+            pl.col("n_adults").eq(1.0) & pl.col("n_children").ge(1.0)
+        ).then(pl.lit(1.0)).otherwise(pl.lit(0.0)).alias("single_parent_hh")
     )
     logger.info("Year %s: household aggregation — %d households", year, len(agg))
     return agg
-
-
-def _extract_head_attributes(
-    person: pl.DataFrame,
-    responsible_ids: pl.DataFrame,   # columns: household_id, responsible_p1_id
-) -> pl.DataFrame:
-    """
-    Join responsible person 1 attributes onto households.
-    Returns one row per household with head_* columns.
-    """
-    head_lookup = person.rename({
-        "person_id":        "responsible_p1_id",
-        "age":              "head_age",
-        "sex":              "head_sex",
-        "labour_group":     "head_labour_group",
-        "education_group":  "head_education_group",
-        "education_isced":  "head_education_isced",
-    }).select([
-        "responsible_p1_id", "head_age", "head_sex",
-        "head_labour_group", "head_education_group", "head_education_isced",
-    ])
-
-    head = responsible_ids.join(head_lookup, on="responsible_p1_id", how="left")
-
-    # Binary labour flags for the head
-    head = head.with_columns(
-        _binary_flag(pl.col("head_labour_group"), "employed").alias("head_employed"),
-        _binary_flag(pl.col("head_labour_group"), "unemployed").alias("head_unemployed"),
-        _binary_flag(pl.col("head_labour_group"), "inactive").alias("head_inactive"),
-    )
-
-    return head.drop("responsible_p1_id")
-
-
-# =============================================================================
-# MAIN YEAR BUILDER
-# =============================================================================
 
 def build_household_analysis(
     td: pl.DataFrame,
@@ -309,36 +283,37 @@ def build_household_analysis(
         logger.warning("Year %s: unmapped DB040 values → %s", year, unmapped.to_series().to_list())
 
     # ── Th: outcomes + controls ───────────────────────────────────────────────
-    income_col = "HY020N" if "HY020N" in th.columns else "HY020"
-    if income_col not in th.columns:
-        logger.warning("Year %s: HY020N and HY020 both absent — income set to null", year)
-
+    if "HY020N" in th.columns and th["HY020N"].is_not_null().any():
+        income_col = "HY020N"
+    elif "HY020" in th.columns:
+        income_col = "HY020"
+    else:
+        income_col = None
+    logger.warning("Year %s: HY020N and HY020 both absent — income set to null", year)
     th_clean = th.select(
-        pl.col("HB030").cast(pl.Int64, strict=False).cast(pl.String).alias("household_id"),
-        pl.col("HB080").cast(pl.String).alias("responsible_p1_id")
-        if "HB080" in th.columns else pl.lit(None, dtype=pl.String).alias("responsible_p1_id"),
+    pl.col("HB030").cast(pl.Int64, strict=False).cast(pl.String).alias("household_id"),
 
-        # ── Outcomes ─────────────────────────────────────────────────────────
-        _recode_binary_outcome(
-        pl.col("VHMATDEP") if "VHMATDEP" in th.columns else pl.lit(None, dtype=pl.Float64)
-        ).alias("matdep"),
-        _recode_binary_outcome(
-        pl.col("VHPOBREZA") if "VHPOBREZA" in th.columns else pl.lit(None, dtype=pl.Float64)
-        ).alias("poverty"),
-        (pl.col(income_col).cast(pl.Float64, strict=False)
-         if income_col in th.columns else pl.lit(None, dtype=pl.Float64))
-        .alias("income_net_annual"),
+    # ── Outcomes ─────────────────────────────────────────────────────────
+    _recode_binary_outcome(
+    pl.col("VHMATDEP") if "VHMATDEP" in th.columns else pl.lit(None, dtype=pl.Float64)
+    ).alias("matdep"),
+    _recode_binary_outcome(
+    pl.col("VHPOBREZA") if "VHPOBREZA" in th.columns else pl.lit(None, dtype=pl.Float64)
+    ).alias("poverty"),
+    (pl.col(income_col).cast(pl.Float64, strict=False)
+     if income_col in th.columns else pl.lit(None, dtype=pl.Float64))
+    .alias("income_net_annual"),
 
-        # ── Controls ─────────────────────────────────────────────────────────
-        pl.col("HX040").cast(pl.Float64, strict=False).clip(1.0, None).alias("hh_size")
-        if "HX040" in th.columns else pl.lit(None, dtype=pl.Float64).alias("hh_size"),
-        pl.col("HX240").cast(pl.Float64, strict=False).alias("equiv_income")
-        if "HX240" in th.columns else pl.lit(None, dtype=pl.Float64).alias("equiv_income"),
-        pl.col("HH021").cast(pl.Float64, strict=False).alias("tenure_status")
-        if "HH021" in th.columns else pl.lit(None, dtype=pl.Float64).alias("tenure_status"),
-        _recode_homeowner(
-            pl.col("HH021") if "HH021" in th.columns else pl.lit(None, dtype=pl.Float64)
-        ).alias("homeowner"),
+    # ── Controls ─────────────────────────────────────────────────────────
+    pl.col("HX040").cast(pl.Float64, strict=False).clip(1.0, None).alias("hh_size")
+    if "HX040" in th.columns else pl.lit(None, dtype=pl.Float64).alias("hh_size"),
+    pl.col("HX240").cast(pl.Float64, strict=False).alias("equiv_income")
+    if "HX240" in th.columns else pl.lit(None, dtype=pl.Float64).alias("equiv_income"),
+    pl.col("HH021").cast(pl.Float64, strict=False).alias("tenure_status")
+    if "HH021" in th.columns else pl.lit(None, dtype=pl.Float64).alias("tenure_status"),
+    _recode_homeowner(
+        pl.col("HH021") if "HH021" in th.columns else pl.lit(None, dtype=pl.Float64)
+    ).alias("homeowner"),
     )
 
     if "VHMATDEP" not in th.columns:
@@ -355,31 +330,11 @@ def build_household_analysis(
     # ── Person-level controls (Tr + Tp) ───────────────────────────────────────
     if tr is not None and tp is not None:
         person = _build_person_attributes(tr, tp, year)
-
         hh_agg = _aggregate_to_household(person, year)
-
-        responsible_ids = hh_clean = hh.select(["household_id", "responsible_p1_id"]).filter(
-            pl.col("responsible_p1_id").is_not_null()
-        )
-        head_attrs = _extract_head_attributes(person, responsible_ids)
-
-        hh = hh.join(hh_agg,   on="household_id", how="left")
-        hh = hh.join(head_attrs, on="household_id", how="left")
-
+        hh = hh.join(hh_agg, on="household_id", how="left")
     else:
-        logger.warning("Year %s: Tr/Tp missing — head controls set to null", year)
-        for col, dtype in [
-            ("any_unemployed_hh",    pl.Float64),
-            ("head_age",             pl.Float64),
-            ("head_sex",             pl.String),
-            ("head_education_isced", pl.Float64),
-            ("head_education_group", pl.String),
-            ("head_labour_group",    pl.String),
-            ("head_employed",        pl.Float64),
-            ("head_unemployed",      pl.Float64),
-            ("head_inactive",        pl.Float64),
-        ]:
-            hh = hh.with_columns(pl.lit(None, dtype=dtype).alias(col))
+        logger.warning("Year %s: Tr/Tp missing — household controls set to null", year)
+        hh = hh.with_columns(pl.lit(None, dtype=pl.Float64).alias("any_unemployed_hh"))
 
     # ── Year + Post indicator ─────────────────────────────────────────────────
     hh = hh.with_columns(
@@ -393,10 +348,6 @@ def build_household_analysis(
     logger.info("Year %s: built analysis household frame — %d rows", year, len(hh))
     return hh
 
-
-# =============================================================================
-# PANEL BUILDER
-# =============================================================================
 
 def build_analysis_panel(
     years: list[int],
