@@ -101,10 +101,6 @@ TP_COLUMNS: list[str] = [
     "PE040",
     "PE041",   # highest ISCED level attended detailed → dehde
     "PL031",   # self-defined economic status (EU-SILC harmonized)
-    # NOTE: Spanish ECV contains PL031 (EU-SILC harmonized version).
-    # PL032 is a national variant — verify whether it is present and non-null
-    # in your ECV TP files. If PL032 is populated, recode_les and recode_ddi
-    # in recode.py must be updated to use PL032 instead of PL031.
     "PL032",   # self-defined economic status (national version, if present)
     "PL040",   # employment status → les fallback
     "PL051",   # occupation ISCO code → loc, lcs
@@ -472,14 +468,13 @@ ANALYSIS_TH_COLUMNS: list[str] = [
     "HY020",      # total net disposable income (fallback if HY020N absent)
     "HY020N",     # net disposable income — PRIMARY income outcome
     "HH021",      # tenure status (control)
-    "vhMATDEP",   # severe material deprivation — PRIMARY outcome
+    "VHMATDEP",   # severe material deprivation — PRIMARY outcome
     "vhPobreza",  # at-risk-of-poverty — secondary outcome
 ]
 
 # Columns needed from Tr for head-level controls.
 ANALYSIS_TR_COLUMNS: list[str] = [
     "RB030",   # person ID
-    "DB030",   # household ID (carried in Tr in most ECV years)
     "RB080",   # year of birth (age fallback)
     "RB081",   # age at income reference date (age fallback)
     "RB082",   # age at survey date (preferred)
@@ -489,9 +484,10 @@ ANALYSIS_TR_COLUMNS: list[str] = [
 # Columns needed from Tp for head-level controls.
 ANALYSIS_TP_COLUMNS: list[str] = [
     "PB030",   # person ID
-    "PL031",   # self-defined economic status (harmonised EU-SILC)
-    "PL032",   # self-defined economic status (national variant, if present)
+    "PL031",   # self-defined economic status
+    "PL032",   # self-defined economic status (variable after 2020)
     "PE040",   # highest ISCED level attained
+    "PE041",
 ]
 
 # Regions excluded from the DiD (pre-registered decision, see handoff note).
@@ -499,7 +495,7 @@ ANALYSIS_TP_COLUMNS: list[str] = [
 #   24 = Aragón   — replaced RMI entirely with an IMV complement,
 #                   making reform effect non-comparable
 # Note: Ceuta (63) and Melilla (64) are already excluded via EXPOSURE_EXCLUDE_REGIONS.
-ANALYSIS_EXCLUDE_DRGN2: frozenset[int] = frozenset({23, 24})
+ANALYSIS_EXCLUDE_DRGN2: frozenset[int] = frozenset({23, 24, 63, 64})
 
 # Expected number of region clusters after all exclusions.
 ANALYSIS_N_CLUSTERS: int = 15

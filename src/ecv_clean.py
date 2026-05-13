@@ -2,12 +2,6 @@
 ecv_clean.py
 ============
 Household-level ECV cleaning for the IMV DiD analysis pipeline.
-
-Mirrors the structure of household.py and person.py:
-  - Pure Polars throughout (no pandas after the read step in readers.py)
-  - No static values declared here — all constants imported from src.constants
-  - No I/O — reading is done in readers.py, writing in the orchestrator
-
 Public API
 ----------
   build_household_analysis(td, th, tr, tp, year) -> pl.DataFrame
@@ -41,21 +35,10 @@ from src.readers import _read_section
 
 logger = logging.getLogger(__name__)
 
-
-# =============================================================================
-# PATH BUILDER
-# Mirrors make_paths() from the old cleaning script.
-# Structure: base / datos_{year} / ECV_T{x}_{year} / STATA / ECV_T{x}_{year}.dta
-# =============================================================================
-
 def _make_path(base: Path, file_type: str, year: int) -> Path:
-    """
-    Build the full path to an ECV STATA file for a given year.
-
-    file_type : one of "td", "th", "tr", "tp"
-    """
-    prefix = f"ECV_T{file_type[1].upper()}_{year}"   # e.g. ECV_Td_2021
-    return base / f"datos_{year}" / prefix / "STATA" / f"{prefix}.dta"
+    prefix_map = {"td": "Td", "th": "Th", "tr": "Tr", "tp": "Tp"}
+    prefix = f"ECV_{prefix_map[file_type]}_{year}"
+    return base / f"{prefix}.dta"
 
 
 # =============================================================================
@@ -84,7 +67,7 @@ def read_tp_analysis(base: Path, year: int) -> pl.DataFrame:
 # =============================================================================
 
 def _recode_binary_outcome(col: pl.Expr) -> pl.Expr:
-    """Map 1→1.0, 0→0.0, anything else→null. Used for vhMATDEP and vhPobreza."""
+    """Map 1→1.0, 0→0.0, anything else→null. Used for VHMATDEP and VHPOBREZA."""
     num = col.cast(pl.Float64, strict=False)
     return (
         pl.when(num.eq(1.0)).then(pl.lit(1.0, dtype=pl.Float64))
@@ -152,23 +135,13 @@ def _build_person_attributes(
     tp: pl.DataFrame,
     year: int,
 ) -> pl.DataFrame:
-    """
-    Join Tr + Tp, recode age/sex/education/labour for all persons.
-    Returns person-level DataFrame with household_id attached.
-    """
-    # ── Tr: age + sex ─────────────────────────────────────────────────────────
     tr = tr.with_columns(
-        pl.col("RB030").cast(pl.String).alias("person_id"),
-        # household_id: DB030 in Tr if present, else derive from person_id
-        pl.when(pl.lit("DB030" in tr.columns))
-        .then(pl.col("DB030").cast(pl.String))
-        .otherwise(
-            pl.col("RB030")
-            .cast(pl.Int64, strict=False)
-            .floordiv(100)
-            .cast(pl.String)
-        )
-        .alias("household_id"),
+    pl.col("RB030").cast(pl.String).alias("person_id"),
+    pl.col("RB030")
+    .cast(pl.Int64, strict=False)
+    .floordiv(100)
+    .cast(pl.String)
+    .alias("household_id"),
     )
 
     # Age: RB082 preferred, then RB081, then year − RB080
@@ -195,22 +168,26 @@ def _build_person_attributes(
     tp = tp.with_columns(
         pl.col("PB030").cast(pl.String).alias("person_id"),
     )
-
-    # Labour: PL031 preferred, PL032 fallback
-    if "PL031" in tp.columns:
+    if "PL031" in tp.columns and tp["PL031"].is_not_null().any():
         lab_raw = pl.col("PL031").cast(pl.Float64, strict=False)
     elif "PL032" in tp.columns:
         lab_raw = pl.col("PL032").cast(pl.Float64, strict=False)
     else:
         lab_raw = pl.lit(None, dtype=pl.Float64)
 
+    if "PE040" in tp.columns and tp["PE040"].is_not_null().any():
+        edu_col = "PE040"
+    elif "PE041" in tp.columns and tp["PE041"].is_not_null().any():
+        edu_col = "PE041"
+    else:
+        edu_col = None
+
     tp = tp.with_columns(
-        _recode_labour_group(lab_raw).alias("labour_group"),
         _recode_isced_group(
-            pl.col("PE040") if "PE040" in tp.columns else pl.lit(None, dtype=pl.Float64)
+            pl.col(edu_col) if edu_col else pl.lit(None, dtype=pl.Float64)
         ).alias("education_group"),
-        (pl.col("PE040").cast(pl.Float64, strict=False)
-         if "PE040" in tp.columns else pl.lit(None, dtype=pl.Float64))
+        (pl.col(edu_col).cast(pl.Float64, strict=False)
+        if edu_col else pl.lit(None, dtype=pl.Float64))
         .alias("education_isced"),
     )
 
@@ -311,7 +288,7 @@ def build_household_analysis(
 
     # ── Td: region + weight ───────────────────────────────────────────────────
     td_clean = td.select(
-        pl.col("DB030").cast(pl.String).alias("household_id"),
+        pl.col("DB030").cast(pl.Int64, strict=False).cast(pl.String).alias("household_id"),
         pl.col("DB040").cast(pl.String).alias("db040"),
         pl.col("DB090").cast(pl.Float64, strict=False).alias("weight_hh"),
     ).with_columns(
@@ -337,16 +314,16 @@ def build_household_analysis(
         logger.warning("Year %s: HY020N and HY020 both absent — income set to null", year)
 
     th_clean = th.select(
-        pl.col("HB030").cast(pl.String).alias("household_id"),
+        pl.col("HB030").cast(pl.Int64, strict=False).cast(pl.String).alias("household_id"),
         pl.col("HB080").cast(pl.String).alias("responsible_p1_id")
         if "HB080" in th.columns else pl.lit(None, dtype=pl.String).alias("responsible_p1_id"),
 
         # ── Outcomes ─────────────────────────────────────────────────────────
         _recode_binary_outcome(
-            pl.col("vhMATDEP") if "vhMATDEP" in th.columns else pl.lit(None, dtype=pl.Float64)
+        pl.col("VHMATDEP") if "VHMATDEP" in th.columns else pl.lit(None, dtype=pl.Float64)
         ).alias("matdep"),
         _recode_binary_outcome(
-            pl.col("vhPobreza") if "vhPobreza" in th.columns else pl.lit(None, dtype=pl.Float64)
+        pl.col("VHPOBREZA") if "VHPOBREZA" in th.columns else pl.lit(None, dtype=pl.Float64)
         ).alias("poverty"),
         (pl.col(income_col).cast(pl.Float64, strict=False)
          if income_col in th.columns else pl.lit(None, dtype=pl.Float64))
@@ -355,8 +332,8 @@ def build_household_analysis(
         # ── Controls ─────────────────────────────────────────────────────────
         pl.col("HX040").cast(pl.Float64, strict=False).clip(1.0, None).alias("hh_size")
         if "HX040" in th.columns else pl.lit(None, dtype=pl.Float64).alias("hh_size"),
-        pl.col("HX090").cast(pl.Float64, strict=False).alias("equiv_income")
-        if "HX090" in th.columns else pl.lit(None, dtype=pl.Float64).alias("equiv_income"),
+        pl.col("HX240").cast(pl.Float64, strict=False).alias("equiv_income")
+        if "HX240" in th.columns else pl.lit(None, dtype=pl.Float64).alias("equiv_income"),
         pl.col("HH021").cast(pl.Float64, strict=False).alias("tenure_status")
         if "HH021" in th.columns else pl.lit(None, dtype=pl.Float64).alias("tenure_status"),
         _recode_homeowner(
@@ -364,10 +341,10 @@ def build_household_analysis(
         ).alias("homeowner"),
     )
 
-    if "vhMATDEP" not in th.columns:
+    if "VHMATDEP" not in th.columns:
         logger.warning("Year %s: vhMATDEP absent", year)
-    if "vhPobreza" not in th.columns:
-        logger.warning("Year %s: vhPobreza absent", year)
+    if "VHPOBREZA" not in th.columns:
+        logger.warning("Year %s: VHPOBREZA absent", year)
 
     # ── Merge Td + Th ─────────────────────────────────────────────────────────
     n_th = len(th_clean)

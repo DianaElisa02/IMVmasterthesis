@@ -1,18 +1,6 @@
 """
 build_analysis_dataset.py
-=========================
-Top-level orchestrator for the IMV DiD analysis dataset.
-Mirrors the structure of your existing top-level scripts.
 
-Calls:
-  src.ecv_clean.build_analysis_panel()
-
-Outputs:
-  output/analysis_dataset.parquet   — analysis-ready household panel
-  output/dataset_checks.csv         — weighted descriptive statistics by year
-
-Usage:
-  python build_analysis_dataset.py
 """
 
 from __future__ import annotations
@@ -32,7 +20,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-BASE_PATH = Path("/workspaces/IMVmasterthesis")
+BASE_PATH = Path("/workspaces/IMVmasterthesis/input_data")
 EXPOSURE_PATH = BASE_PATH / "output" / "exposure" / "exposure_index.csv"
 OUTPUT_DIR    = BASE_PATH / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
