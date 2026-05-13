@@ -548,5 +548,7 @@ BALANCE_CONTROLS: list[str] = [
     "any_high_education_hh",
 ]
 
-# Primary spec used for tercile construction in balance checks
 BALANCE_PRIMARY_SPEC: str = "exposure_composite_hybrid"
+
+EVENT_STUDY_REFERENCE_YEAR: int = 2019   # omitted category — parallel trends reference
+EVENT_STUDY_YEARS: list[int] = [2017, 2018, 2021, 2022, 2023, 2024, 2025]  # 2020 excluded
