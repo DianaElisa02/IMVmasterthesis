@@ -458,3 +458,82 @@ REGION_POPULATION: dict[int, dict[int, int]] = {
         61: 8464411, 62: 1493898, 70: 2153389,
     },
 }
+
+
+ANALYSIS_YEARS: list[int] = list(range(2017, 2026))
+
+# Columns needed from Th for the DiD — extends TH_COLUMNS with the two
+# INE-computed outcome indicators that are not in the EUROMOD UDB pipeline.
+ANALYSIS_TH_COLUMNS: list[str] = [
+    "HB030",      # household ID (Th link key)
+    "HB080",      # person ID of responsible person 1 → head proxy
+    "HX040",      # household size (INE-computed)
+    "HX090",      # equivalised disposable income (for descriptives)
+    "HY020",      # total net disposable income (fallback if HY020N absent)
+    "HY020N",     # net disposable income — PRIMARY income outcome
+    "HH021",      # tenure status (control)
+    "vhMATDEP",   # severe material deprivation — PRIMARY outcome
+    "vhPobreza",  # at-risk-of-poverty — secondary outcome
+]
+
+# Columns needed from Tr for head-level controls.
+ANALYSIS_TR_COLUMNS: list[str] = [
+    "RB030",   # person ID
+    "DB030",   # household ID (carried in Tr in most ECV years)
+    "RB080",   # year of birth (age fallback)
+    "RB081",   # age at income reference date (age fallback)
+    "RB082",   # age at survey date (preferred)
+    "RB090",   # sex (1=male, 2=female)
+]
+
+# Columns needed from Tp for head-level controls.
+ANALYSIS_TP_COLUMNS: list[str] = [
+    "PB030",   # person ID
+    "PL031",   # self-defined economic status (harmonised EU-SILC)
+    "PL032",   # self-defined economic status (national variant, if present)
+    "PE040",   # highest ISCED level attained
+]
+
+# Regions excluded from the DiD (pre-registered decision, see handoff note).
+#   23 = La Rioja — data issues in 2023/2024
+#   24 = Aragón   — replaced RMI entirely with an IMV complement,
+#                   making reform effect non-comparable
+# Note: Ceuta (63) and Melilla (64) are already excluded via EXPOSURE_EXCLUDE_REGIONS.
+ANALYSIS_EXCLUDE_DRGN2: frozenset[int] = frozenset({23, 24})
+
+# Expected number of region clusters after all exclusions.
+ANALYSIS_N_CLUSTERS: int = 15
+
+# Exposure specs produced by exposure_index.py, in order.
+# First entry is the PRIMARY DiD regressor; remainder are robustness specs.
+EXPOSURE_SPECS: list[str] = [
+    "exposure_composite_hybrid",   # PRIMARY: 0.5×z(delta_exp_hybrid) + 0.5×z(delta_cov_hybrid)
+    "exposure_exp_hybrid",         # robustness: expenditure dimension only
+    "exposure_cov_hybrid",         # robustness: coverage dimension only
+    "exposure_composite_sim",      # robustness: simulation-based composite
+    "exposure_admin",              # robustness: admin-based (sign fix pending)
+]
+
+# PL031/PL032 → simplified labour group for head controls.
+# Mirrors PL031_TO_LES but collapses to three categories needed for DiD controls.
+PL031_TO_LABOUR_GROUP: dict[int, str] = {
+    1:  "employed",    # full-time employee
+    2:  "employed",    # part-time employee
+    3:  "employed",    # full-time self-employed
+    4:  "employed",    # part-time self-employed
+    5:  "unemployed",
+    6:  "inactive",    # student
+    7:  "inactive",    # retired
+    8:  "inactive",    # permanently disabled
+    9:  "inactive",    # military service
+    10: "inactive",    # domestic tasks
+    11: "inactive",    # other inactive
+}
+
+# PE040 ISCED boundaries → broad education group for head controls.
+# Each tuple: (lower_bound_inclusive, upper_bound_inclusive, label)
+ISCED_GROUP_BOUNDARIES: list[tuple[int, int, str]] = [
+    (0,   200, "low"),      # pre-primary, primary, lower secondary
+    (300, 400, "medium"),   # upper secondary, post-secondary non-tertiary
+    (500, 800, "high"),     # tertiary
+]
