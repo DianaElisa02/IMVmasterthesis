@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 BASE_PATH = Path("/workspaces/IMVmasterthesis/input_data")
-EXPOSURE_PATH = BASE_PATH / "output" / "exposure" / "exposure_index.csv"
+EXPOSURE_PATH = Path("/workspaces/IMVmasterthesis") / "output" / "exposure" / "exposure_index.csv"
 OUTPUT_DIR    = BASE_PATH / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 

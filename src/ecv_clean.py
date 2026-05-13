@@ -164,25 +164,24 @@ def _build_person_attributes(
 
     person = tr.select(["person_id", "household_id", "age", "sex"])
 
-    # ── Tp: education + labour ────────────────────────────────────────────────
     tp = tp.with_columns(
-        pl.col("PB030").cast(pl.String).alias("person_id"),
+    pl.col("PB030").cast(pl.String).alias("person_id"),
     )
+
+    lab_raw = pl.lit(None, dtype=pl.Float64)
     if "PL031" in tp.columns and tp["PL031"].is_not_null().any():
         lab_raw = pl.col("PL031").cast(pl.Float64, strict=False)
     elif "PL032" in tp.columns:
         lab_raw = pl.col("PL032").cast(pl.Float64, strict=False)
-    else:
-        lab_raw = pl.lit(None, dtype=pl.Float64)
 
+    edu_col = None
     if "PE040" in tp.columns and tp["PE040"].is_not_null().any():
         edu_col = "PE040"
     elif "PE041" in tp.columns and tp["PE041"].is_not_null().any():
         edu_col = "PE041"
-    else:
-        edu_col = None
 
     tp = tp.with_columns(
+        _recode_labour_group(lab_raw).alias("labour_group"),
         _recode_isced_group(
             pl.col(edu_col) if edu_col else pl.lit(None, dtype=pl.Float64)
         ).alias("education_group"),
@@ -190,6 +189,7 @@ def _build_person_attributes(
         if edu_col else pl.lit(None, dtype=pl.Float64))
         .alias("education_isced"),
     )
+   
 
     tp_cols = ["person_id", "labour_group", "education_group", "education_isced"]
     tp = tp.select([c for c in tp_cols if c in tp.columns]).unique(subset=["person_id"])
