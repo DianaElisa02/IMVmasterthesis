@@ -28,11 +28,6 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 ANALYSIS_OUTPUT = OUTPUT_DIR / "analysis_dataset.parquet"
 CHECKS_OUTPUT   = OUTPUT_DIR / "dataset_checks.csv"
 
-
-# =============================================================================
-# DESCRIPTIVE CHECKS
-# =============================================================================
-
 def _weighted_mean(col: str, weight: str, df: pl.DataFrame) -> float:
     sub = df.select([col, weight]).drop_nulls()
     sub = sub.filter(pl.col(weight).gt(0))
@@ -61,10 +56,6 @@ def make_checks(panel: pl.DataFrame) -> pl.DataFrame:
         })
     return pl.DataFrame(rows)
 
-
-# =============================================================================
-# MAIN
-# =============================================================================
 
 def main() -> None:
     logger.info("=== IMV DiD — build_analysis_dataset.py ===")

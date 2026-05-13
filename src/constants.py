@@ -531,3 +531,22 @@ ISCED_GROUP_BOUNDARIES: list[tuple[int, int, str]] = [
     (300, 400, "medium"),   # upper secondary, post-secondary non-tertiary
     (500, 800, "high"),     # tertiary
 ]
+
+# Variables included in the balance check table
+BALANCE_OUTCOMES: list[str] = [
+    "matdep",
+    "poverty",
+    "income_net_annual",
+]
+
+BALANCE_CONTROLS: list[str] = [
+    "hh_size",
+    "any_unemployed_hh",
+    "single_parent_hh",
+    "homeowner",
+    "n_children",
+    "any_high_education_hh",
+]
+
+# Primary spec used for tercile construction in balance checks
+BALANCE_PRIMARY_SPEC: str = "exposure_composite_hybrid"

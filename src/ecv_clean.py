@@ -61,11 +61,6 @@ def read_tr_analysis(base: Path, year: int) -> pl.DataFrame:
 def read_tp_analysis(base: Path, year: int) -> pl.DataFrame:
     return _read_section(_make_path(base, "tp", year), ANALYSIS_TP_COLUMNS, year, "tp_analysis")
 
-
-# =============================================================================
-# RECODE HELPERS (Polars expressions — no side effects)
-# =============================================================================
-
 def _recode_binary_outcome(col: pl.Expr) -> pl.Expr:
     """Map 1→1.0, 0→0.0, anything else→null. Used for VHMATDEP and VHPOBREZA."""
     num = col.cast(pl.Float64, strict=False)
@@ -103,10 +98,6 @@ def _recode_isced_group(pe040: pl.Expr) -> pl.Expr:
 
 
 def _recode_labour_group(pl031: pl.Expr) -> pl.Expr:
-    """
-    Map PL031 (or PL032) numeric code → employed / unemployed / inactive.
-    Uses PL031_TO_LABOUR_GROUP from constants.
-    """
     keys   = [float(k) for k in PL031_TO_LABOUR_GROUP.keys()]
     values = list(PL031_TO_LABOUR_GROUP.values())
     return (
@@ -117,18 +108,12 @@ def _recode_labour_group(pl031: pl.Expr) -> pl.Expr:
 
 
 def _binary_flag(labour_group: pl.Expr, value: str) -> pl.Expr:
-    """1.0 if labour_group == value, 0.0 if known-other, null if unknown."""
     return (
         pl.when(labour_group.eq(value)).then(pl.lit(1.0, dtype=pl.Float64))
         .when(labour_group.is_not_null()).then(pl.lit(0.0, dtype=pl.Float64))
         .otherwise(pl.lit(None, dtype=pl.Float64))
     )
 
-
-# =============================================================================
-# PERSON → HOUSEHOLD AGGREGATION
-# Produces one row per household_id with head-level and household-level controls.
-# =============================================================================
 
 def _build_person_attributes(
     tr: pl.DataFrame,
@@ -144,12 +129,11 @@ def _build_person_attributes(
     .alias("household_id"),
     )
 
-    # Age: RB082 preferred, then RB081, then year − RB080
-    if "RB082" in tr.columns:
+    if "RB082" in tr.columns and tr["RB082"].is_not_null().any():
         age_expr = pl.col("RB082").cast(pl.Float64, strict=False)
-    elif "RB081" in tr.columns:
+    elif "RB081" in tr.columns and tr["RB081"].is_not_null().any():
         age_expr = pl.col("RB081").cast(pl.Float64, strict=False)
-    elif "RB080" in tr.columns:
+    elif "RB080" in tr.columns and tr["RB080"].is_not_null().any():
         age_expr = (pl.lit(float(year)) - pl.col("RB080").cast(pl.Float64, strict=False))
     else:
         age_expr = pl.lit(None, dtype=pl.Float64)
@@ -205,8 +189,6 @@ def _aggregate_to_household(person: pl.DataFrame, year: int) -> pl.DataFrame:
             .alias("any_unemployed_hh"),
         pl.col("labour_group").eq("employed").any().cast(pl.Float64)
             .alias("any_employed_hh"),
-        pl.col("labour_group").is_not_null().all().cast(pl.Float64)
-            .alias("all_inactive_hh"),
         pl.col("age").lt(18).sum().cast(pl.Float64)
             .alias("n_children"),
         pl.col("age").ge(18).sum().cast(pl.Float64)
@@ -215,11 +197,11 @@ def _aggregate_to_household(person: pl.DataFrame, year: int) -> pl.DataFrame:
             .alias("any_female_hh"),
         pl.col("education_group").eq("high").any().cast(pl.Float64)
             .alias("any_high_education_hh"),
-    )
-    agg = agg.with_columns(
+    ).with_columns(
         pl.when(
             pl.col("n_adults").eq(1.0) & pl.col("n_children").ge(1.0)
-        ).then(pl.lit(1.0)).otherwise(pl.lit(0.0)).alias("single_parent_hh")
+        ).then(pl.lit(1.0)).otherwise(pl.lit(0.0))
+        .alias("single_parent_hh")
     )
     logger.info("Year %s: household aggregation — %d households", year, len(agg))
     return agg
@@ -231,27 +213,6 @@ def build_household_analysis(
     tp: pl.DataFrame | None,
     year: int,
 ) -> pl.DataFrame:
-    """
-    Build one household-year DataFrame for the DiD analysis.
-
-    Parameters
-    ----------
-    td, th : Polars DataFrames from read_td / read_th_analysis
-    tr, tp : Polars DataFrames from read_tr_analysis / read_tp_analysis,
-             or None if files are missing (head controls will be null)
-    year   : survey year
-
-    Returns
-    -------
-    Polars DataFrame with one row per household containing:
-      household_id, drgn2, region_name, weight_hh, year, post,
-      matdep, poverty, income_net_annual, hh_size, equiv_income,
-      tenure_status, homeowner,
-      head_age, head_sex, head_education_isced, head_education_group,
-      head_labour_group, head_employed, head_unemployed, head_inactive,
-      any_unemployed_hh
-    """
-    # ── Validate uniqueness ───────────────────────────────────────────────────
     for key, df, label in [("DB030", td, "Td"), ("HB030", th, "Th")]:
         n_unique = df.select(key).n_unique()
         if n_unique != len(df):
@@ -260,7 +221,6 @@ def build_household_analysis(
                 f"({len(df)} rows, {n_unique} unique)"
             )
 
-    # ── Td: region + weight ───────────────────────────────────────────────────
     td_clean = td.select(
         pl.col("DB030").cast(pl.Int64, strict=False).cast(pl.String).alias("household_id"),
         pl.col("DB040").cast(pl.String).alias("db040"),
@@ -282,13 +242,13 @@ def build_household_analysis(
     if len(unmapped) > 0:
         logger.warning("Year %s: unmapped DB040 values → %s", year, unmapped.to_series().to_list())
 
-    # ── Th: outcomes + controls ───────────────────────────────────────────────
     if "HY020N" in th.columns and th["HY020N"].is_not_null().any():
         income_col = "HY020N"
     elif "HY020" in th.columns:
         income_col = "HY020"
     else:
         income_col = None
+    logger.warning("Year %s: HY020N and HY020 both absent — income set to null", year)
     logger.warning("Year %s: HY020N and HY020 both absent — income set to null", year)
     th_clean = th.select(
     pl.col("HB030").cast(pl.Int64, strict=False).cast(pl.String).alias("household_id"),
@@ -327,14 +287,22 @@ def build_household_analysis(
     if len(hh) != n_th:
         raise ValueError(f"Year {year}: row count changed in Td-Th join ({n_th} → {len(hh)})")
 
-    # ── Person-level controls (Tr + Tp) ───────────────────────────────────────
     if tr is not None and tp is not None:
         person = _build_person_attributes(tr, tp, year)
         hh_agg = _aggregate_to_household(person, year)
         hh = hh.join(hh_agg, on="household_id", how="left")
     else:
         logger.warning("Year %s: Tr/Tp missing — household controls set to null", year)
-        hh = hh.with_columns(pl.lit(None, dtype=pl.Float64).alias("any_unemployed_hh"))
+        for col, dtype in [
+            ("any_unemployed_hh",    pl.Float64),
+            ("any_employed_hh",      pl.Float64),
+            ("n_children",           pl.Float64),
+            ("n_adults",             pl.Float64),
+            ("any_female_hh",        pl.Float64),
+            ("any_high_education_hh",pl.Float64),
+            ("single_parent_hh",     pl.Float64),
+        ]:
+            hh = hh.with_columns(pl.lit(None, dtype=dtype).alias(col))
 
     # ── Year + Post indicator ─────────────────────────────────────────────────
     hh = hh.with_columns(
