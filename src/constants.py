@@ -595,3 +595,9 @@ COVID_ROBUST_SPECS: dict[str, dict] = {
         "label": "2021-2022 excluded",
     },
 }
+
+# Baseline DiD specification
+# All five exposure specs estimated — primary + four robustness
+# Post period: 2021-2025 (baseline), 2022-2025 (COVID robust)
+DID_POST_YEARS_BASELINE: list[int] = [2021, 2022, 2023, 2024, 2025]
+DID_POST_YEARS_COVID:    list[int] = [2022, 2023, 2024, 2025]
