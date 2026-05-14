@@ -579,3 +579,19 @@ PLACEBO_REFERENCE_YEAR: int = 2018        # omitted category
 # income_net_annual reported in appendix with explicit caveat only
 ANALYSIS_OUTCOMES: list[str] = ["matdep", "poverty"]
 APPENDIX_OUTCOMES: list[str] = ["income_net_annual"]
+
+# COVID robustness — two exclusion windows
+# Version A: exclude 2021 only — removes peak COVID + incomplete IMV rollout year
+# Version B: exclude 2021 and 2022 — removes COVID recovery + low take-up period
+COVID_ROBUST_SPECS: dict[str, dict] = {
+    "excl_2021": {
+        "exclude_years":  [2021],
+        "event_study_years": [2017, 2018, 2022, 2023, 2024, 2025],
+        "label": "2021 excluded",
+    },
+    "excl_2021_2022": {
+        "exclude_years":  [2021, 2022],
+        "event_study_years": [2017, 2018, 2023, 2024, 2025],
+        "label": "2021-2022 excluded",
+    },
+}
