@@ -560,7 +560,7 @@ BALANCE_CONTROLS_EXTENDED: list[str] = [
     "any_employed_hh",
 ]
 
-# Flag: whether to add region-specific linear time trends as robustness
+
 EVENT_STUDY_REGION_TREND: bool = False   # set True for robustness run
 
 BALANCE_PRIMARY_SPEC: str = "exposure_composite_hybrid"

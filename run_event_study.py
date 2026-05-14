@@ -1,13 +1,5 @@
 """
 run_event_study.py
-==================
-Orchestrator for the IMV DiD event study.
-
-Reads analysis_dataset.parquet, builds event study data structure,
-estimates for each outcome, saves coefficients and plots.
-
-Usage:
-  python run_event_study.py
 """
 
 from __future__ import annotations

@@ -58,6 +58,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 import scipy.stats
+import scipy.linalg
 import statsmodels.api as sm
 
 from src.constants import (
@@ -197,24 +198,38 @@ def run_event_study(
 
     trend_cols: list[str] = []
     if EVENT_STUDY_REGION_TREND:
-        df["year_centered"] = df["year"] - EVENT_STUDY_REFERENCE_YEAR
-        for reg_col in region_cols:
-            trend_col = f"{reg_col}_trend"
-            df[trend_col] = df[reg_col] * df["year_centered"]
-            trend_cols.append(trend_col)
-        logger.info(
-            "Region-specific linear time trends added: %d trend terms",
-            len(trend_cols),
+        # With region-specific linear trends, one interaction term becomes
+        # unidentified: the trend terms at the boundary year are collinear
+        # with the exposure interaction for that year (exposure is region-
+        # level, so yr_last × exposure is a linear combination of the region
+        # trends). Drop the redundant interaction but retain its year dummy.
+        last_year     = max(EVENT_STUDY_YEARS)
+        drop_interact = f"yr_{last_year}_x_exposure"
+        trimmed_interactions = [c for c in interaction_cols if c != drop_interact]
+        logger.warning(
+            "Robustness spec: '%s' is collinear with region trends and "
+            "cannot be identified — dropped from regressors. "
+            "Its year dummy (yr_%d) is retained. "
+            "This coefficient will be NaN in coef_table.",
+            drop_interact, last_year,
         )
-
-    regressors = (
-        interaction_cols
-        + year_dummy_cols
-        + region_cols
-        + trend_cols
-        + controls
-    )
-    regressors = [c for c in regressors if c in df.columns]
+        regressors = (
+            trimmed_interactions
+            + year_dummy_cols
+            + trend_cols
+            + controls
+        )
+        logger.info(
+            "Robustness spec: region dummies dropped — subsumed by "
+            "region-specific linear trends + constant. Year FE retained."
+        )
+    else:
+        regressors = (
+            interaction_cols
+            + year_dummy_cols
+            + region_cols
+            + controls
+        )
 
     X = sm.add_constant(df[regressors])
     y = df[outcome]
