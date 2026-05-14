@@ -29,10 +29,13 @@ Design decisions
 
 3. STANDARD ERRORS
    Clustered at region level (drgn2) — 15 clusters. With only 15
-   clusters, standard cluster-robust SEs are unreliable. We use
-   WLS with cluster-robust SEs here for the event study plot, but
-   the main inference for the baseline DiD will use wild cluster
-   bootstrap (implemented separately in run_baseline_did.py).
+   clusters, standard cluster-robust SEs are unreliable. CIs in the
+   event study plot use a t critical value with G-1 = 14 degrees of
+   freedom (~2.14 at 95%) rather than the asymptotic 1.96. Primary
+   inference uses wild cluster bootstrap (WCB) applied to all
+   interaction terms — both pre- and post-reform — via Webb weights
+   (B=9999). CIs in the plot are for visualisation only; use WCB
+   p-values for inference.
 
 4. WEIGHTS
    Survey weights (weight_hh) used throughout via WLS.
@@ -54,6 +57,7 @@ import logging
 import numpy as np
 import pandas as pd
 import polars as pl
+import scipy.stats
 import statsmodels.api as sm
 
 from src.constants import (
@@ -70,10 +74,38 @@ logger = logging.getLogger(__name__)
 
 PRIMARY_SPEC = EXPOSURE_SPECS[0]   # exposure_composite_hybrid
 
+def _extract_wbt_pvalue(wbt: object, col: str) -> float:
 
-# =============================================================================
-# STEP 1: BUILD EVENT STUDY DATA STRUCTURE
-# =============================================================================
+    P_VALUE_KEYS = ["p-value", "p_value", "pvalue", "Pr(>|t|)"]
+
+    if isinstance(wbt, pd.DataFrame):
+        for key in P_VALUE_KEYS:
+            if key in wbt.columns:
+                return float(wbt[key].iloc[0])
+        raise ValueError(
+            f"wildboottest returned a DataFrame for '{col}' but none of the "
+            f"expected p-value columns {P_VALUE_KEYS} were found. "
+            f"Actual columns: {wbt.columns.tolist()}"
+        )
+
+    if isinstance(wbt, dict):
+        for key in P_VALUE_KEYS:
+            if key in wbt:
+                raw = wbt[key]
+                return float(raw.iloc[0]) if hasattr(raw, "iloc") else float(raw)
+        raise ValueError(
+            f"wildboottest returned a dict for '{col}' but none of the "
+            f"expected p-value keys {P_VALUE_KEYS} were found. "
+            f"Actual keys: {list(wbt.keys())}"
+        )
+
+    if isinstance(wbt, (float, int, np.floating, np.integer)):
+        return float(wbt)
+
+    raise ValueError(
+        f"wildboottest returned an unrecognised type for '{col}': "
+        f"{type(wbt)}. Update _extract_wbt_pvalue() to handle this version."
+    )
 
 def build_event_study_data(panel: pl.DataFrame) -> pl.DataFrame:
     """
@@ -104,11 +136,6 @@ def build_event_study_data(panel: pl.DataFrame) -> pl.DataFrame:
     )
     return panel
 
-
-# =============================================================================
-# STEP 2: ESTIMATE
-# =============================================================================
-
 def run_event_study(
     panel: pl.DataFrame,
     outcome: str = "matdep",
@@ -116,8 +143,6 @@ def run_event_study(
     extended_controls: bool = False,
 ) -> tuple[pd.DataFrame, object, dict[str, float]]:
     """
-    Estimate the event study via WLS with region and year FE.
-
     Parameters
     ----------
     panel            : panel with event study columns from build_event_study_data()
@@ -127,11 +152,10 @@ def run_event_study(
 
     Returns
     -------
-    coef_table  : pd.DataFrame — year, coef, se, ci_low, ci_high, pval
+    coef_table  : pd.DataFrame — year, coef, se, ci_low, ci_high, pval, pval_wbt
     result      : statsmodels RegressionResultsWrapper — full model output
-    wbt_results : dict — wild bootstrap p-values for pre-reform interactions
+    wbt_results : dict — wild bootstrap p-values for all interaction terms
     """
-    # ── Controls ──────────────────────────────────────────────────────────────
     if controls is None:
         ctrl_list = BALANCE_CONTROLS_EXTENDED if extended_controls else BALANCE_CONTROLS
         controls = [c for c in ctrl_list if c in panel.columns]
@@ -139,7 +163,6 @@ def run_event_study(
     interaction_cols = [f"yr_{y}_x_exposure" for y in EVENT_STUDY_YEARS]
     year_dummy_cols  = [f"yr_{y}" for y in EVENT_STUDY_YEARS]
 
-    # ── Prepare pandas DataFrame ──────────────────────────────────────────────
     keep = (
         ["household_id", "drgn2", "year", outcome, "weight_hh"]
         + interaction_cols
@@ -148,19 +171,21 @@ def run_event_study(
     )
     keep = [c for c in keep if c in panel.columns]
 
-    df = panel.select(keep).to_pandas().dropna(subset=[outcome] + interaction_cols)
-    df = df.reset_index(drop=True)
+    all_required = [outcome] + interaction_cols + year_dummy_cols + controls
+    df = (
+        panel.select(keep)
+        .to_pandas()
+        .dropna(subset=[c for c in all_required if c in panel.columns])
+        .reset_index(drop=True)
+    )
     logger.info("Estimation sample: %d observations", len(df))
 
-    # ── Region fixed effects via dummies ──────────────────────────────────────
-    # drop_first=True drops the region with the lowest drgn2 code as reference.
     region_dummies = pd.get_dummies(
         df["drgn2"], prefix="reg", drop_first=True
     ).astype(float)
     df = pd.concat([df, region_dummies], axis=1)
     region_cols = region_dummies.columns.tolist()
 
-    # ── Log reference region ──────────────────────────────────────────────────
     all_regions = sorted(df["drgn2"].unique().tolist())
     ref_region_code = all_regions[0]
     ref_region_name = REGION_NAMES.get(int(ref_region_code), str(ref_region_code))
@@ -170,10 +195,6 @@ def run_event_study(
         ref_region_code, ref_region_name,
     )
 
-    # ── Optional: region-specific linear time trends ──────────────────────────
-    # Absorbs pre-existing differential trends across regions.
-    # Addresses income pre-trend concern (F=2.72, p=0.100 without trends).
-    # Activated by EVENT_STUDY_REGION_TREND = True in constants.py.
     trend_cols: list[str] = []
     if EVENT_STUDY_REGION_TREND:
         df["year_centered"] = df["year"] - EVENT_STUDY_REFERENCE_YEAR
@@ -186,9 +207,6 @@ def run_event_study(
             len(trend_cols),
         )
 
-    # ── Build regressors ──────────────────────────────────────────────────────
-    # Order: interactions (coefs of interest) | year dummies (year FE) |
-    #        region dummies (region FE) | trends (robustness) | controls
     regressors = (
         interaction_cols
         + year_dummy_cols
@@ -202,23 +220,18 @@ def run_event_study(
     y = df[outcome]
     w = df["weight_hh"]
 
-    # ── Rank check ────────────────────────────────────────────────────────────
     rank   = np.linalg.matrix_rank(X.values)
     n_cols = X.shape[1]
     if rank < n_cols:
-        logger.warning(
-            "RANK DEFICIENCY: design matrix rank=%d but has %d columns. "
-            "Perfect multicollinearity detected — check region dummies vs "
-            "year × exposure interactions. Dropped columns will have NaN coefs.",
-            rank, n_cols,
+        raise ValueError(
+            f"Design matrix is rank-deficient: rank={rank}, n_cols={n_cols}. "
+            f"Perfect multicollinearity detected — check region dummies vs "
+            f"year × exposure interactions. Cannot estimate model."
         )
-    else:
-        logger.info(
-            "Design matrix rank check passed: rank=%d = n_cols=%d ✓",
-            rank, n_cols,
-        )
+    logger.info(
+        "Design matrix rank check passed: rank=%d = n_cols=%d ✓", rank, n_cols,
+    )
 
-    # ── Estimate WLS with cluster-robust SEs ──────────────────────────────────
     model  = sm.WLS(y, X, weights=w)
     result = model.fit(
         cov_type="cluster",
@@ -232,55 +245,77 @@ def run_event_study(
         "yes" if EVENT_STUDY_REGION_TREND else "no",
     )
 
-    # ── Wild cluster bootstrap for pre-reform interactions ────────────────────
     wbt_results: dict[str, float] = {}
-    pre_cols = ["yr_2017_x_exposure", "yr_2018_x_exposure"]
-    pre_cols_present = [c for c in pre_cols if c in result.params.index]
 
     try:
         from wildboottest.wildboottest import wildboottest
-        for col in pre_cols_present:
-            wbt = wildboottest(
-                model,
-                cluster=df["drgn2"].values,
-                param=col,
-                B=9999,
-                weights_type="webb",
-                seed=42,
-            )
-            wbt_results[col] = float(wbt["p_value"])
-        logger.info("Wild cluster bootstrap complete: %s", wbt_results)
+        import contextlib
+        import io
+
+        for col in interaction_cols:
+            if col not in result.params.index:
+                logger.warning(
+                    "Skipping WCB for %s — not found in model params.", col
+                )
+                continue
+
+            _trap = io.StringIO()
+            with contextlib.redirect_stdout(_trap):
+                wbt = wildboottest(
+                    model,
+                    cluster=df["drgn2"].values,
+                    param=col,
+                    B=9999,
+                    weights_type="webb",
+                    seed=42,
+                )
+
+            logger.debug("wildboottest raw output for %s: %s", col, wbt)
+
+            p_wbt = _extract_wbt_pvalue(wbt, col)
+            wbt_results[col] = p_wbt
+            logger.info("Wild bootstrap — %s: p = %.4f", col, p_wbt)
+
     except ImportError:
         logger.warning(
             "wildboottest not installed — run: pip install wildboottest. "
             "Cluster-robust p-values used instead."
         )
     except Exception as e:
-        logger.warning("wildboottest failed: %s — cluster-robust SEs used instead", e)
+        logger.warning(
+            "wildboottest failed: %s — cluster-robust SEs used instead.", e
+        )
 
-    # ── Extract interaction coefficients ──────────────────────────────────────
+    n_clusters = df["drgn2"].nunique()
+    t_crit = scipy.stats.t.ppf(0.975, df=n_clusters - 1)
+    logger.info(
+        "CI critical value: t(df=%d, 0.975) = %.4f  [clusters=%d]",
+        n_clusters - 1, t_crit, n_clusters,
+    )
+
     rows = []
     for year in EVENT_STUDY_YEARS:
         col  = f"yr_{year}_x_exposure"
         coef = result.params.get(col, np.nan)
         se   = result.bse.get(col, np.nan)
         rows.append({
-            "year":    year,
-            "coef":    coef,
-            "se":      se,
-            "ci_low":  coef - 1.96 * se,
-            "ci_high": coef + 1.96 * se,
-            "pval":    result.pvalues.get(col, np.nan),
+            "year":     year,
+            "coef":     coef,
+            "se":       se,
+            "ci_low":   coef - t_crit * se,
+            "ci_high":  coef + t_crit * se,
+            "pval":     result.pvalues.get(col, np.nan),
+            "pval_wbt": wbt_results.get(col, np.nan),
         })
 
-    # Reference year: coefficient normalised to zero by construction
     rows.append({
-        "year":    EVENT_STUDY_REFERENCE_YEAR,
-        "coef":    0.0,
-        "se":      0.0,
-        "ci_low":  0.0,
-        "ci_high": 0.0,
-        "pval":    np.nan,
+        "year":     EVENT_STUDY_REFERENCE_YEAR,
+        "coef":     0.0,
+        "se":       0.0,
+        "ci_low":   0.0,
+        "ci_high":  0.0,
+        "pval":     np.nan,
+        "pval_wbt": np.nan,
     })
 
     coef_table = (
