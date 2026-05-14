@@ -574,3 +574,8 @@ EVENT_STUDY_YEARS: list[int] = [2017, 2018, 2021, 2022, 2023, 2024, 2025]  # 202
 PLACEBO_YEARS: list[int] = [2017, 2018, 2019]
 PLACEBO_FAKE_TREATMENT_YEAR: int = 2019   # year coded as "post" in placebo
 PLACEBO_REFERENCE_YEAR: int = 2018        # omitted category
+
+# Analysis outcomes — income_net_annual excluded (placebo test failure)
+# income_net_annual reported in appendix with explicit caveat only
+ANALYSIS_OUTCOMES: list[str] = ["matdep", "poverty"]
+APPENDIX_OUTCOMES: list[str] = ["income_net_annual"]

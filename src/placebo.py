@@ -57,11 +57,6 @@ logger = logging.getLogger(__name__)
 
 PRIMARY_SPEC = EXPOSURE_SPECS[0]
 
-
-# =============================================================================
-# BUILD PLACEBO DATA STRUCTURE
-# =============================================================================
-
 def build_placebo_data(panel: pl.DataFrame) -> pl.DataFrame:
     """
     Restrict panel to pre-reform years and construct placebo Post indicator.
@@ -96,11 +91,6 @@ def build_placebo_data(panel: pl.DataFrame) -> pl.DataFrame:
     )
     return placebo
 
-
-# =============================================================================
-# ESTIMATE PLACEBO
-# =============================================================================
-
 def run_placebo(
     placebo: pl.DataFrame,
     outcome: str = "matdep",
@@ -124,7 +114,6 @@ def run_placebo(
     if controls is None:
         controls = [c for c in BALANCE_CONTROLS if c in placebo.columns]
 
-    # ── Prepare DataFrame ─────────────────────────────────────────────────────
     keep = (
         ["household_id", "drgn2", "year", outcome, "weight_hh",
          "post_fake", "post_fake_x_exposure"]
@@ -140,9 +129,6 @@ def run_placebo(
         "Placebo estimation sample: %d obs | outcome: %s", len(df), outcome
     )
 
-    # ── Year FE: reference year = PLACEBO_REFERENCE_YEAR (2018) ──────────────
-    # Only two year dummies possible: yr_2017 and yr_2019
-    # yr_2018 omitted as reference category
     for yr in PLACEBO_YEARS:
         if yr != PLACEBO_REFERENCE_YEAR:
             df[f"yr_{yr}"] = (df["year"] == yr).astype(float)
@@ -150,25 +136,18 @@ def run_placebo(
     year_dummy_cols = [f"yr_{yr}" for yr in PLACEBO_YEARS
                        if yr != PLACEBO_REFERENCE_YEAR]
 
-    # ── Region FE via dummies ─────────────────────────────────────────────────
     region_dummies = pd.get_dummies(
         df["drgn2"], prefix="reg", drop_first=True
     ).astype(float)
     df = pd.concat([df, region_dummies], axis=1)
     region_cols = region_dummies.columns.tolist()
 
-    # Log reference region
     ref_code = sorted(df["drgn2"].unique().tolist())[0]
     ref_name = REGION_NAMES.get(int(ref_code), str(ref_code))
     logger.info(
         "Region FE reference: drgn2=%d (%s)", ref_code, ref_name
     )
 
-    # ── Regressors ────────────────────────────────────────────────────────────
-    # Placebo interaction (coefficient of interest)
-    # Year dummies (year FE — 2018 omitted)
-    # Region dummies (region FE)
-    # Controls
     regressors = (
         ["post_fake_x_exposure"]
         + year_dummy_cols
@@ -181,7 +160,6 @@ def run_placebo(
     y = df[outcome]
     w = df["weight_hh"]
 
-    # ── Rank check ────────────────────────────────────────────────────────────
     rank   = np.linalg.matrix_rank(X.values)
     n_cols = X.shape[1]
     if rank < n_cols:
@@ -193,7 +171,6 @@ def run_placebo(
         "Placebo rank check passed: rank=%d = n_cols=%d ✓", rank, n_cols
     )
 
-    # ── Estimate WLS with cluster-robust SEs ──────────────────────────────────
     model  = sm.WLS(y, X, weights=w)
     result = model.fit(
         cov_type="cluster",
@@ -205,7 +182,6 @@ def run_placebo(
         outcome, result.rsquared, int(result.nobs),
     )
 
-    # ── Wild cluster bootstrap ────────────────────────────────────────────────
     wbt_results: dict[str, float] = {}
     try:
         from wildboottest.wildboottest import wildboottest
@@ -250,8 +226,6 @@ def run_placebo(
     except Exception as e:
         logger.warning("Placebo WCB failed: %s", e)
 
-    # ── Extract placebo coefficient ───────────────────────────────────────────
-    # Use t(df=n_clusters-1) critical value for CIs
     n_clusters = df["drgn2"].nunique()
     from scipy import stats
     t_crit = stats.t.ppf(0.975, df=n_clusters - 1)

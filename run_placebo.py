@@ -1,13 +1,5 @@
 """
 run_placebo.py
-==============
-Orchestrator for the IMV DiD placebo reform test.
-
-Uses only pre-reform years (2017-2019). Assigns fake treatment at 2019.
-Tests whether the exposure index picks up spurious pre-existing trends.
-
-Usage:
-  python run_placebo.py
 """
 
 from __future__ import annotations
@@ -30,11 +22,6 @@ BASE_PATH  = Path("/workspaces/IMVmasterthesis")
 INPUT_PATH = BASE_PATH / "output" / "analysis_dataset.parquet"
 OUTPUT_DIR = BASE_PATH / "output" / "placebo"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-
-# =============================================================================
-# MAIN
-# =============================================================================
 
 def main() -> None:
     logger.info("=== IMV DiD — run_placebo.py ===")
@@ -71,7 +58,6 @@ def main() -> None:
               else "  p-value (WCB)       : unavailable")
         print(f"\n  → {result_table['interpretation'].iloc[0]}")
 
-    # Combined table
     combined = pd.concat(all_results, ignore_index=True)
     combined.to_csv(OUTPUT_DIR / "placebo_results.csv", index=False)
     logger.info("Saved: %s", OUTPUT_DIR / "placebo_results.csv")
