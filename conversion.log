@@ -1,53 +1,53 @@
-2026-05-10 14:40:42,745 | INFO | Starting ECV → EUROMOD UDB conversion
-2026-05-10 14:40:42,745 | INFO | Input  : /workspaces/IMVmasterthesis/input_data
-2026-05-10 14:40:42,745 | INFO | Output : /workspaces/IMVmasterthesis/output
-2026-05-10 14:40:42,745 | INFO | ============================================================
-2026-05-10 14:40:42,745 | INFO | Processing year 2017
-2026-05-10 14:40:42,788 | WARNING | Year 2017 | TD: 1 columns absent in source, filled with null: ['DB070']
-2026-05-10 14:40:44,454 | INFO | Year 2017 | TD: read 13740 rows, 6 columns (1 null-filled)
-2026-05-10 14:40:45,678 | WARNING | Year 2017 | TH: 2 columns absent in source, filled with null: ['HH071', 'HX090']
-2026-05-10 14:40:45,690 | INFO | Year 2017 | TH: read 13740 rows, 30 columns (2 null-filled)
-2026-05-10 14:40:46,412 | INFO | Year 2017 | TR: read 34911 rows, 9 columns (0 null-filled)
-2026-05-10 14:40:50,468 | WARNING | Year 2017 | TP: 5 columns absent in source, filled with null: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
-2026-05-10 14:40:50,482 | INFO | Year 2017 | TP: read 29294 rows, 43 columns (5 null-filled)
-2026-05-10 14:40:51,848 | WARNING | Year 2017: PY050G has 174 negative values (expected >= 0 for gross income)
-2026-05-10 14:40:52,287 | INFO | Year 2017: recoded hh010=0/null to 1 for 28 households
-2026-05-10 14:40:52,288 | INFO | Year 2017: built household UDB — 13740 households
-2026-05-10 14:40:52,390 | INFO | Year 2017: floored liwmy to 1 month for 448 employed persons with positive earnings and zero months worked
-2026-05-10 14:40:52,411 | INFO | Year 2017: built person UDB — 34911 persons
-2026-05-10 14:40:52,498 | INFO | All UDB columns present in output ✓
-2026-05-10 14:40:52,875 | INFO | Year 2017: exported 34911 persons, 101 columns → /workspaces/IMVmasterthesis/output/ES_2017_a2.txt
-2026-05-10 14:40:52,875 | INFO | ============================================================
-2026-05-10 14:40:52,875 | INFO | Processing year 2018
-2026-05-10 14:40:52,932 | WARNING | Year 2018 | TD: 1 columns absent in source, filled with null: ['DB070']
-2026-05-10 14:40:52,935 | INFO | Year 2018 | TD: read 13368 rows, 6 columns (1 null-filled)
-2026-05-10 14:40:54,047 | WARNING | Year 2018 | TH: 2 columns absent in source, filled with null: ['HH071', 'HX090']
-2026-05-10 14:40:54,054 | INFO | Year 2018 | TH: read 13368 rows, 30 columns (2 null-filled)
-2026-05-10 14:40:54,678 | INFO | Year 2018 | TR: read 33734 rows, 9 columns (0 null-filled)
-2026-05-10 14:40:58,487 | WARNING | Year 2018 | TP: 5 columns absent in source, filled with null: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
-2026-05-10 14:40:58,504 | INFO | Year 2018 | TP: read 28372 rows, 43 columns (5 null-filled)
-2026-05-10 14:40:58,523 | WARNING | Year 2018: PY050G has 126 negative values (expected >= 0 for gross income)
-2026-05-10 14:40:58,533 | INFO | Year 2018: recoded hh010=0/null to 1 for 32 households
-2026-05-10 14:40:58,533 | INFO | Year 2018: built household UDB — 13368 households
-2026-05-10 14:40:58,605 | INFO | Year 2018: floored liwmy to 1 month for 385 employed persons with positive earnings and zero months worked
-2026-05-10 14:40:58,611 | INFO | Year 2018: built person UDB — 33734 persons
-2026-05-10 14:40:58,657 | INFO | All UDB columns present in output ✓
-2026-05-10 14:40:58,876 | INFO | Year 2018: exported 33734 persons, 101 columns → /workspaces/IMVmasterthesis/output/ES_2018_a1.txt
-2026-05-10 14:40:58,876 | INFO | ============================================================
-2026-05-10 14:40:58,877 | INFO | Processing year 2019
-2026-05-10 14:40:58,932 | WARNING | Year 2019 | TD: 1 columns absent in source, filled with null: ['DB070']
-2026-05-10 14:40:58,935 | INFO | Year 2019 | TD: read 15887 rows, 6 columns (1 null-filled)
-2026-05-10 14:41:00,756 | WARNING | Year 2019 | TH: 2 columns absent in source, filled with null: ['HH071', 'HX090']
-2026-05-10 14:41:00,763 | INFO | Year 2019 | TH: read 15887 rows, 30 columns (2 null-filled)
-2026-05-10 14:41:01,506 | INFO | Year 2019 | TR: read 39852 rows, 9 columns (0 null-filled)
-2026-05-10 14:41:06,183 | WARNING | Year 2019 | TP: 5 columns absent in source, filled with null: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
-2026-05-10 14:41:06,203 | INFO | Year 2019 | TP: read 33376 rows, 43 columns (5 null-filled)
-2026-05-10 14:41:06,225 | WARNING | Year 2019: PY050G has 176 negative values (expected >= 0 for gross income)
-2026-05-10 14:41:06,238 | INFO | Year 2019: recoded hh010=0/null to 1 for 29 households
-2026-05-10 14:41:06,238 | INFO | Year 2019: built household UDB — 15887 households
-2026-05-10 14:41:06,289 | INFO | Year 2019: floored liwmy to 1 month for 423 employed persons with positive earnings and zero months worked
-2026-05-10 14:41:06,303 | INFO | Year 2019: built person UDB — 39852 persons
-2026-05-10 14:41:06,363 | INFO | All UDB columns present in output ✓
-2026-05-10 14:41:06,616 | INFO | Year 2019: exported 39852 persons, 101 columns → /workspaces/IMVmasterthesis/output/ES_2019_b1.txt
-2026-05-10 14:41:06,617 | INFO | ============================================================
-2026-05-10 14:41:06,617 | INFO | Conversion completed successfully for all years: [2017, 2018, 2019]
+2026-05-15 11:45:41,666 | INFO | Starting ECV → EUROMOD UDB conversion
+2026-05-15 11:45:41,667 | INFO | Input  : /workspaces/IMVmasterthesis/input_data
+2026-05-15 11:45:41,667 | INFO | Output : /workspaces/IMVmasterthesis/output
+2026-05-15 11:45:41,668 | INFO | ============================================================
+2026-05-15 11:45:41,668 | INFO | Processing year 2017
+2026-05-15 11:45:41,738 | WARNING | Year 2017 | TD: 1 columns absent in source, filled with null: ['DB070']
+2026-05-15 11:45:41,749 | INFO | Year 2017 | TD: read 13740 rows, 6 columns (1 null-filled)
+2026-05-15 11:45:43,030 | WARNING | Year 2017 | TH: 2 columns absent in source, filled with null: ['HH071', 'HX090']
+2026-05-15 11:45:43,037 | INFO | Year 2017 | TH: read 13740 rows, 30 columns (2 null-filled)
+2026-05-15 11:45:43,765 | INFO | Year 2017 | TR: read 34911 rows, 9 columns (0 null-filled)
+2026-05-15 11:45:47,633 | WARNING | Year 2017 | TP: 5 columns absent in source, filled with null: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
+2026-05-15 11:45:47,647 | INFO | Year 2017 | TP: read 29294 rows, 43 columns (5 null-filled)
+2026-05-15 11:45:48,387 | WARNING | Year 2017: PY050G has 174 negative values (expected >= 0 for gross income)
+2026-05-15 11:45:48,537 | INFO | Year 2017: recoded hh010=0/null to 1 for 28 households
+2026-05-15 11:45:48,537 | INFO | Year 2017: built household UDB — 13740 households
+2026-05-15 11:45:48,633 | INFO | Year 2017: floored liwmy to 1 month for 448 employed persons with positive earnings and zero months worked
+2026-05-15 11:45:48,695 | INFO | Year 2017: built person UDB — 34911 persons
+2026-05-15 11:45:48,780 | INFO | All UDB columns present in output ✓
+2026-05-15 11:45:49,000 | INFO | Year 2017: exported 34911 persons, 101 columns → /workspaces/IMVmasterthesis/output/ES_2017_a2.txt
+2026-05-15 11:45:49,000 | INFO | ============================================================
+2026-05-15 11:45:49,000 | INFO | Processing year 2018
+2026-05-15 11:45:49,039 | WARNING | Year 2018 | TD: 1 columns absent in source, filled with null: ['DB070']
+2026-05-15 11:45:49,041 | INFO | Year 2018 | TD: read 13368 rows, 6 columns (1 null-filled)
+2026-05-15 11:45:50,041 | WARNING | Year 2018 | TH: 2 columns absent in source, filled with null: ['HH071', 'HX090']
+2026-05-15 11:45:50,048 | INFO | Year 2018 | TH: read 13368 rows, 30 columns (2 null-filled)
+2026-05-15 11:45:50,790 | INFO | Year 2018 | TR: read 33734 rows, 9 columns (0 null-filled)
+2026-05-15 11:45:54,770 | WARNING | Year 2018 | TP: 5 columns absent in source, filled with null: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
+2026-05-15 11:45:54,783 | INFO | Year 2018 | TP: read 28372 rows, 43 columns (5 null-filled)
+2026-05-15 11:45:54,801 | WARNING | Year 2018: PY050G has 126 negative values (expected >= 0 for gross income)
+2026-05-15 11:45:54,809 | INFO | Year 2018: recoded hh010=0/null to 1 for 32 households
+2026-05-15 11:45:54,809 | INFO | Year 2018: built household UDB — 13368 households
+2026-05-15 11:45:54,842 | INFO | Year 2018: floored liwmy to 1 month for 385 employed persons with positive earnings and zero months worked
+2026-05-15 11:45:54,847 | INFO | Year 2018: built person UDB — 33734 persons
+2026-05-15 11:45:54,889 | INFO | All UDB columns present in output ✓
+2026-05-15 11:45:55,094 | INFO | Year 2018: exported 33734 persons, 101 columns → /workspaces/IMVmasterthesis/output/ES_2018_a1.txt
+2026-05-15 11:45:55,094 | INFO | ============================================================
+2026-05-15 11:45:55,095 | INFO | Processing year 2019
+2026-05-15 11:45:55,138 | WARNING | Year 2019 | TD: 1 columns absent in source, filled with null: ['DB070']
+2026-05-15 11:45:55,140 | INFO | Year 2019 | TD: read 15887 rows, 6 columns (1 null-filled)
+2026-05-15 11:45:56,762 | WARNING | Year 2019 | TH: 2 columns absent in source, filled with null: ['HH071', 'HX090']
+2026-05-15 11:45:56,769 | INFO | Year 2019 | TH: read 15887 rows, 30 columns (2 null-filled)
+2026-05-15 11:45:57,667 | INFO | Year 2019 | TR: read 39852 rows, 9 columns (0 null-filled)
+2026-05-15 11:46:02,140 | WARNING | Year 2019 | TP: 5 columns absent in source, filled with null: ['PB060', 'PE021', 'PE041', 'PL032', 'PL271']
+2026-05-15 11:46:02,155 | INFO | Year 2019 | TP: read 33376 rows, 43 columns (5 null-filled)
+2026-05-15 11:46:02,178 | WARNING | Year 2019: PY050G has 176 negative values (expected >= 0 for gross income)
+2026-05-15 11:46:02,186 | INFO | Year 2019: recoded hh010=0/null to 1 for 29 households
+2026-05-15 11:46:02,186 | INFO | Year 2019: built household UDB — 15887 households
+2026-05-15 11:46:02,229 | INFO | Year 2019: floored liwmy to 1 month for 423 employed persons with positive earnings and zero months worked
+2026-05-15 11:46:02,236 | INFO | Year 2019: built person UDB — 39852 persons
+2026-05-15 11:46:02,285 | INFO | All UDB columns present in output ✓
+2026-05-15 11:46:02,605 | INFO | Year 2019: exported 39852 persons, 101 columns → /workspaces/IMVmasterthesis/output/ES_2019_b1.txt
+2026-05-15 11:46:02,607 | INFO | ============================================================
+2026-05-15 11:46:02,608 | INFO | Conversion completed successfully for all years: [2017, 2018, 2019]

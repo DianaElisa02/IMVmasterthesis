@@ -26,19 +26,15 @@ from scipy.stats import rankdata
 
 logger = logging.getLogger(__name__)
 
-# ── Specification selector ─────────────────────────────────────────────────
-# Change this single value to switch the primary DiD regressor.
-# All five specifications are always computed and saved regardless.
 PRIMARY_SPEC: str = "exposure_composite_hybrid"
 
-# ── Specification definitions ──────────────────────────────────────────────
-# Each entry: (output_column, input_dimensions, weights, description)
-# weights: list of floats summing to 1, one per dimension
+
+
 SPECS: list[dict] = [
     {
         "name":        "exposure_composite_hybrid",
         "dims":        ["delta_exp_hybrid", "delta_cov_hybrid"],
-        "weights":     [0.5, 0.5],
+        "weights":     [0.3, 0.7],
         "description": "Hybrid composite — simulated IMV vs administrative RMI "
                        "(expenditure + coverage, equally weighted)",
         "primary":     True,
@@ -70,7 +66,7 @@ SPECS: list[dict] = [
     {
         "name":        "exposure_admin",
         "dims":        ["delta_exp_admin", "delta_cov_admin"],
-        "weights":     [0.5, 0.5],
+        "weights":     [0.3, 0.7],
         "description": "Purely administrative — negative pre-reform RMI "
                        "expenditure + coverage intensity (no simulation)",
         "primary":     False,

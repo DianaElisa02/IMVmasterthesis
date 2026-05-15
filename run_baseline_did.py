@@ -1,16 +1,5 @@
 """
 run_baseline_did.py
-===================
-Baseline DiD estimation for the IMV analysis.
-
-Estimates:
-  1. Baseline: full post-reform period (2021-2025)
-  2. COVID robust: restricted post-reform period (2022-2025)
-
-For each: all ANALYSIS_OUTCOMES × all EXPOSURE_SPECS.
-
-Usage:
-  python run_baseline_did.py
 """
 
 from __future__ import annotations

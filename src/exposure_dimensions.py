@@ -200,7 +200,7 @@ def pool_dimensions(
     ).round(4)
 
     pooled["delta_exp_admin"] = (
-        - pooled["avg_rmi_exp_admin"] / pooled["pop"]
+        pooled["avg_rmi_exp_admin"] / pooled["pop"]
     ).round(4)
 
     pooled["delta_cov_admin"] = (
@@ -208,7 +208,7 @@ def pool_dimensions(
     ).round(4)
 
     pooled["delta_mean"] = (
-        pooled["imv_mean_sim"] - pooled["rmi_mean_sim"]
+        - pooled["imv_mean_sim"] - pooled["rmi_mean_sim"]
     ).round(2)
 
     logger.info(

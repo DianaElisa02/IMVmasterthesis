@@ -466,8 +466,9 @@ ANALYSIS_TH_COLUMNS: list[str] = [
     "HX240",      # consumption units
     "HY020",      # net disposable income
     "HH021",      # tenure status
-    "vhMATDEP",   # severe material deprivation — PRIMARY outcome
-    "vhPobreza",  # at-risk-of-poverty — secondary outcome
+    "vhMATDEP",   
+    "vhPobreza",  
+    "vhRentaa",
 ]
 
 # Columns needed from Tr for head-level controls.
@@ -542,10 +543,6 @@ BALANCE_OUTCOMES: list[str] = [
 # Safe controls: pre-determined, cannot be affected by the IMV reform
 BALANCE_CONTROLS: list[str] = [
     "hh_size",
-    "n_children",
-    "homeowner",
-    "any_high_education_hh",
-    "single_parent_hh",
 ]
 
 # Extended controls: includes labour market variables that may be
@@ -601,3 +598,5 @@ COVID_ROBUST_SPECS: dict[str, dict] = {
 # Post period: 2021-2025 (baseline), 2022-2025 (COVID robust)
 DID_POST_YEARS_BASELINE: list[int] = [2021, 2022, 2023, 2024, 2025]
 DID_POST_YEARS_COVID:    list[int] = [2022, 2023, 2024, 2025]
+
+POVERTY_GAP_OUTCOMES: list[str] = ["poverty_gap", "poverty_gap_sq"]
