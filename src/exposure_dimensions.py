@@ -200,11 +200,11 @@ def pool_dimensions(
     ).round(4)
 
     pooled["delta_exp_admin"] = (
-        -pooled["avg_rmi_exp_admin"] / pooled["pop"]
+        - pooled["avg_rmi_exp_admin"] / pooled["pop"]
     ).round(4)
 
     pooled["delta_cov_admin"] = (
-        -pooled["avg_titulares_admin"] / pooled["pop"] * 100
+        - pooled["avg_titulares_admin"] / pooled["pop"] * 100
     ).round(4)
 
     pooled["delta_mean"] = (

@@ -1,0 +1,46 @@
+year,drgn2,region,incompatible,total_hh,n_unweighted,n_weighted,mean_benefit,share_recip,reliable
+2017,11,Galicia,True,835,9,17062.0,366.34,1.08,False
+2017,12,Principado de Asturias,False,553,8,4658.0,740.55,1.45,False
+2017,13,Cantabria,False,388,4,1893.0,131.94,1.03,False
+2017,21,País Vasco,False,749,6,5815.0,706.87,0.8,False
+2017,22,Comunidad Foral de Navarra,False,389,8,7007.0,434.49,2.06,False
+2017,30,Comunidad de Madrid,False,1261,11,21089.0,455.96,0.87,False
+2017,41,Castilla y León,False,814,15,16466.0,322.66,1.84,False
+2017,42,Castilla-La Mancha,False,612,6,8215.0,388.5,0.98,False
+2017,43,Extremadura,False,517,14,12940.0,415.59,2.71,False
+2017,51,Cataluña,False,2952,35,33803.0,417.43,1.19,True
+2017,52,Comunitat Valenciana,False,861,14,30254.0,497.78,1.63,False
+2017,53,Illes Balears,True,318,4,4374.0,270.25,1.26,False
+2017,61,Andalucía,True,1409,30,75916.0,358.85,2.13,True
+2017,62,Región de Murcia,False,494,11,12815.0,312.12,2.23,False
+2017,70,Canarias,False,495,11,15460.0,320.79,2.22,False
+2018,11,Galicia,True,782,13,17260.0,451.83,1.66,False
+2018,12,Principado de Asturias,False,514,12,7966.0,626.26,2.33,False
+2018,13,Cantabria,False,412,4,5200.0,361.04,0.97,False
+2018,21,País Vasco,False,750,6,7442.0,541.4,0.8,False
+2018,22,Comunidad Foral de Navarra,False,349,2,1568.0,985.19,0.57,False
+2018,30,Comunidad de Madrid,False,1220,9,15323.0,572.93,0.74,False
+2018,41,Castilla y León,False,783,15,16928.0,574.92,1.92,False
+2018,42,Castilla-La Mancha,False,607,15,13797.0,355.87,2.47,False
+2018,43,Extremadura,False,527,13,10438.0,526.81,2.47,False
+2018,51,Cataluña,False,2798,31,36196.0,361.7,1.11,True
+2018,52,Comunitat Valenciana,False,808,15,42880.0,512.54,1.86,False
+2018,53,Illes Balears,True,334,5,3619.0,329.38,1.5,False
+2018,61,Andalucía,True,1363,29,62618.0,533.14,2.13,False
+2018,62,Región de Murcia,False,526,7,5511.0,215.83,1.33,False
+2018,70,Canarias,False,490,10,19457.0,312.61,2.04,False
+2019,11,Galicia,True,869,21,21084.0,605.71,2.42,False
+2019,12,Principado de Asturias,False,564,10,7105.0,537.41,1.77,False
+2019,13,Cantabria,False,463,6,2967.0,413.12,1.3,False
+2019,21,País Vasco,False,871,10,11761.0,393.15,1.15,False
+2019,22,Comunidad Foral de Navarra,False,398,3,1342.0,295.12,0.75,False
+2019,30,Comunidad de Madrid,False,1361,10,18155.0,385.27,0.73,False
+2019,41,Castilla y León,False,872,12,17461.0,487.11,1.38,False
+2019,42,Castilla-La Mancha,False,756,10,11730.0,332.14,1.32,False
+2019,43,Extremadura,False,663,11,8689.0,416.62,1.66,False
+2019,51,Cataluña,False,3308,47,31685.0,312.95,1.42,True
+2019,52,Comunitat Valenciana,False,1056,10,30132.0,326.49,0.95,False
+2019,53,Illes Balears,True,466,4,8576.0,250.12,0.86,False
+2019,61,Andalucía,True,1838,39,76911.0,474.12,2.12,True
+2019,62,Región de Murcia,False,647,15,10560.0,516.22,2.32,False
+2019,70,Canarias,False,500,9,15535.0,688.15,1.8,False
