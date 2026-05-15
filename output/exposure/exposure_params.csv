@@ -1,6 +1,6 @@
 dimension,raw_mean,std
-delta_exp_hybrid,36.13234,28.24891
-delta_cov_hybrid,-0.043893,1.048745
+delta_exp_hybrid,35.801407,28.099586
+delta_cov_hybrid,-0.041213,1.032966
 delta_exp_sim,38.399947,27.846398
 delta_cov_sim,0.10386,0.920059
 delta_exp_admin,-51.502113,60.669857
