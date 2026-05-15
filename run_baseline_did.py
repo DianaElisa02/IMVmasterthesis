@@ -24,19 +24,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# =============================================================================
-# PATHS
-# =============================================================================
-
 BASE_PATH  = Path("/workspaces/IMVmasterthesis")
 INPUT_PATH = BASE_PATH / "output" / "analysis_dataset.parquet"
 OUTPUT_DIR = BASE_PATH / "output" / "baseline_did"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-
-# =============================================================================
-# PRINT RESULTS TABLE
-# =============================================================================
 
 def print_results(df: pd.DataFrame, label: str) -> None:
     print(f"\n{'='*70}")
@@ -72,18 +64,12 @@ def print_results(df: pd.DataFrame, label: str) -> None:
             f"WCB unavailable"
         )
 
-
-# =============================================================================
-# MAIN
-# =============================================================================
-
 def main() -> None:
     logger.info("=== IMV DiD — run_baseline_did.py ===")
 
     panel = pl.read_parquet(INPUT_PATH)
     logger.info("Panel loaded: %d obs", len(panel))
 
-    # ── Spec 1: Baseline (2021-2025) ──────────────────────────────────────────
     logger.info("--- Baseline DiD: full post-reform period (2021-2025) ---")
     did_baseline = build_did_data(panel, post_years=DID_POST_YEARS_BASELINE)
     results_baseline = run_baseline_did(did_baseline, label="baseline_2021_2025")
@@ -95,7 +81,6 @@ def main() -> None:
         "Saved: %s", OUTPUT_DIR / "did_baseline_2021_2025.csv"
     )
 
-    # ── Spec 2: COVID robust (2022-2025) ──────────────────────────────────────
     logger.info("--- COVID robust DiD: restricted post-reform (2022-2025) ---")
     did_covid = build_did_data(panel, post_years=DID_POST_YEARS_COVID)
     results_covid = run_baseline_did(did_covid, label="covid_robust_2022_2025")
@@ -107,14 +92,12 @@ def main() -> None:
         "Saved: %s", OUTPUT_DIR / "did_covid_robust_2022_2025.csv"
     )
 
-    # ── Combined table ────────────────────────────────────────────────────────
     combined = pd.concat(
         [results_baseline, results_covid], ignore_index=True
     )
     combined.to_csv(OUTPUT_DIR / "did_all_specs.csv", index=False)
     logger.info("Saved combined: %s", OUTPUT_DIR / "did_all_specs.csv")
 
-    # ── Summary: primary spec only ────────────────────────────────────────────
     primary = EXPOSURE_SPECS[0]
     print(f"\n{'='*70}")
     print(f"  PRIMARY SPEC SUMMARY ({primary})")
