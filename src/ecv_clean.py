@@ -40,11 +40,6 @@ def _make_path(base: Path, file_type: str, year: int) -> Path:
     prefix = f"ECV_{prefix_map[file_type]}_{year}"
     return base / f"{prefix}.dta"
 
-
-# =============================================================================
-# READERS — use local path builder, reuse _read_section from readers.py
-# =============================================================================
-
 def read_td_analysis(base: Path, year: int) -> pl.DataFrame:
     from src.constants import TD_COLUMNS
     return _read_section(_make_path(base, "td", year), TD_COLUMNS, year, "td")
@@ -72,7 +67,6 @@ def _recode_binary_outcome(col: pl.Expr) -> pl.Expr:
 
 
 def _recode_homeowner(hh021: pl.Expr) -> pl.Expr:
-    """1 if owner (tenure 1 or 2), 0 if tenant/other, null if missing."""
     num = hh021.cast(pl.Float64, strict=False)
     return (
         pl.when(num.is_in([1.0, 2.0])).then(pl.lit(1.0, dtype=pl.Float64))
@@ -82,10 +76,6 @@ def _recode_homeowner(hh021: pl.Expr) -> pl.Expr:
 
 
 def _recode_isced_group(pe040: pl.Expr) -> pl.Expr:
-    """
-    Map PE040 numeric ISCED code → low / medium / high string.
-    Uses ISCED_GROUP_BOUNDARIES from constants.
-    """
     num = pe040.cast(pl.Float64, strict=False)
     result = pl.lit(None, dtype=pl.String)
     for lo, hi, label in ISCED_GROUP_BOUNDARIES:
@@ -177,13 +167,99 @@ def _build_person_attributes(
 
     tp_cols = ["person_id", "labour_group", "education_group", "education_isced"]
     tp = tp.select([c for c in tp_cols if c in tp.columns]).unique(subset=["person_id"])
+    if "PB220A" in tp.columns:
+        tp = tp.with_columns(
+            pl.when(
+                pl.col("PB220A").cast(pl.Float64, strict=False)
+                  .is_in(list(_EU27_PB220A_CODES))
+            ).then(pl.lit(0.0))
+            .when(pl.col("PB220A").is_not_null())
+            .then(pl.lit(1.0))
+            .otherwise(pl.lit(None, dtype=pl.Float64))
+            .alias("non_eu_born")
+        )
+    else:
+        tp = tp.with_columns(pl.lit(None, dtype=pl.Float64).alias("non_eu_born"))
+
+    tp_cols = ["person_id", "labour_group", "education_group",
+               "education_isced", "non_eu_born"]
+    tp = tp.select([c for c in tp_cols if c in tp.columns]).unique(subset=["person_id"])
 
     person = person.join(tp, on="person_id", how="left")
+    if "non_eu_born" not in person.columns:
+        person = person.with_columns(pl.lit(None, dtype=pl.Float64).alias("non_eu_born"))
 
     logger.info("Year %s: person attributes built — %d persons", year, len(person))
     return person
 
+_EU27_PB220A_CODES: frozenset[float] = frozenset({
+    1.0,   # Spain (own country)
+    2.0,   # Germany
+    3.0,   # Austria
+    4.0,   # Belgium
+    5.0,   # Bulgaria
+    6.0,   # Cyprus
+    7.0,   # Czech Republic
+    8.0,   # Denmark
+    9.0,   # Estonia
+    10.0,  # Finland
+    11.0,  # France
+    12.0,  # Greece
+    13.0,  # Hungary
+    14.0,  # Ireland
+    15.0,  # Italy
+    16.0,  # Latvia
+    17.0,  # Lithuania
+    18.0,  # Luxembourg
+    19.0,  # Malta
+    20.0,  # Netherlands
+    21.0,  # Poland
+    22.0,  # Portugal
+    23.0,  # Romania
+    24.0,  # Slovakia
+    25.0,  # Slovenia
+    26.0,  # Sweden
+})
+
+
 def _aggregate_to_household(person: pl.DataFrame, year: int) -> pl.DataFrame:
+
+    ref = (
+        person.filter(pl.col("is_reference").eq(True))
+        .select([
+            "household_id",
+            "age",
+            "sex",
+            "labour_group",
+            "education_group",
+            "education_isced",
+            "non_eu_born",
+        ])
+        .rename({
+            "age":             "head_age",
+            "sex":             "head_sex",
+            "labour_group":    "head_labour_group",
+            "education_group": "head_education_group",
+            "education_isced": "head_education_isced",
+            "non_eu_born":     "head_non_eu_born",
+        })
+    )
+
+    ref = ref.with_columns(
+        pl.when(pl.col("head_labour_group").eq("unemployed"))
+          .then(pl.lit(1.0)).otherwise(pl.lit(0.0)).alias("head_unemployed"),
+        pl.when(pl.col("head_labour_group").eq("employed"))
+          .then(pl.lit(1.0)).otherwise(pl.lit(0.0)).alias("head_employed"),
+        pl.when(pl.col("head_education_group").eq("high"))
+          .then(pl.lit(1.0)).otherwise(pl.lit(0.0)).alias("head_high_education"),
+
+        pl.when(pl.col("head_age").lt(35)).then(pl.lit("under35"))
+          .when(pl.col("head_age").lt(55)).then(pl.lit("35_54"))
+          .when(pl.col("head_age").lt(65)).then(pl.lit("55_64"))
+          .otherwise(pl.lit("65plus"))
+          .alias("head_age_group"),
+    )
+
     agg = person.group_by("household_id").agg(
         pl.col("labour_group").eq("unemployed").any().cast(pl.Float64)
             .alias("any_unemployed_hh"),
@@ -203,9 +279,12 @@ def _aggregate_to_household(person: pl.DataFrame, year: int) -> pl.DataFrame:
         ).then(pl.lit(1.0)).otherwise(pl.lit(0.0))
         .alias("single_parent_hh")
     )
-    logger.info("Year %s: household aggregation — %d households", year, len(agg))
-    return agg
 
+    result = agg.join(ref, on="household_id", how="left")
+    logger.info("Year: household aggregation — %d households, %d with head attrs",
+                len(result), result["head_age"].is_not_null().sum())
+    return result
+    
 def build_household_analysis(
     td: pl.DataFrame,
     th: pl.DataFrame,
@@ -220,7 +299,7 @@ def build_household_analysis(
                 f"Year {year}: duplicate {key} in {label} "
                 f"({len(df)} rows, {n_unique} unique)"
             )
-
+ 
     td_clean = td.select(
         pl.col("DB030").cast(pl.Int64, strict=False).cast(pl.String).alias("household_id"),
         pl.col("DB040").cast(pl.String).alias("db040"),
@@ -237,11 +316,11 @@ def build_household_analysis(
         .cast(pl.String)
         .alias("region_name"),
     )
-
+ 
     unmapped = td_clean.filter(pl.col("drgn2").is_null()).select("db040").unique()
     if len(unmapped) > 0:
         logger.warning("Year %s: unmapped DB040 values → %s", year, unmapped.to_series().to_list())
-
+ 
     if "HY020N" in th.columns and th["HY020N"].is_not_null().any():
         income_col = "HY020N"
     elif "HY020" in th.columns:
@@ -250,45 +329,52 @@ def build_household_analysis(
         income_col = None
     logger.warning("Year %s: HY020N and HY020 both absent — income set to null", year)
     logger.warning("Year %s: HY020N and HY020 both absent — income set to null", year)
+ 
     th_clean = th.select(
-    pl.col("HB030").cast(pl.Int64, strict=False).cast(pl.String).alias("household_id"),
+        pl.col("HB030").cast(pl.Int64, strict=False).cast(pl.String).alias("household_id"),
 
-    # ── Outcomes ─────────────────────────────────────────────────────────
-    _recode_binary_outcome(
-    pl.col("VHMATDEP") if "VHMATDEP" in th.columns else pl.lit(None, dtype=pl.Float64)
-    ).alias("matdep"),
-    _recode_binary_outcome(
-    pl.col("VHPOBREZA") if "VHPOBREZA" in th.columns else pl.lit(None, dtype=pl.Float64)
-    ).alias("poverty"),
-    (pl.col(income_col).cast(pl.Float64, strict=False)
-     if income_col in th.columns else pl.lit(None, dtype=pl.Float64))
-    .alias("income_net_annual"),
+        _recode_binary_outcome(
+            pl.col("VHMATDEP") if "VHMATDEP" in th.columns else pl.lit(None, dtype=pl.Float64)
+        ).alias("matdep"),
+        _recode_binary_outcome(
+            pl.col("VHPOBREZA") if "VHPOBREZA" in th.columns else pl.lit(None, dtype=pl.Float64)
+        ).alias("poverty"),
+        (pl.col(income_col).cast(pl.Float64, strict=False)
+         if income_col in th.columns else pl.lit(None, dtype=pl.Float64))
+        .alias("income_net_annual"),
 
-    # ── Controls ─────────────────────────────────────────────────────────
-    pl.col("HX040").cast(pl.Float64, strict=False).clip(1.0, None).alias("hh_size")
-    if "HX040" in th.columns else pl.lit(None, dtype=pl.Float64).alias("hh_size"),
-    pl.col("HX240").cast(pl.Float64, strict=False).alias("equiv_income")
-    if "HX240" in th.columns else pl.lit(None, dtype=pl.Float64).alias("equiv_income"),
-    pl.col("HH021").cast(pl.Float64, strict=False).alias("tenure_status")
-    if "HH021" in th.columns else pl.lit(None, dtype=pl.Float64).alias("tenure_status"),
-    _recode_homeowner(
-        pl.col("HH021") if "HH021" in th.columns else pl.lit(None, dtype=pl.Float64)
-    ).alias("homeowner"),
+        pl.col("HX040").cast(pl.Float64, strict=False).clip(1.0, None).alias("hh_size")
+        if "HX040" in th.columns else pl.lit(None, dtype=pl.Float64).alias("hh_size"),
+        pl.col("HX240").cast(pl.Float64, strict=False).alias("equiv_income")
+        if "HX240" in th.columns else pl.lit(None, dtype=pl.Float64).alias("equiv_income"),
+        pl.col("HH021").cast(pl.Float64, strict=False).alias("tenure_status")
+        if "HH021" in th.columns else pl.lit(None, dtype=pl.Float64).alias("tenure_status"),
+        _recode_homeowner(
+            pl.col("HH021") if "HH021" in th.columns else pl.lit(None, dtype=pl.Float64)
+        ).alias("homeowner"),
     )
 
+    if "HB080" in th.columns:
+        ref_map = th.select(
+            pl.col("HB030").cast(pl.Int64, strict=False).cast(pl.String).alias("household_id"),
+            pl.col("HB080").cast(pl.String).alias("ref_person_id"),
+        )
+    else:
+        logger.warning("Year %s: HB080 absent — reference person cannot be identified", year)
+        ref_map = None
+ 
     if "VHMATDEP" not in th.columns:
         logger.warning("Year %s: vhMATDEP absent", year)
     if "VHPOBREZA" not in th.columns:
         logger.warning("Year %s: VHPOBREZA absent", year)
-
-    # ── Merge Td + Th ─────────────────────────────────────────────────────────
+ 
     n_th = len(th_clean)
     hh = th_clean.join(td_clean, on="household_id", how="left")
     if len(hh) != n_th:
         raise ValueError(f"Year {year}: row count changed in Td-Th join ({n_th} → {len(hh)})")
 
     if tr is not None and tp is not None:
-        person = _build_person_attributes(tr, tp, year)
+        person = _build_person_attributes(tr, tp, year, ref_map=ref_map)
         hh_agg = _aggregate_to_household(person, year)
         hh = hh.join(hh_agg, on="household_id", how="left")
     else:
@@ -301,18 +387,24 @@ def build_household_analysis(
             ("any_female_hh",        pl.Float64),
             ("any_high_education_hh",pl.Float64),
             ("single_parent_hh",     pl.Float64),
+            # Reference-person controls — null when Tr/Tp absent
+            ("head_age",             pl.Float64),
+            ("head_age_group",       pl.String),
+            ("head_unemployed",      pl.Float64),
+            ("head_employed",        pl.Float64),
+            ("head_high_education",  pl.Float64),
+            ("head_non_eu_born",     pl.Float64),
         ]:
             hh = hh.with_columns(pl.lit(None, dtype=dtype).alias(col))
 
-    # ── Year + Post indicator ─────────────────────────────────────────────────
     hh = hh.with_columns(
         pl.lit(year, dtype=pl.Int32).alias("year"),
         pl.when(pl.lit(year) <= 2019).then(pl.lit(0.0, dtype=pl.Float64))
         .when(pl.lit(year) >= 2021).then(pl.lit(1.0, dtype=pl.Float64))
-        .otherwise(pl.lit(None, dtype=pl.Float64))   # 2020 → null (dropped later)
+        .otherwise(pl.lit(None, dtype=pl.Float64))   
         .alias("post"),
     )
-
+ 
     logger.info("Year %s: built analysis household frame — %d rows", year, len(hh))
     return hh
 

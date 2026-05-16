@@ -463,6 +463,7 @@ ANALYSIS_YEARS: list[int] = list(range(2017, 2026))
 ANALYSIS_TH_COLUMNS: list[str] = [
     "HB030",      # household ID
     "HX040",      # household size
+    "HB080",      # person ID of reference person 1 
     "HX240",      # consumption units
     "HY020",      # net disposable income
     "HH021",      # tenure status
@@ -487,13 +488,13 @@ ANALYSIS_TP_COLUMNS: list[str] = [
     "PL032",   # self-defined economic status (variable after 2020)
     "PE040",   # highest ISCED level attained
     "PE041",
+    "PB220A",
 ]
 
 # Regions excluded from the DiD (pre-registered decision, see handoff note).
-#   23 = La Rioja — data issues in 2023/2024
-#   24 = Aragón   — replaced RMI entirely with an IMV complement,
-#                   making reform effect non-comparable
-# Note: Ceuta (63) and Melilla (64) are already excluded via EXPOSURE_EXCLUDE_REGIONS.
+#   23 = La Rioja
+#   24 = Aragón 
+# Note: Ceuta (63) and Melilla (64) are already excluded
 ANALYSIS_EXCLUDE_DRGN2: frozenset[int] = frozenset({23, 24, 63, 64})
 
 # Expected number of region clusters after all exclusions.
