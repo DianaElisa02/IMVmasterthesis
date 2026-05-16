@@ -614,7 +614,6 @@ EXPOSURE_TERCILES: dict[str, list[int]] = {
         42,  # Castilla-La Mancha
         30,  # Comunidad de Madrid
         11,  # Galicia
-        43,  # Extremadura
     ],
     "high": [
         62,  # Región de Murcia
@@ -622,5 +621,11 @@ EXPOSURE_TERCILES: dict[str, list[int]] = {
         70,  # Canarias
         61,  # Andalucía
         52,  # Comunitat Valenciana
+        43,
     ],
 }
+
+
+POVERTY_GAP_OUTCOMES: list[str] = ["poverty_gap", "poverty_gap_sq"]
+
+ALL_OUTCOMES: list[str] = ANALYSIS_OUTCOMES + POVERTY_GAP_OUTCOMES

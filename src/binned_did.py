@@ -58,7 +58,7 @@ import statsmodels.api as sm
 from scipy import stats
 
 from src.constants import (
-    ANALYSIS_OUTCOMES,
+    ALL_OUTCOMES,
     BALANCE_CONTROLS,
     DID_POST_YEARS_BASELINE,
     DID_POST_YEARS_COVID,
@@ -67,11 +67,6 @@ from src.constants import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-# =============================================================================
-# BUILD BINNED DiD DATA
-# =============================================================================
 
 def build_binned_did_data(
     panel: pl.DataFrame,

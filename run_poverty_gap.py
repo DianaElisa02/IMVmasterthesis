@@ -247,6 +247,10 @@ def construct_poverty_gap(panel: pl.DataFrame) -> pl.DataFrame:
             yr, pct_poor, mean_gap,
         )
 
+    ENRICHED_OUTPUT = BASE_PATH / "output" / "analysis_dataset_with_gap.parquet"
+    panel.write_parquet(ENRICHED_OUTPUT)
+    logger.info("Saved enriched panel: %s", ENRICHED_OUTPUT)
+
     panel = panel.drop("poverty_line")
     return panel
 

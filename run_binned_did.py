@@ -12,7 +12,7 @@ import polars as pl
 
 from src.binned_did import build_binned_did_data, run_binned_did
 from src.constants import (
-    ANALYSIS_OUTCOMES,
+    ALL_OUTCOMES,
     DID_POST_YEARS_BASELINE,
     DID_POST_YEARS_COVID,
     EXPOSURE_TERCILES,
@@ -26,7 +26,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BASE_PATH  = Path("/workspaces/IMVmasterthesis")
-INPUT_PATH = BASE_PATH / "output" / "analysis_dataset.parquet"
+INPUT_PATH = BASE_PATH / "output" / "analysis_dataset_with_gap.parquet"
 OUTPUT_DIR = BASE_PATH / "output" / "binned_did"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -110,7 +110,7 @@ def main() -> None:
     logger.info("--- Baseline binned DiD: 2021-2025 ---")
     did_baseline = build_binned_did_data(panel, post_years=DID_POST_YEARS_BASELINE)
     rows_b = []
-    for outcome in ANALYSIS_OUTCOMES:
+    for outcome in ALL_OUTCOMES:
         result_dict, _, _ = run_binned_did(did_baseline, outcome=outcome)
         result_dict["label"] = "baseline_2021_2025"
         rows_b.append(result_dict)
@@ -122,7 +122,7 @@ def main() -> None:
     logger.info("--- COVID robust binned DiD: 2022-2025 ---")
     did_covid = build_binned_did_data(panel, post_years=DID_POST_YEARS_COVID)
     rows_c = []
-    for outcome in ANALYSIS_OUTCOMES:
+    for outcome in ALL_OUTCOMES:
         result_dict, _, _ = run_binned_did(did_covid, outcome=outcome)
         result_dict["label"] = "covid_robust_2022_2025"
         rows_c.append(result_dict)
