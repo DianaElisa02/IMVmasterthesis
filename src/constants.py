@@ -479,6 +479,7 @@ ANALYSIS_TR_COLUMNS: list[str] = [
     "RB081",   # age at income reference date (age fallback)
     "RB082",   # age at survey date (preferred)
     "RB090",   # sex (1=male, 2=female)
+    "RB280",
 ]
 
 # Columns needed from Tp for head-level controls.
@@ -488,7 +489,6 @@ ANALYSIS_TP_COLUMNS: list[str] = [
     "PL032",   # self-defined economic status (variable after 2020)
     "PE040",   # highest ISCED level attained
     "PE041",
-    "PB220A",
 ]
 
 # Regions excluded from the DiD (pre-registered decision, see handoff note).

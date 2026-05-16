@@ -104,21 +104,24 @@ def _binary_flag(labour_group: pl.Expr, value: str) -> pl.Expr:
         .otherwise(pl.lit(None, dtype=pl.Float64))
     )
 
-
 def _build_person_attributes(
     tr: pl.DataFrame,
     tp: pl.DataFrame,
     year: int,
+    ref_map: pl.DataFrame | None = None,
 ) -> pl.DataFrame:
+
+    # ── Person and household IDs from Tr ──────────────────────────────────────
     tr = tr.with_columns(
-    pl.col("RB030").cast(pl.String).alias("person_id"),
-    pl.col("RB030")
-    .cast(pl.Int64, strict=False)
-    .floordiv(100)
-    .cast(pl.String)
-    .alias("household_id"),
+        pl.col("RB030").cast(pl.String).alias("person_id"),
+        pl.col("RB030")
+            .cast(pl.Int64, strict=False)
+            .floordiv(100)
+            .cast(pl.String)
+            .alias("household_id"),
     )
 
+    # ── Age ───────────────────────────────────────────────────────────────────
     if "RB082" in tr.columns and tr["RB082"].is_not_null().any():
         age_expr = pl.col("RB082").cast(pl.Float64, strict=False)
     elif "RB081" in tr.columns and tr["RB081"].is_not_null().any():
@@ -128,31 +131,58 @@ def _build_person_attributes(
     else:
         age_expr = pl.lit(None, dtype=pl.Float64)
 
+    # ── Sex ───────────────────────────────────────────────────────────────────
     tr = tr.with_columns(
         age_expr.clip(0.0, 110.0).alias("age"),
         pl.col("RB090").cast(pl.Float64, strict=False)
-        .replace([1.0, 2.0], ["male", "female"], default=None)
-        .cast(pl.String)
-        .alias("sex"),
+            .replace([1.0, 2.0], ["male", "female"], default=None)
+            .cast(pl.String)
+            .alias("sex"),
     )
 
-    person = tr.select(["person_id", "household_id", "age", "sex"])
+    if "RB280" in tr.columns and tr["RB280"].is_not_null().any():
+        nat_expr = pl.col("RB280").cast(pl.Float64, strict=False)
+        tr = tr.with_columns(
+            pl.when(nat_expr.eq(3.0)).then(pl.lit(1.0, dtype=pl.Float64))
+            .when(nat_expr.is_in([1.0, 2.0])).then(pl.lit(0.0, dtype=pl.Float64))
+            .otherwise(pl.lit(None, dtype=pl.Float64))
+            .alias("non_eu_born"),
+        )
+    else:
+        tr = tr.with_columns(pl.lit(None, dtype=pl.Float64).alias("non_eu_born"))
 
+    person = tr.select(["person_id", "household_id", "age", "sex", "non_eu_born"])
+
+    # ── is_reference flag from HB080 ref_map ─────────────────────────────────
+    if ref_map is not None:
+        person = person.join(
+            ref_map.select(["household_id", "ref_person_id"]),
+            on="household_id",
+            how="left",
+        ).with_columns(
+            pl.col("person_id").eq(pl.col("ref_person_id")).alias("is_reference")
+        ).drop("ref_person_id")
+    else:
+        person = person.with_columns(pl.lit(False).alias("is_reference"))
+
+    # ── Labour status and education from Tp ───────────────────────────────────
     tp = tp.with_columns(
-    pl.col("PB030").cast(pl.String).alias("person_id"),
+        pl.col("PB030").cast(pl.String).alias("person_id"),
     )
 
+    # PL032 is primary post-2020; PL031 is primary pre-2020
     lab_raw = pl.lit(None, dtype=pl.Float64)
-    if "PL031" in tp.columns and tp["PL031"].is_not_null().any():
-        lab_raw = pl.col("PL031").cast(pl.Float64, strict=False)
-    elif "PL032" in tp.columns:
+    if "PL032" in tp.columns and tp["PL032"].is_not_null().any():
         lab_raw = pl.col("PL032").cast(pl.Float64, strict=False)
+    elif "PL031" in tp.columns and tp["PL031"].is_not_null().any():
+        lab_raw = pl.col("PL031").cast(pl.Float64, strict=False)
 
+    # PE041 is primary post-2020; PE040 is primary pre-2020
     edu_col = None
-    if "PE040" in tp.columns and tp["PE040"].is_not_null().any():
-        edu_col = "PE040"
-    elif "PE041" in tp.columns and tp["PE041"].is_not_null().any():
+    if "PE041" in tp.columns and tp["PE041"].is_not_null().any():
         edu_col = "PE041"
+    elif "PE040" in tp.columns and tp["PE040"].is_not_null().any():
+        edu_col = "PE040"
 
     tp = tp.with_columns(
         _recode_labour_group(lab_raw).alias("labour_group"),
@@ -160,70 +190,20 @@ def _build_person_attributes(
             pl.col(edu_col) if edu_col else pl.lit(None, dtype=pl.Float64)
         ).alias("education_group"),
         (pl.col(edu_col).cast(pl.Float64, strict=False)
-        if edu_col else pl.lit(None, dtype=pl.Float64))
+            if edu_col else pl.lit(None, dtype=pl.Float64))
         .alias("education_isced"),
     )
-   
 
     tp_cols = ["person_id", "labour_group", "education_group", "education_isced"]
     tp = tp.select([c for c in tp_cols if c in tp.columns]).unique(subset=["person_id"])
-    if "PB220A" in tp.columns:
-        tp = tp.with_columns(
-            pl.when(
-                pl.col("PB220A").cast(pl.Float64, strict=False)
-                  .is_in(list(_EU27_PB220A_CODES))
-            ).then(pl.lit(0.0))
-            .when(pl.col("PB220A").is_not_null())
-            .then(pl.lit(1.0))
-            .otherwise(pl.lit(None, dtype=pl.Float64))
-            .alias("non_eu_born")
-        )
-    else:
-        tp = tp.with_columns(pl.lit(None, dtype=pl.Float64).alias("non_eu_born"))
-
-    tp_cols = ["person_id", "labour_group", "education_group",
-               "education_isced", "non_eu_born"]
-    tp = tp.select([c for c in tp_cols if c in tp.columns]).unique(subset=["person_id"])
 
     person = person.join(tp, on="person_id", how="left")
-    if "non_eu_born" not in person.columns:
-        person = person.with_columns(pl.lit(None, dtype=pl.Float64).alias("non_eu_born"))
 
     logger.info("Year %s: person attributes built — %d persons", year, len(person))
     return person
-
-_EU27_PB220A_CODES: frozenset[float] = frozenset({
-    1.0,   # Spain (own country)
-    2.0,   # Germany
-    3.0,   # Austria
-    4.0,   # Belgium
-    5.0,   # Bulgaria
-    6.0,   # Cyprus
-    7.0,   # Czech Republic
-    8.0,   # Denmark
-    9.0,   # Estonia
-    10.0,  # Finland
-    11.0,  # France
-    12.0,  # Greece
-    13.0,  # Hungary
-    14.0,  # Ireland
-    15.0,  # Italy
-    16.0,  # Latvia
-    17.0,  # Lithuania
-    18.0,  # Luxembourg
-    19.0,  # Malta
-    20.0,  # Netherlands
-    21.0,  # Poland
-    22.0,  # Portugal
-    23.0,  # Romania
-    24.0,  # Slovakia
-    25.0,  # Slovenia
-    26.0,  # Sweden
-})
-
-
 def _aggregate_to_household(person: pl.DataFrame, year: int) -> pl.DataFrame:
 
+    # ── Reference-person attributes (head-specific controls) ──────────────────
     ref = (
         person.filter(pl.col("is_reference").eq(True))
         .select([
@@ -233,7 +213,7 @@ def _aggregate_to_household(person: pl.DataFrame, year: int) -> pl.DataFrame:
             "labour_group",
             "education_group",
             "education_isced",
-            "non_eu_born",
+            "non_eu_born",        # null for 2017–2019, populated 2020 onward
         ])
         .rename({
             "age":             "head_age",
@@ -252,7 +232,6 @@ def _aggregate_to_household(person: pl.DataFrame, year: int) -> pl.DataFrame:
           .then(pl.lit(1.0)).otherwise(pl.lit(0.0)).alias("head_employed"),
         pl.when(pl.col("head_education_group").eq("high"))
           .then(pl.lit(1.0)).otherwise(pl.lit(0.0)).alias("head_high_education"),
-
         pl.when(pl.col("head_age").lt(35)).then(pl.lit("under35"))
           .when(pl.col("head_age").lt(55)).then(pl.lit("35_54"))
           .when(pl.col("head_age").lt(65)).then(pl.lit("55_64"))
@@ -260,6 +239,7 @@ def _aggregate_to_household(person: pl.DataFrame, year: int) -> pl.DataFrame:
           .alias("head_age_group"),
     )
 
+    # ── Household-level aggregates (for robustness / heterogeneity) ───────────
     agg = person.group_by("household_id").agg(
         pl.col("labour_group").eq("unemployed").any().cast(pl.Float64)
             .alias("any_unemployed_hh"),
@@ -284,7 +264,7 @@ def _aggregate_to_household(person: pl.DataFrame, year: int) -> pl.DataFrame:
     logger.info("Year: household aggregation — %d households, %d with head attrs",
                 len(result), result["head_age"].is_not_null().sum())
     return result
-    
+
 def build_household_analysis(
     td: pl.DataFrame,
     th: pl.DataFrame,
@@ -327,8 +307,8 @@ def build_household_analysis(
         income_col = "HY020"
     else:
         income_col = None
-    logger.warning("Year %s: HY020N and HY020 both absent — income set to null", year)
-    logger.warning("Year %s: HY020N and HY020 both absent — income set to null", year)
+        logger.warning("Year %s: HY020N and HY020 both absent — income set to null", year)
+        logger.warning("Year %s: HY020N and HY020 both absent — income set to null", year)
  
     th_clean = th.select(
         pl.col("HB030").cast(pl.Int64, strict=False).cast(pl.String).alias("household_id"),
@@ -387,7 +367,6 @@ def build_household_analysis(
             ("any_female_hh",        pl.Float64),
             ("any_high_education_hh",pl.Float64),
             ("single_parent_hh",     pl.Float64),
-            # Reference-person controls — null when Tr/Tp absent
             ("head_age",             pl.Float64),
             ("head_age_group",       pl.String),
             ("head_unemployed",      pl.Float64),
