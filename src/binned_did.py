@@ -182,7 +182,7 @@ def run_binned_did(
     keep = [c for c in keep if c in did.columns]
 
     df = did.select(keep).to_pandas().dropna(
-        subset=[outcome, "post_x_medium", "post_x_high"]
+        subset=[outcome, "post_x_medium", "post_x_high"] + controls
     )
     df = df.reset_index(drop=True)
 
@@ -195,16 +195,15 @@ def run_binned_did(
             df[f"yr_{yr}"] = (df["year"] == yr).astype(float)
             year_dummy_cols.append(f"yr_{yr}")
 
-    # ── Region FE via dummies ─────────────────────────────────────────────────
-    region_dummies = pd.get_dummies(
-        df["drgn2"], prefix="reg", drop_first=True
-    ).astype(float)
-    df = pd.concat([df, region_dummies], axis=1)
-    region_cols = region_dummies.columns.tolist()
+    low_regions = sorted(EXPOSURE_TERCILES["low"])
+    ref_region  = low_regions[0]   # = 12 (Asturias)
+    ref_name    = REGION_NAMES.get(ref_region, str(ref_region))
 
-    ref_code = sorted(df["drgn2"].unique().tolist())[0]
-    ref_name = REGION_NAMES.get(int(ref_code), str(ref_code))
-
+    non_ref_regions = sorted([r for r in df["drgn2"].unique().tolist()
+                               if r != ref_region])
+    for r in non_ref_regions:
+        df[f"reg_{r}"] = (df["drgn2"] == r).astype(float)
+    region_cols = [f"reg_{r}" for r in non_ref_regions]
     # ── Regressors ────────────────────────────────────────────────────────────
     # post_x_medium and post_x_high are the coefficients of interest
     # Note: tercile_medium and tercile_high are absorbed by region FE

@@ -104,6 +104,17 @@ POVERTY_GAP_OUTCOMES = ["poverty_gap", "poverty_gap_sq"]
 
 N_CLUSTERS = 15
 
+# Verify BALANCE_CONTROLS does not contain the string categorical head_age_group.
+# It should only contain pre-built binary dummies: head_age_under35,
+# head_age_55_64, head_age_65plus (reference = 35_54, implicit).
+_bad_controls = [c for c in BALANCE_CONTROLS if c == "head_age_group"]
+if _bad_controls:
+    raise ValueError(
+        "BALANCE_CONTROLS contains 'head_age_group' (string categorical). "
+        "Replace with binary dummies: head_age_under35, head_age_55_64, "
+        "head_age_65plus. Check constants.py."
+    )
+
 
 # =============================================================================
 # STEP 1 — CONSTRUCT POVERTY GAP OUTCOMES
@@ -251,6 +262,7 @@ def construct_poverty_gap(panel: pl.DataFrame) -> pl.DataFrame:
     panel.write_parquet(ENRICHED_OUTPUT)
     logger.info("Saved enriched panel: %s", ENRICHED_OUTPUT)
 
+    # Drop poverty_line from returned panel (kept in parquet for reference)
     panel = panel.drop("poverty_line")
     return panel
 
@@ -387,9 +399,12 @@ def run_placebo_poverty_gap(panel: pl.DataFrame) -> pd.DataFrame:
             + controls
         )
 
+        # FIX 1: include controls in dropna to avoid inf/nan in exog
         df = placebo.select(
             [c for c in keep if c in placebo.columns]
-        ).to_pandas().dropna(subset=[outcome, "post_fake_x_exposure"])
+        ).to_pandas().dropna(subset=[outcome, "post_fake_x_exposure"] + controls)
+
+        df = df.reset_index(drop=True)
 
         # Year dummies — 2018 omitted
         for yr in PLACEBO_YEARS:
@@ -490,10 +505,12 @@ def run_event_study_poverty_gap(panel: pl.DataFrame) -> None:
             ["household_id", "drgn2", "year", outcome, "weight_hh"]
             + interaction_cols + year_dummy_cols + controls
         )
+
+        # FIX 2: include controls in dropna to avoid inf/nan in exog
         df = (
             es_panel.select([c for c in keep if c in es_panel.columns])
             .to_pandas()
-            .dropna(subset=[outcome] + interaction_cols)
+            .dropna(subset=[outcome] + interaction_cols + controls)
             .reset_index(drop=True)
         )
 
@@ -632,10 +649,12 @@ def run_did_poverty_gap(
                  "weight_hh", "post_did", interaction_col]
                 + controls
             )
+
+            # FIX 3: include controls in dropna to avoid inf/nan in exog
             df = (
                 did.select([c for c in keep if c in did.columns])
                 .to_pandas()
-                .dropna(subset=[outcome, interaction_col])
+                .dropna(subset=[outcome, interaction_col] + controls)
                 .reset_index(drop=True)
             )
 
@@ -739,11 +758,15 @@ def main() -> None:
                 outcome, n_pos, 100*n_pos/len(panel), n_zero, n_null,
             )
 
-    # Validate equivalised_income looks plausible
+    # FIX 4: Updated expected range for mean equivalised income.
+    # Mean equivalised income across all households 2017-2025 is ~€18,000-€22,000.
+    # The poverty LINE is ~€8,500-€12,000 (60% of annual weighted median).
     eq_mean = panel["equivalised_income"].drop_nulls().mean()
     logger.info(
         "equivalised_income (HY020/HX240): mean=€%.0f — "
-        "expected ~€12,000-€16,000 for Spain 2017-2025", eq_mean,
+        "expected ~€18,000-€22,000 for Spain 2017-2025 "
+        "(poverty line = 60%% of annual weighted median, ~€8,500-€12,000)",
+        eq_mean,
     )
 
     # ── Step 2: Placebo test ──────────────────────────────────────────────────

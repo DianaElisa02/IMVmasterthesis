@@ -232,6 +232,14 @@ def _aggregate_to_household(person: pl.DataFrame, year: int) -> pl.DataFrame:
           .then(pl.lit(1.0)).otherwise(pl.lit(0.0)).alias("head_employed"),
         pl.when(pl.col("head_education_group").eq("high"))
           .then(pl.lit(1.0)).otherwise(pl.lit(0.0)).alias("head_high_education"),
+        # Age group dummies — reference: 35_54 (prime working age)
+        pl.when(pl.col("head_age").lt(35))
+          .then(pl.lit(1.0)).otherwise(pl.lit(0.0)).alias("head_age_under35"),
+        pl.when(pl.col("head_age").is_between(55.0, 64.0))
+          .then(pl.lit(1.0)).otherwise(pl.lit(0.0)).alias("head_age_55_64"),
+        pl.when(pl.col("head_age").ge(65))
+          .then(pl.lit(1.0)).otherwise(pl.lit(0.0)).alias("head_age_65plus"),
+        # head_age_group string kept for descriptive statistics only
         pl.when(pl.col("head_age").lt(35)).then(pl.lit("under35"))
           .when(pl.col("head_age").lt(55)).then(pl.lit("35_54"))
           .when(pl.col("head_age").lt(65)).then(pl.lit("55_64"))

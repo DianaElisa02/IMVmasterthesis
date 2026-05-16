@@ -544,10 +544,9 @@ BALANCE_OUTCOMES: list[str] = [
 # Safe controls: pre-determined, cannot be affected by the IMV reform
 BALANCE_CONTROLS: list[str] = [
     "hh_size",
+    "single_parent_hh",
 ]
 
-# Extended controls: includes labour market variables that may be
-# endogenous to the reform — used in robustness checks only
 BALANCE_CONTROLS_EXTENDED: list[str] = [
     "hh_size",
     "n_children",

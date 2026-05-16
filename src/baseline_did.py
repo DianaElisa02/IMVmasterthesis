@@ -146,7 +146,7 @@ def run_did_spec(
     keep = [c for c in keep if c in did.columns]
 
     df = did.select(keep).to_pandas().dropna(
-        subset=[outcome, interaction_col]
+        subset=[outcome, interaction_col] + controls
     )
     df = df.reset_index(drop=True)
 
