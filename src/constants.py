@@ -472,7 +472,6 @@ ANALYSIS_TH_COLUMNS: list[str] = [
     "vhRentaa",
 ]
 
-# Columns needed from Tr for head-level controls.
 ANALYSIS_TR_COLUMNS: list[str] = [
     "RB030",   # person ID
     "RB080",   # year of birth (age fallback)
