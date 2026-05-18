@@ -1,13 +1,9 @@
 """
-constants.py
-============
-Central repository for all static mappings, recode tables, and column
-definitions used in the ECV → EUROMOD UDB conversion pipeline.
+ECV → EUROMOD UDB conversion pipeline.
 
 All mappings are derived directly from the EUROMOD Input Data Codebook
 (EM_data_codebook_J2_0_.xlsm), Spain (ES) sheet, version J2.0+.
-Nothing in this module performs computation — it only declares values.
-All other modules import from here; nothing here imports from the project.
+
 """
 
 from __future__ import annotations
@@ -227,7 +223,7 @@ DEH_DEFAULT: int = 0   # not completed primary
 
 DDI_DISABLED: int = 1
 DDI_NOT_DISABLED: int = 0
-DDI_NOT_APPLICABLE: int = -1   # children / information not collected
+DDI_NOT_APPLICABLE: int = -1
 
 DGN_VALID_VALUES: frozenset[int] = frozenset({1, 2})
 DGN_DEFAULT: int = 1
@@ -347,19 +343,6 @@ IMV_ADMIN_2022: dict[str, float] = {
 # INFORME RMI REGIONAL BENCHMARKS — pre-reform administrative data
 # Source: Informe de Rentas Mínimas de Inserción, Ministerio de Derechos
 #         Sociales y Agenda 2030, Cuadro 7 and Cuadro 8.
-#
-# Used in:
-#   - RMIeuromod_validation.py  (RMI simulation validation)
-#   - src/exposure_validation.py (institutional consistency check)
-#
-# Fields per region-year:
-#   titulares:              recipient households (Cuadro 7)
-#   gasto_anual_ejecutado:  total annual expenditure in € (Cuadro 8)
-#   gasto_anual_por_titular: expenditure / titulares — DESCRIPTIVE ONLY,
-#                            not used as correlation benchmark (flow measure
-#                            contaminated by turnover and supplements)
-#
-# Excluded from exposure pipeline: La Rioja (23), Aragón (24), Ceuta (63)
 # =============================================================================
 
 INFORME_RMI: dict[int, list[dict]] = {
@@ -458,8 +441,6 @@ REGION_POPULATION: dict[int, dict[int, int]] = {
 
 ANALYSIS_YEARS: list[int] = list(range(2017, 2026))
 
-# Columns needed from Th for the DiD — extends TH_COLUMNS with the two
-# INE-computed outcome indicators that are not in the EUROMOD UDB pipeline.
 ANALYSIS_TH_COLUMNS: list[str] = [
     "HB030",      # household ID
     "HX040",      # household size
@@ -499,18 +480,15 @@ ANALYSIS_EXCLUDE_DRGN2: frozenset[int] = frozenset({23, 24, 63, 64})
 # Expected number of region clusters after all exclusions.
 ANALYSIS_N_CLUSTERS: int = 15
 
-# Exposure specs produced by exposure_index.py, in order.
-# First entry is the PRIMARY DiD regressor; remainder are robustness specs.
 EXPOSURE_SPECS: list[str] = [
-    "exposure_composite_hybrid",   # PRIMARY: 0.5×z(delta_exp_hybrid) + 0.5×z(delta_cov_hybrid)
+    "exposure_composite_hybrid",   
     "exposure_exp_hybrid",         # robustness: expenditure dimension only
     "exposure_cov_hybrid",         # robustness: coverage dimension only
     "exposure_composite_sim",      # robustness: simulation-based composite
     "exposure_admin",              # robustness: admin-based (sign fix pending)
 ]
 
-# PL031/PL032 → simplified labour group for head controls.
-# Mirrors PL031_TO_LES but collapses to three categories needed for DiD controls.
+
 PL031_TO_LABOUR_GROUP: dict[int, str] = {
     1:  "employed",    # full-time employee
     2:  "employed",    # part-time employee
@@ -525,22 +503,19 @@ PL031_TO_LABOUR_GROUP: dict[int, str] = {
     11: "inactive",    # other inactive
 }
 
-# PE040 ISCED boundaries → broad education group for head controls.
-# Each tuple: (lower_bound_inclusive, upper_bound_inclusive, label)
+
 ISCED_GROUP_BOUNDARIES: list[tuple[int, int, str]] = [
     (0,   200, "low"),      # pre-primary, primary, lower secondary
     (300, 400, "medium"),   # upper secondary, post-secondary non-tertiary
     (500, 800, "high"),     # tertiary
 ]
 
-# Variables included in the balance check table
 BALANCE_OUTCOMES: list[str] = [
     "matdep",
     "poverty",
     "income_net_annual",
 ]
 
-# Safe controls: pre-determined, cannot be affected by the IMV reform
 BALANCE_CONTROLS: list[str] = [
     "hh_size",
     "single_parent_hh",
@@ -571,8 +546,6 @@ PLACEBO_YEARS: list[int] = [2017, 2018, 2019]
 PLACEBO_FAKE_TREATMENT_YEAR: int = 2019   # year coded as "post" in placebo
 PLACEBO_REFERENCE_YEAR: int = 2018        # omitted category
 
-# Analysis outcomes — income_net_annual excluded (placebo test failure)
-# income_net_annual reported in appendix with explicit caveat only
 ANALYSIS_OUTCOMES: list[str] = ["matdep", "poverty"]
 APPENDIX_OUTCOMES: list[str] = ["income_net_annual"]
 
@@ -592,9 +565,6 @@ COVID_ROBUST_SPECS: dict[str, dict] = {
     },
 }
 
-# Baseline DiD specification
-# All five exposure specs estimated — primary + four robustness
-# Post period: 2021-2025 (baseline), 2022-2025 (COVID robust)
 DID_POST_YEARS_BASELINE: list[int] = [2021, 2022, 2023, 2024, 2025]
 DID_POST_YEARS_COVID:    list[int] = [2022, 2023, 2024, 2025]
 
@@ -623,8 +593,5 @@ EXPOSURE_TERCILES: dict[str, list[int]] = {
         43,
     ],
 }
-
-
-POVERTY_GAP_OUTCOMES: list[str] = ["poverty_gap", "poverty_gap_sq"]
 
 ALL_OUTCOMES: list[str] = ANALYSIS_OUTCOMES + POVERTY_GAP_OUTCOMES

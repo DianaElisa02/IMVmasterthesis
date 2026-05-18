@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import polars as pl
 
 from src.constants import (
@@ -20,6 +22,8 @@ from src.constants import (
     PL031_TO_LES,
     PL040_TO_LES,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _const(value: float, n: int) -> pl.Series:
@@ -54,7 +58,6 @@ def recode_drgn2(db040: pl.Expr) -> pl.Expr:
 def recode_dgn(rb090: pl.Expr) -> pl.Expr:
     num = rb090.cast(pl.Float64, strict=False)
     is_valid = num.is_in(list(DGN_VALID_VALUES)).fill_null(False)
-
     return (
         pl.when(is_valid)
         .then(num)
@@ -63,17 +66,38 @@ def recode_dgn(rb090: pl.Expr) -> pl.Expr:
     )
 
 
+def validate_dgn(df: pl.DataFrame, rb090_col: str = "RB090") -> None:
+    if rb090_col not in df.columns:
+        return
+    n_invalid = df.filter(
+        ~pl.col(rb090_col).cast(pl.Float64, strict=False).is_in(list(DGN_VALID_VALUES))
+    ).height
+    if n_invalid > 0:
+        logger.warning(
+            "recode_dgn: %d rows had invalid/missing RB090 — defaulted to %d (male).",
+            n_invalid, DGN_DEFAULT,
+        )
+
+
 def recode_dms(pb190: pl.Expr, idpartner: pl.Expr) -> pl.Expr:
     num = pb190.cast(pl.Int64, strict=False)
 
-    return (
+    recoded = (
         num.replace(
             list(DMS_RECODE.keys()),
             list(DMS_RECODE.values()),
             default=None,
         )
         .cast(pl.Float64)
-        .fill_null(float(DMS_DEFAULT))
+    )
+
+    has_partner = idpartner.is_not_null()
+    return (
+        pl.when(recoded.is_not_null())
+        .then(recoded)
+        .when(has_partner)
+        .then(pl.lit(2.0, dtype=pl.Float64))   # cohabiting → married/partnered
+        .otherwise(pl.lit(float(DMS_DEFAULT), dtype=pl.Float64))
     )
 
 
@@ -103,18 +127,14 @@ def recode_ddi(
     pl031: pl.Expr,
     has_personal_record: pl.Expr,
 ) -> pl.Expr:
-    """
-    has_personal_record: boolean expression, True for persons with a TP record.
-    False/null indicates children / no personal info collected.
-    """
     pl031_num = pl031.cast(pl.Float64, strict=False)
     has_record = has_personal_record.cast(pl.Boolean).fill_null(False)
 
-    is_disabled = (pl031_num == 8.0).fill_null(False)
-
-    is_not_disabled = pl031_num.is_not_null() & (pl031_num != 8.0).fill_null(False)
-
+    is_disabled      = (pl031_num == 8.0).fill_null(False)
+    is_not_disabled  = pl031_num.is_not_null() & (pl031_num != 8.0).fill_null(False)
     is_not_applicable = pl031_num.is_null() & ~has_record
+
+    has_record_but_missing_pl031 = pl031_num.is_null() & has_record
 
     return (
         pl.when(is_disabled)
@@ -123,22 +143,20 @@ def recode_ddi(
         .then(pl.lit(float(DDI_NOT_DISABLED), dtype=pl.Float64))
         .when(is_not_applicable)
         .then(pl.lit(float(DDI_NOT_APPLICABLE), dtype=pl.Float64))
+        .when(has_record_but_missing_pl031)                         
+        .then(pl.lit(float(DDI_NOT_DISABLED), dtype=pl.Float64))
         .otherwise(pl.lit(None, dtype=pl.Float64))
         .cast(pl.Float64)
     )
 
 
 def compute_dag(birth_year: pl.Expr, survey_year: pl.Expr) -> pl.Expr:
+
     return (survey_year - birth_year - 1).clip(lower_bound=0).cast(pl.Float64)
 
 
 def compute_oecd_m(person_df: pl.DataFrame) -> pl.DataFrame:
-    """
-    Compute OECD modified equivalence scale per household.
-
-    Expects columns IDHH (String) and dag (Float64).
-    Returns a DataFrame with IDHH and oecd_m.
-    """
+    
     age = person_df["dag"].cast(pl.Float64, strict=False)
     temp = pl.DataFrame(
         {
@@ -215,15 +233,13 @@ def recode_amrtn(hh021: pl.Expr) -> pl.Expr:
     num = hh021.cast(pl.Int64, strict=False)
 
     return num.replace(
-        {
-            1: 2,
-            2: 1,
-            5: 6,
-        }
+        old=[1, 2, 5],
+        new=[2, 1, 6],
     ).cast(pl.Float64)
 
 
 def scale_monthly(annual: pl.Expr) -> pl.Expr:
+    
     ann = annual.cast(pl.Float64, strict=False).fill_null(0.0)
     return (ann / 12.0).cast(pl.Float64)
 
@@ -242,6 +258,31 @@ def compute_liwmy(
     )
 
     return total.clip(upper_bound=12).fill_null(0.0).cast(pl.Float64)
+
+
+def validate_liwmy(df: pl.DataFrame, liwmy_col: str = "liwmy") -> None:
+
+    if liwmy_col not in df.columns:
+        return
+
+    # Reconstruct raw sum to detect clipped rows.
+    raw_cols = ["PL073", "PL074", "PL075", "PL076"]
+    available = [c for c in raw_cols if c in df.columns]
+    if not available:
+        return
+
+    raw_sum = df.select(
+        pl.sum_horizontal([pl.col(c).cast(pl.Float64, strict=False) for c in available])
+        .alias("_raw_liwmy")
+    )["_raw_liwmy"]
+
+    n_clipped = (raw_sum > 12).sum()
+    if n_clipped > 0:
+        logger.warning(
+            "compute_liwmy: %d rows had overlapping employment spells "
+            "(raw sum > 12 months) — clipped to 12. Check PL073-PL076.",
+            n_clipped,
+        )
 
 
 def compute_liwftmy(
