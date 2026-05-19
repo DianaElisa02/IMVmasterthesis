@@ -198,6 +198,16 @@ def run_event_study(
 
     trend_cols: list[str] = []
     if EVENT_STUDY_REGION_TREND:
+        # Build region-specific linear trends: indicator(region==r) × year
+        # for each non-reference region. These replace region dummies and
+        # absorb both the region fixed effect and any pre-existing linear
+        # differential trend.
+        for r in all_regions:
+            if r != ref_region_code:
+                col = f"trend_reg_{r}"
+                df[col] = (df["drgn2"] == r).astype(float) * df["year"]
+                trend_cols.append(col)
+
         # With region-specific linear trends, one interaction term becomes
         # unidentified: the trend terms at the boundary year are collinear
         # with the exposure interaction for that year (exposure is region-
@@ -220,8 +230,10 @@ def run_event_study(
             + controls
         )
         logger.info(
-            "Robustness spec: region dummies dropped — subsumed by "
-            "region-specific linear trends + constant. Year FE retained."
+            "Robustness spec: %d region-specific linear trends added; "
+            "region dummies dropped — subsumed by trends + constant. "
+            "Year FE retained.",
+            len(trend_cols),
         )
     else:
         regressors = (
