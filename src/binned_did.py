@@ -1,112 +1,117 @@
 """
 binned_did.py
 =============
-Binned DiD specification — addresses heterogeneous treatment effects
-across the continuous exposure distribution.
+Binned DiD specification — relaxes the linear dose-response assumption
+of the continuous TWFE by estimating separate ATTs for medium and high
+exposure terciles relative to the low tercile (reference group).
 
-Motivation
-----------
-Callaway, Goodman-Bacon & Sant'Anna (2024) show that TWFE with a
-continuous treatment imposes an implicit linear dose-response
-assumption. With only 15 clusters and an exposure distribution
-spanning −1.02 to +1.90, the linear coefficient may mask:
-  - effects concentrated at the top of the exposure distribution
-  - near-zero effects in the middle that dilute the average
-  - sign reversal when effects are heterogeneous
-
-The binned specification relaxes linearity by estimating separate
-ATTs for medium and high exposure terciles relative to low (reference).
+Mirrors the structure of baseline_did.py exactly:
+  - build_binned_did_data() : constructs post indicator + tercile interactions
+  - run_binned_did_spec()   : estimates one outcome with PyFixest + WCB
+  - run_binned_did()        : loops over outcomes, returns tidy DataFrame
 
 Specification
 -------------
   Y_hrt = α + β_M (Post_t × 1[medium_r])
               + β_H (Post_t × 1[high_r])
-              + γ_r + δ_t + X_hrt θ + ε_hrt
+              + γ_r + δ_t + X_hrt·θ + ε_hrt
 
-  Reference group: low-exposure regions (País Vasco, Navarra, Asturias,
-  Cantabria, Illes Balears) — most generous pre-reform RMI, smallest
-  reform-induced change.
+  Reference group: low-exposure tercile (most generous pre-reform RMI,
+  smallest reform-induced change in protection).
 
 Interpretation
 --------------
-  β_H : average post-reform change in outcome for high-exposure regions
-        relative to low-exposure regions
-  β_M : same for medium-exposure regions
-  β_H ≈ 2 × β_M : linear dose-response supported
-  β_H >> β_M    : effects concentrated at top — TWFE dilutes the effect
-  Both ≈ 0      : null result is genuine across the distribution
+  β_M : post-reform change in outcome for medium tercile vs low tercile
+  β_H : post-reform change in outcome for high tercile vs low tercile
+  β_H ≈ 2 × β_M : linear dose-response holds — continuous TWFE is valid
+  β_H >> β_M    : effects concentrated at top — continuous TWFE dilutes
+  Both ≈ 0      : null result genuine across the entire distribution
 
-Design decisions
-----------------
-- Tercile assignment is FIXED in constants.py (not recomputed)
-- Low tercile is the reference (clean comparison principle)
-- Same WLS + WCB structure as baseline_did.py
-- Runs on ANALYSIS_OUTCOMES (matdep, poverty)
-- Two post-period definitions: baseline (2021-2025) and COVID-robust (2022-2025)
+Note on tercile main effects and region FE
+------------------------------------------
+tercile_medium and tercile_high are time-invariant — regions never switch
+tercile. Their main effects are therefore perfectly absorbed by region FEs
+and must NOT be included as regressors (perfect collinearity). Only the
+Post × tercile interactions vary over time and are estimable.
+
+WCB seeds
+---------
+post_x_medium uses seed=42; post_x_high uses seed=43.
+Different seeds ensure different bootstrap weight sequences.
+Each test is individually valid. They are not jointly calibrated —
+for joint inference use the Wald test (H0: β_M = β_H = 0).
+
+Linearity test
+--------------
+H0: β_H = 2 × β_M, implemented as a Wald test via PyFixest's wald_test().
+Assumes equal tercile spacing. Since the split is 5/4/6 regions (not
+equal thirds), the test is approximate — interpret as diagnostic only.
 """
 
 from __future__ import annotations
 
 import logging
-import io
-import contextlib
 
 import numpy as np
 import pandas as pd
 import polars as pl
-import statsmodels.api as sm
-from scipy import stats
+import pyfixest as pf
+from scipy.stats import t as t_dist
 
 from src.constants import (
-    ALL_OUTCOMES,
+    ANALYSIS_OUTCOMES,
     BALANCE_CONTROLS,
     DID_POST_YEARS_BASELINE,
-    DID_POST_YEARS_COVID,
     EXPOSURE_TERCILES,
-    REGION_NAMES,
+    YEARS,
 )
 
 logger = logging.getLogger(__name__)
+
+_PRE_YEARS: list[int] = YEARS   # [2017, 2018, 2019]
+
+
+# =============================================================================
+# BUILD BINNED DiD DATA
+# =============================================================================
 
 def build_binned_did_data(
     panel: pl.DataFrame,
     post_years: list[int] | None = None,
 ) -> pl.DataFrame:
     """
-    Prepare panel for binned DiD estimation.
+    Prepare the analysis panel for binned DiD estimation.
 
-    Adds:
-      - exposure_tercile : 'low' / 'medium' / 'high' (static, from constants)
-      - tercile_medium   : binary indicator
-      - tercile_high     : binary indicator
-      - post_did         : binary post indicator
-      - post_x_medium    : Post × medium
-      - post_x_high      : Post × high (low = reference)
+    Constructs:
+      - post           : binary (0 = pre-reform, 1 = post-reform)
+      - exposure_tercile: 'low' / 'medium' / 'high' (static from constants)
+      - tercile_medium : binary indicator (1 = medium tercile)
+      - tercile_high   : binary indicator (1 = high tercile)
+      - post_x_medium  : Post × medium (coefficient of interest)
+      - post_x_high    : Post × high   (coefficient of interest)
 
     Parameters
     ----------
-    panel      : full analysis panel
+    panel      : full analysis panel (Polars DataFrame)
     post_years : post-reform years (default: DID_POST_YEARS_BASELINE)
     """
     if post_years is None:
         post_years = DID_POST_YEARS_BASELINE
 
-    pre_years  = [2017, 2018, 2019]
+    pre_years  = _PRE_YEARS
     keep_years = pre_years + post_years
 
     did = panel.filter(pl.col("year").is_in(keep_years))
 
-    # Construct Post indicator
     did = did.with_columns(
         pl.when(pl.col("year").is_in(post_years))
         .then(pl.lit(1.0))
         .when(pl.col("year").is_in(pre_years))
         .then(pl.lit(0.0))
         .otherwise(pl.lit(None))
-        .alias("post_did")
+        .alias("post")
     )
 
-    # Assign tercile labels from static dict
     low_regions    = EXPOSURE_TERCILES["low"]
     medium_regions = EXPOSURE_TERCILES["medium"]
     high_regions   = EXPOSURE_TERCILES["high"]
@@ -122,7 +127,6 @@ def build_binned_did_data(
         .alias("exposure_tercile")
     )
 
-    # Verify all regions are assigned
     n_null = did.filter(pl.col("exposure_tercile").is_null()).height
     if n_null > 0:
         unassigned = (
@@ -134,219 +138,197 @@ def build_binned_did_data(
             f"Update EXPOSURE_TERCILES in constants.py."
         )
 
-    # Binary tercile indicators (low is reference, omitted)
     did = did.with_columns(
         pl.col("exposure_tercile").eq("medium").cast(pl.Float64).alias("tercile_medium"),
         pl.col("exposure_tercile").eq("high").cast(pl.Float64).alias("tercile_high"),
     )
 
-    # Post × tercile interactions
     did = did.with_columns(
-        (pl.col("post_did") * pl.col("tercile_medium")).alias("post_x_medium"),
-        (pl.col("post_did") * pl.col("tercile_high")).alias("post_x_high"),
+        (pl.col("post") * pl.col("tercile_medium")).alias("post_x_medium"),
+        (pl.col("post") * pl.col("tercile_high")).alias("post_x_high"),
     )
 
     logger.info(
-        "Binned DiD data built: %d obs | post-years: %s | "
-        "low: %d regions, med: %d, high: %d",
-        len(did), post_years,
+        "Binned DiD data built: %d obs | pre=%s | post=%s | "
+        "low=%d regions, medium=%d, high=%d",
+        len(did), pre_years, post_years,
         len(low_regions), len(medium_regions), len(high_regions),
     )
     return did
 
 
-def run_binned_did(
-    did: pl.DataFrame,
+# =============================================================================
+# ESTIMATE ONE OUTCOME
+# =============================================================================
+
+def run_binned_did_spec(
+    df: pd.DataFrame,
     outcome: str,
-    controls: list[str] | None = None,
-) -> tuple[dict, object, dict[str, float]]:
+    controls: list[str],
+) -> dict:
     """
-    Estimate the binned DiD for one outcome.
+    Estimate binned DiD for one outcome using PyFixest.
+
+    Parameters
+    ----------
+    df       : pandas DataFrame (pre-filtered to relevant columns)
+    outcome  : outcome column name
+    controls : list of control variable column names
 
     Returns
     -------
-    result_dict : dict with β_M, β_H, SEs, CIs, WCB p-values
-    result      : statsmodels RegressionResultsWrapper
-    wbt_results : dict — WCB p-values for post_x_medium and post_x_high
+    dict with beta_M, beta_H, SEs, CIs, WCB p-values, linearity test
     """
-    if controls is None:
-        controls = [c for c in BALANCE_CONTROLS if c in did.columns]
-
-    # ── Prepare DataFrame ─────────────────────────────────────────────────────
-    keep = (
-        ["household_id", "drgn2", "year", outcome, "weight_hh",
-         "post_did", "tercile_medium", "tercile_high",
-         "post_x_medium", "post_x_high"]
-        + controls
-    )
-    keep = [c for c in keep if c in did.columns]
-
-    df = did.select(keep).to_pandas().dropna(
-        subset=[outcome, "post_x_medium", "post_x_high"] + controls
-    )
-    df = df.reset_index(drop=True)
-
-    # ── Year fixed effects — 2019 reference ───────────────────────────────────
-    years_in_sample = sorted(df["year"].unique().tolist())
-    ref_year = 2019
-    year_dummy_cols = []
-    for yr in years_in_sample:
-        if yr != ref_year:
-            df[f"yr_{yr}"] = (df["year"] == yr).astype(float)
-            year_dummy_cols.append(f"yr_{yr}")
-
-    low_regions = sorted(EXPOSURE_TERCILES["low"])
-    ref_region  = low_regions[0]   # = 12 (Asturias)
-    ref_name    = REGION_NAMES.get(ref_region, str(ref_region))
-
-    non_ref_regions = sorted([r for r in df["drgn2"].unique().tolist()
-                               if r != ref_region])
-    for r in non_ref_regions:
-        df[f"reg_{r}"] = (df["drgn2"] == r).astype(float)
-    region_cols = [f"reg_{r}" for r in non_ref_regions]
-    # ── Regressors ────────────────────────────────────────────────────────────
-    # post_x_medium and post_x_high are the coefficients of interest
-    # Note: tercile_medium and tercile_high are absorbed by region FE
-    # (regions don't change tercile over time) — do NOT include them separately
-    regressors = (
-        ["post_x_medium", "post_x_high"]
-        + year_dummy_cols
-        + region_cols
-        + controls
-    )
-    regressors = [c for c in regressors if c in df.columns]
-
-    X = sm.add_constant(df[regressors])
-    y = df[outcome]
-    w = df["weight_hh"]
-
-    # ── Rank check ────────────────────────────────────────────────────────────
-    rank   = np.linalg.matrix_rank(X.values)
-    n_cols = X.shape[1]
-    if rank < n_cols:
-        raise ValueError(
-            f"Rank deficiency: rank={rank}, n_cols={n_cols}. "
-            f"Check for collinearity between tercile indicators and region FE."
-        )
-
-    # ── Estimate ──────────────────────────────────────────────────────────────
-    model  = sm.WLS(y, X, weights=w)
-    result = model.fit(
-        cov_type="cluster",
-        cov_kwds={"groups": df["drgn2"]},
+    required = [outcome, "post_x_medium", "post_x_high", "drgn2", "year"] + controls
+    df_clean = (
+        df[[c for c in required if c in df.columns]]
+        .dropna()
+        .reset_index(drop=True)
     )
 
-    # ── Wild cluster bootstrap for both coefficients ──────────────────────────
-    wbt_results: dict[str, float] = {}
+    if len(df_clean) == 0:
+        raise ValueError(f"No complete cases for outcome={outcome}")
+
+    # tercile_medium and tercile_high intentionally excluded —
+    # they are time-invariant and absorbed by region FEs.
+    ctrl_str = (" + " + " + ".join(controls)) if controls else ""
+    formula  = f"{outcome} ~ post_x_medium + post_x_high{ctrl_str} | drgn2 + year"
+
+    fit = pf.feols(
+        formula,
+        data=df_clean,
+        vcov={"CRV1": "drgn2"},
+    )
+
+    # ── Coefficients ──────────────────────────────────────────────────────────
+    coef_M = float(fit.coef()["post_x_medium"])
+    se_M   = float(fit.se()["post_x_medium"])
+    pval_M = float(fit.pvalue()["post_x_medium"])
+
+    coef_H = float(fit.coef()["post_x_high"])
+    se_H   = float(fit.se()["post_x_high"])
+    pval_H = float(fit.pvalue()["post_x_high"])
+
+    n_clusters = int(df_clean["drgn2"].nunique())
+    t_crit     = float(t_dist.ppf(0.975, df=n_clusters - 1))
+
+    # ── WCB — different seeds for independent bootstrap draws ─────────────────
+    p_wbt_M = np.nan
     try:
-        from wildboottest.wildboottest import wildboottest
-
-        for param in ["post_x_medium", "post_x_high"]:
-            if param not in result.params.index:
-                logger.warning("Skipping WCB for %s — not in model params", param)
-                continue
-
-            _trap = io.StringIO()
-            with contextlib.redirect_stdout(_trap):
-                wbt = wildboottest(
-                    model,
-                    cluster=df["drgn2"].values,
-                    param=param,
-                    B=9999,
-                    weights_type="webb",
-                    seed=42,
-                )
-
-            try:
-                if hasattr(wbt, "loc"):
-                    p_wbt = float(wbt["p-value"].iloc[0])
-                elif isinstance(wbt, dict):
-                    for key in ["p_value", "pvalue", "Pr(>|t|)", "p-value"]:
-                        if key in wbt:
-                            raw = wbt[key]
-                            p_wbt = float(raw.iloc[0]) if hasattr(raw, "iloc") else float(raw)
-                            break
-                    else:
-                        raise ValueError(f"No p-value key. Keys: {list(wbt.keys())}")
-                else:
-                    raise ValueError(f"Unexpected type: {type(wbt)}")
-                wbt_results[param] = p_wbt
-                logger.info(
-                    "WCB — %s × %s: p = %.4f", outcome, param, p_wbt
-                )
-            except Exception as e:
-                logger.warning("WCB extraction failed for %s: %s", param, e)
-
-    except ImportError:
-        logger.warning("wildboottest not installed.")
+        boot_M = fit.wildboottest(param="post_x_medium", reps=9999, seed=42)
+        raw_M  = boot_M["Pr(>|t|)"]
+        p_wbt_M = float(raw_M.iloc[0]) if hasattr(raw_M, "iloc") else float(raw_M)
+        logger.info("WCB  -- %s x medium: p = %.4f", outcome, p_wbt_M)
     except Exception as e:
-        logger.warning("WCB failed: %s", e)
+        logger.warning("WCB failed -- %s x medium: %s", outcome, e)
 
-    # ── Extract coefficients ──────────────────────────────────────────────────
-    n_clusters = df["drgn2"].nunique()
-    t_crit = stats.t.ppf(0.975, df=n_clusters - 1)
-
-    coef_M = result.params.get("post_x_medium", np.nan)
-    se_M   = result.bse.get("post_x_medium",   np.nan)
-    pval_M = result.pvalues.get("post_x_medium", np.nan)
-    p_wbt_M = wbt_results.get("post_x_medium", np.nan)
-
-    coef_H = result.params.get("post_x_high", np.nan)
-    se_H   = result.bse.get("post_x_high",   np.nan)
-    pval_H = result.pvalues.get("post_x_high", np.nan)
-    p_wbt_H = wbt_results.get("post_x_high", np.nan)
-
-    # ── Linearity diagnostic ──────────────────────────────────────────────────
-    # If linear dose-response holds: β_H ≈ 2 × β_M
-    # Compute ratio for inspection (NOT a formal test)
-    if not (np.isnan(coef_M) or np.isnan(coef_H)) and abs(coef_M) > 1e-8:
-        linearity_ratio = coef_H / coef_M
-    else:
-        linearity_ratio = np.nan
-
-    # ── Formal test of equality β_M = β_H/2 (linearity) ───────────────────────
-    # H0: β_H = 2 × β_M  →  β_H − 2β_M = 0
+    p_wbt_H = np.nan
     try:
-        param_names = result.params.index.tolist()
-        R = np.zeros((1, len(param_names)))
-        R[0, param_names.index("post_x_high")]   = 1.0
-        R[0, param_names.index("post_x_medium")] = -2.0
-        lin_test = result.f_test(R)
-        lin_f = float(np.squeeze(lin_test.fvalue))
-        lin_p = float(lin_test.pvalue)
+        boot_H = fit.wildboottest(param="post_x_high", reps=9999, seed=43)
+        raw_H  = boot_H["Pr(>|t|)"]
+        p_wbt_H = float(raw_H.iloc[0]) if hasattr(raw_H, "iloc") else float(raw_H)
+        logger.info("WCB  -- %s x high: p = %.4f", outcome, p_wbt_H)
     except Exception as e:
-        logger.warning("Linearity test failed: %s", e)
-        lin_f, lin_p = np.nan, np.nan
+        logger.warning("WCB failed -- %s x high: %s", outcome, e)
 
-    result_dict = {
-        "outcome":            outcome,
-        "coef_medium":        coef_M,
-        "se_medium":          se_M,
-        "ci_low_medium":      coef_M - t_crit * se_M,
-        "ci_high_medium":     coef_M + t_crit * se_M,
-        "pval_cluster_medium": pval_M,
-        "pval_wbt_medium":    p_wbt_M,
-        "coef_high":          coef_H,
-        "se_high":            se_H,
-        "ci_low_high":        coef_H - t_crit * se_H,
-        "ci_high_high":       coef_H + t_crit * se_H,
-        "pval_cluster_high":  pval_H,
-        "pval_wbt_high":      p_wbt_H,
-        "linearity_ratio":    linearity_ratio,
-        "linearity_f":        lin_f,
-        "linearity_p":        lin_p,
-        "n_obs":              int(result.nobs),
-        "n_clusters":         n_clusters,
-        "r_squared":          result.rsquared,
-    }
+    # ── Linearity test H0: beta_H = 2 x beta_M ───────────────────────────────
+    lin_f, lin_p, linearity_ratio = np.nan, np.nan, np.nan
+    try:
+        coef_names = fit.coef().index.tolist()
+        idx_M = coef_names.index("post_x_medium")
+        idx_H = coef_names.index("post_x_high")
+        R = np.zeros((1, len(coef_names)))
+        R[0, idx_H] =  1.0
+        R[0, idx_M] = -2.0   # H0: beta_H - 2*beta_M = 0
+        wald    = fit.wald_test(R=R)
+        lin_f   = float(wald["statistic"])
+        lin_p   = float(wald["pvalue"])
+        if abs(coef_M) > 1e-8:
+            linearity_ratio = coef_H / coef_M
+    except Exception as e:
+        logger.warning("Linearity test failed -- %s: %s", outcome, e)
 
     logger.info(
-        "Binned DiD — %s: β_M=%.4f (p_WCB=%.4f) | β_H=%.4f (p_WCB=%.4f) | "
+        "Binned -- %s: b_M=%+.4f (p_WCB=%.4f) | b_H=%+.4f (p_WCB=%.4f) | "
         "linearity F=%.2f p=%.4f",
         outcome,
         coef_M, p_wbt_M if not np.isnan(p_wbt_M) else -99,
         coef_H, p_wbt_H if not np.isnan(p_wbt_H) else -99,
-        lin_f, lin_p,
+        lin_f   if not np.isnan(lin_f)   else -99,
+        lin_p   if not np.isnan(lin_p)   else -99,
     )
 
-    return result_dict, result, wbt_results
+    return {
+        "outcome":             outcome,
+        "coef_medium":         coef_M,
+        "se_medium":           se_M,
+        "ci_low_medium":       coef_M - t_crit * se_M,
+        "ci_high_medium":      coef_M + t_crit * se_M,
+        "pval_cluster_medium": pval_M,
+        "pval_wbt_medium":     p_wbt_M,
+        "coef_high":           coef_H,
+        "se_high":             se_H,
+        "ci_low_high":         coef_H - t_crit * se_H,
+        "ci_high_high":        coef_H + t_crit * se_H,
+        "pval_cluster_high":   pval_H,
+        "pval_wbt_high":       p_wbt_H,
+        "linearity_ratio":     linearity_ratio,
+        "linearity_f":         lin_f,
+        "linearity_p":         lin_p,
+        "n_obs":               len(df_clean),
+        "n_clusters":          n_clusters,
+    }
+
+
+# =============================================================================
+# RUN ALL OUTCOMES
+# =============================================================================
+
+def run_binned_did(
+    did: pl.DataFrame,
+    label: str = "baseline",
+    outcomes: list[str] | None = None,
+) -> pd.DataFrame:
+    """
+    Estimate binned DiD for all outcomes.
+
+    Parameters
+    ----------
+    did      : Polars DataFrame from build_binned_did_data()
+    label    : label for this estimation window
+    outcomes : outcome columns to estimate (default: ANALYSIS_OUTCOMES)
+
+    Returns
+    -------
+    pd.DataFrame, one row per outcome
+    """
+    if outcomes is None:
+        outcomes = ANALYSIS_OUTCOMES
+
+    df       = did.to_pandas()
+    controls = [c for c in BALANCE_CONTROLS if c in df.columns]
+
+    if "post_x_medium" not in df.columns or "post_x_high" not in df.columns:
+        raise RuntimeError(
+            "Tercile interactions not found. Run build_binned_did_data() first."
+        )
+
+    rows = []
+    for outcome in outcomes:
+        if outcome not in df.columns:
+            logger.warning("Outcome '%s' not in panel -- skipping", outcome)
+            continue
+
+        try:
+            row = run_binned_did_spec(df, outcome, controls)
+            row["label"] = label
+            rows.append(row)
+        except Exception as e:
+            logger.error("Failed -- %s: %s", outcome, e)
+
+    results = pd.DataFrame(rows)
+    logger.info(
+        "[%s] Binned DiD complete: %d outcomes estimated",
+        label, len(results),
+    )
+    return results
