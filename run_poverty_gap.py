@@ -451,7 +451,7 @@ def run_placebo_poverty_gap(panel: pl.DataFrame) -> pd.DataFrame:
             "ci_high":      coef + tc * se,
             "pval_cluster": pval,
             "pval_wbt":     p_wbt,
-            "n_obs":        int(result.nobs),
+            "n_obs":        int(fit.N),
             "n_clusters":   n_clusters,
             "verdict":      verdict,
         })

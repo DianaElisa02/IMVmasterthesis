@@ -518,7 +518,6 @@ BALANCE_OUTCOMES: list[str] = [
 
 BALANCE_CONTROLS: list[str] = [
     "hh_size",
-    "single_parent_hh",
 ]
 
 BALANCE_CONTROLS_EXTENDED: list[str] = [
