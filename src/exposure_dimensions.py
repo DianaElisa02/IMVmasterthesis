@@ -239,11 +239,9 @@ def pool_dimensions(
     ).round(2)
 
     if sim_exclude_regions:
-        logger.info(
-            "delta_exp_sim / delta_cov_sim set to NaN for sim-excluded "
-            "regions: %s (bsarg_s €1 placeholder in STD files)",
-            sorted(sim_exclude_regions),
-        )
+        all_dims.loc[
+            all_dims["drgn2"].isin(sim_exclude_regions), "delta_exp_sim_yr"
+        ] = np.nan
 
     logger.info(
         "Pooled %d years → %d regions (average before differencing)",

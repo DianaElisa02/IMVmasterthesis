@@ -49,7 +49,7 @@ from src.constants import (
     RMI_FILES,
     IMV_FILES,
     EXPOSURE_EXCLUDE_REGIONS,
-    EXPOSURE_SIM_EXCLUDE_REGIONS,        # <-- NEW
+    EXPOSURE_SIM_EXCLUDE_REGIONS,
     EXPOSURE_OUTPUT_DIR,
     IMV_STATUTORY_2022,
     REGION_NAMES,
@@ -101,7 +101,7 @@ def main() -> None:
         rmi_dfs=rmi_dfs,
         imv_dfs=imv_dfs,
         exclude_regions=EXPOSURE_EXCLUDE_REGIONS,
-        sim_exclude_regions=EXPOSURE_SIM_EXCLUDE_REGIONS,   # <-- NEW
+        sim_exclude_regions=EXPOSURE_SIM_EXCLUDE_REGIONS,
         incompatible_regions=RMI_INCOMPATIBLE_REGIONS,
         informe_rmi=INFORME_RMI,
         region_population=REGION_POPULATION,
@@ -129,7 +129,7 @@ def main() -> None:
         statutory_single=IMV_STATUTORY_2022["basic_monthly"],
         statutory_max=IMV_STATUTORY_2022["max_monthly"],
         floor_monthly=IMV_STATUTORY_2022["floor_monthly"],
-        exclude_regions=EXPOSURE_EXCLUDE_REGIONS,
+        exclude_regions=EXPOSURE_EXCLUDE_REGIONS | EXPOSURE_SIM_EXCLUDE_REGIONS,
         output_dir=EXPOSURE_OUTPUT_DIR,
     )
     passed = validation_report["pass"].sum()
