@@ -153,7 +153,6 @@ def main() -> None:
 
     all_results = []
 
-    # ── Baseline (2021-2025) ──────────────────────────────────────────────────
     logger.info("======= Baseline: post = 2021-2025 =======")
     results_baseline = run_binned_did(
         panel,
@@ -164,7 +163,6 @@ def main() -> None:
     print_results(results_baseline, "Full post-reform period (2021-2025)")
     all_results.append(results_baseline)
 
-    # ── COVID robust (2022-2025) ──────────────────────────────────────────────
     logger.info("======= COVID robust: post = 2022-2025 =======")
     results_covid = run_binned_did(
         panel,
@@ -175,12 +173,10 @@ def main() -> None:
     print_results(results_covid, "COVID robust — post = 2022-2025")
     all_results.append(results_covid)
 
-    # ── Save ──────────────────────────────────────────────────────────────────
     combined = pd.concat(all_results, ignore_index=True)
     combined.to_csv(OUTPUT_DIR / "binned_did_results.csv", index=False)
     logger.info("Saved: %s", OUTPUT_DIR / "binned_did_results.csv")
 
-    # ── Primary spec summary ──────────────────────────────────────────────────
     print_primary_summary(combined)
 
     logger.info("Binned DiD complete. Results: %s", OUTPUT_DIR)
