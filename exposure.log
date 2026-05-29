@@ -1,28 +1,30 @@
-2026-05-29 07:09:45,910 | INFO | ============================================================
-2026-05-29 07:09:45,911 | INFO | Starting exposure variable pipeline
-2026-05-29 07:09:45,911 | INFO | Primary specification: exposure_composite_hybrid
-2026-05-29 07:09:45,912 | INFO | ============================================================
-2026-05-29 07:09:45,912 | INFO | Excluded regions: La Rioja (23), Aragón (24), Ceuta (63), Melilla (64)
-2026-05-29 07:09:45,912 | INFO | Incompatible regions (bsarg_s_post=0): Galicia (11), Illes Balears (53), Andalucía (61)
-2026-05-29 07:09:45,912 | INFO | Step 1: Loading EUROMOD output files
-2026-05-29 07:09:45,913 | INFO | Loading RMI 2017 → input_data/euromod_output/es_2017_std.txt
-2026-05-29 07:09:54,353 | INFO | RMI 2017: loaded 34911 persons, 322 columns
-2026-05-29 07:09:54,354 | INFO | Loading IMV 2017 → input_data/euromod_output/IMV_2022ruleson2017.txt
-2026-05-29 07:10:04,293 | INFO | IMV 2017: loaded 34911 persons, 375 columns
-2026-05-29 07:10:04,293 | INFO | Loading RMI 2018 → input_data/euromod_output/es_2018_std.txt
-2026-05-29 07:10:12,790 | INFO | RMI 2018: loaded 33734 persons, 340 columns
-2026-05-29 07:10:12,790 | INFO | Loading IMV 2018 → input_data/euromod_output/IMV_2022ruleson2018.txt
-2026-05-29 07:10:22,117 | INFO | IMV 2018: loaded 33734 persons, 375 columns
-2026-05-29 07:10:22,117 | INFO | Loading RMI 2019 → input_data/euromod_output/es_2019_std.txt
-2026-05-29 07:10:32,608 | INFO | RMI 2019: loaded 39852 persons, 343 columns
-2026-05-29 07:10:32,609 | INFO | Loading IMV 2019 → input_data/euromod_output/IMV_2022ruleson2019.txt
-2026-05-29 07:10:44,042 | INFO | IMV 2019: loaded 39852 persons, 375 columns
-2026-05-29 07:10:44,043 | INFO | Step 2: Pooling dimensions (average before differencing)
-2026-05-29 07:10:44,373 | INFO | Year 2017: computed raw dimensions for 15 regions
-2026-05-29 07:10:44,680 | INFO | Year 2018: computed raw dimensions for 15 regions
-2026-05-29 07:10:45,034 | INFO | Year 2019: computed raw dimensions for 15 regions
-2026-05-29 07:10:45,078 | INFO | Pooled 3 years → 15 regions (average before differencing)
-2026-05-29 07:10:45,108 | INFO | 
+2026-05-29 16:02:24,628 | INFO | ============================================================
+2026-05-29 16:02:24,629 | INFO | Starting exposure variable pipeline
+2026-05-29 16:02:24,629 | INFO | Primary specification: exposure_composite_hybrid
+2026-05-29 16:02:24,630 | INFO | ============================================================
+2026-05-29 16:02:24,630 | INFO | Excluded from ALL specs: Ceuta (63), Melilla (64)
+2026-05-29 16:02:24,630 | INFO | Excluded from sim specs only: La Rioja (23), Aragón (24) (bsarg_s €1 placeholder in STD files)
+2026-05-29 16:02:24,631 | INFO | Incompatible regions (bsarg_s_post=0): Galicia (11), Illes Balears (53), Andalucía (61)
+2026-05-29 16:02:24,631 | INFO | Step 1: Loading EUROMOD output files
+2026-05-29 16:02:24,631 | INFO | Loading RMI 2017 → input_data/euromod_output/es_2017_std.txt
+2026-05-29 16:02:32,773 | INFO | RMI 2017: loaded 34911 persons, 322 columns
+2026-05-29 16:02:32,774 | INFO | Loading IMV 2017 → input_data/euromod_output/IMV_2022ruleson2017.txt
+2026-05-29 16:02:42,298 | INFO | IMV 2017: loaded 34911 persons, 375 columns
+2026-05-29 16:02:42,298 | INFO | Loading RMI 2018 → input_data/euromod_output/es_2018_std.txt
+2026-05-29 16:02:50,547 | INFO | RMI 2018: loaded 33734 persons, 340 columns
+2026-05-29 16:02:50,548 | INFO | Loading IMV 2018 → input_data/euromod_output/IMV_2022ruleson2018.txt
+2026-05-29 16:02:59,436 | INFO | IMV 2018: loaded 33734 persons, 375 columns
+2026-05-29 16:02:59,436 | INFO | Loading RMI 2019 → input_data/euromod_output/es_2019_std.txt
+2026-05-29 16:03:09,505 | INFO | RMI 2019: loaded 39852 persons, 343 columns
+2026-05-29 16:03:09,505 | INFO | Loading IMV 2019 → input_data/euromod_output/IMV_2022ruleson2019.txt
+2026-05-29 16:03:20,357 | INFO | IMV 2019: loaded 39852 persons, 375 columns
+2026-05-29 16:03:20,357 | INFO | Step 2: Pooling dimensions (average before differencing)
+2026-05-29 16:03:20,730 | INFO | Year 2017: computed raw dimensions for 17 regions
+2026-05-29 16:03:21,075 | INFO | Year 2018: computed raw dimensions for 17 regions
+2026-05-29 16:03:21,516 | INFO | Year 2019: computed raw dimensions for 17 regions
+2026-05-29 16:03:21,540 | INFO | delta_exp_sim / delta_cov_sim set to NaN for sim-excluded regions: [23, 24] (bsarg_s €1 placeholder in STD files)
+2026-05-29 16:03:21,540 | INFO | Pooled 3 years → 17 regions (average before differencing)
+2026-05-29 16:03:21,545 | INFO | 
 Pooled dimensions:
  drgn2  delta_exp_hybrid  delta_cov_hybrid  delta_exp_sim  delta_cov_sim  delta_exp_admin  delta_cov_admin  delta_mean
     11           33.9528            0.3684        38.5635         0.5327         -20.8167          -0.5257      119.66
@@ -30,6 +32,8 @@ Pooled dimensions:
     13            6.4722           -0.2386        11.0290        -0.2128         -53.4164          -1.0878      -26.12
     21           13.2977           -2.5925        14.5464        -1.8944        -206.1531          -3.3344      161.81
     22           19.9623           -1.8335        21.7375        -1.5187        -159.5846          -2.4987       12.90
+    23            0.7150           -0.1852            NaN            NaN         -34.0009          -0.9096       24.07
+    24            5.2801            0.0248            NaN            NaN         -37.2224          -0.7661       59.82
     30            7.7839            0.0959         8.2158         0.0574         -24.5131          -0.4997       43.39
     41           23.3792            0.2513        24.6130         0.2704         -30.0677          -0.6066       39.42
     42           26.9381            0.5823        27.7015         0.6538          -5.6272          -0.1797      -33.52
@@ -40,73 +44,75 @@ Pooled dimensions:
     61           62.2817            1.0300        64.8007         1.1257          -9.8808          -0.2774      102.98
     62           43.8690            0.8377        49.9634         1.1499         -11.1337          -0.3995       13.46
     70           78.2003            0.4694        77.7976         0.6413         -20.3979          -0.5414        9.24
-2026-05-29 07:10:45,109 | INFO | Step 3: Constructing exposure specifications (primary: exposure_composite_hybrid)
-2026-05-29 07:10:45,145 | INFO | Spec exposure_composite_hybrid           | dims: ['delta_exp_hybrid', 'delta_cov_hybrid'] | weights: [0.3, 0.7]
-2026-05-29 07:10:45,149 | INFO | Spec exposure_exp_hybrid                 | dims: ['delta_exp_hybrid'] | weights: [1.0]
-2026-05-29 07:10:45,167 | INFO | Spec exposure_cov_hybrid                 | dims: ['delta_cov_hybrid'] | weights: [1.0]
-2026-05-29 07:10:45,170 | INFO | Spec exposure_composite_sim              | dims: ['delta_exp_sim', 'delta_cov_sim'] | weights: [0.5, 0.5]
-2026-05-29 07:10:45,173 | INFO | Spec exposure_admin                      | dims: ['delta_exp_admin', 'delta_cov_admin'] | weights: [0.3, 0.7]
-2026-05-29 07:10:45,182 | INFO | 
+2026-05-29 16:03:21,545 | INFO | Step 3: Constructing exposure specifications (primary: exposure_composite_hybrid)
+2026-05-29 16:03:21,550 | INFO | Spec exposure_composite_hybrid           | dims: ['delta_exp_hybrid', 'delta_cov_hybrid'] | weights: [0.3, 0.7]
+2026-05-29 16:03:21,552 | INFO | Spec exposure_exp_hybrid                 | dims: ['delta_exp_hybrid'] | weights: [1.0]
+2026-05-29 16:03:21,555 | INFO | Spec exposure_cov_hybrid                 | dims: ['delta_cov_hybrid'] | weights: [1.0]
+2026-05-29 16:03:21,557 | INFO | Spec exposure_composite_sim              | dims: ['delta_exp_sim', 'delta_cov_sim'] | weights: [0.3, 0.7]
+2026-05-29 16:03:21,560 | INFO | Spec exposure_admin                      | dims: ['delta_exp_admin', 'delta_cov_admin'] | weights: [0.3, 0.7]
+2026-05-29 16:03:21,570 | INFO | 
 Regional exposure index (sorted by exposure_composite_hybrid):
                     region  drgn2  exposure_composite_hybrid  exposure_exp_hybrid  exposure_cov_hybrid  exposure_composite_sim  exposure_admin
-                 Andalucía     61                     1.3629               2.2165               0.9971                  1.7753         -0.2558
-      Comunitat Valenciana     52                     1.3591               3.2300               0.5572                  2.0493         -0.4080
-                  Canarias     70                     1.1530               2.7830               0.4544                  1.7454         -0.5048
-          Región de Murcia     62                     1.0360               1.5612               0.8110                  1.5220         -0.3531
-               Extremadura     43                     0.9816               1.6524               0.6941                  1.2330         -0.7009
-                  Cataluña     51                     0.9476               2.4460               0.3054                  1.4430         -0.4452
-        Castilla-La Mancha     42                     0.6822               0.9587               0.5637                  0.8527         -0.1619
-                   Galicia     11                     0.6121               1.2083               0.3566                  0.9819         -0.4951
-           Castilla y León     41                     0.4199               0.8320               0.2433                  0.5889         -0.6012
-       Comunidad de Madrid     30                     0.1481               0.2770               0.0928                  0.1787         -0.4940
-             Illes Balears     53                     0.0149               0.1307              -0.0347                  0.2335         -0.6821
-                 Cantabria     13                    -0.0926               0.2303              -0.2310                  0.0824         -1.0757
-    Principado de Asturias     12                    -0.6662               0.4017              -1.1239                 -0.2937         -2.2145
-Comunidad Foral de Navarra     22                    -1.0294               0.7104              -1.7750                 -0.4350         -2.6533
-                País Vasco     21                    -1.6149               0.4732              -2.5098                 -0.7683         -3.5070
-2026-05-29 07:10:45,183 | INFO | Step 5: Running validation suite
-2026-05-29 07:10:45,183 | INFO | ==================================================
-2026-05-29 07:10:45,183 | INFO | Validating IMV simulation — year 2017
-2026-05-29 07:10:45,197 | INFO | [WARN] Test 1 — Benefit bounds 2017: mean=€444.88, below_floor=0, above_max(110%)=14
-2026-05-29 07:10:45,295 | INFO | [PASS] Test 3 — Income means test 2017: mean_yds_rec=€1376 vs non_rec=€2415 (p=0.0000) [N_hh: 200 recipients, 13540 non-recipients]
-2026-05-29 07:10:45,323 | INFO | [PASS] Test 6 — Formula plausibility 2017: mean_single=€377.38 vs statutory=€469.93 (diff=19.7%)
-2026-05-29 07:10:45,323 | INFO | ==================================================
-2026-05-29 07:10:45,323 | INFO | Validating IMV simulation — year 2018
-2026-05-29 07:10:45,339 | INFO | [WARN] Test 1 — Benefit bounds 2018: mean=€445.37, below_floor=0, above_max(110%)=6
-2026-05-29 07:10:45,543 | INFO | [PASS] Test 3 — Income means test 2018: mean_yds_rec=€1441 vs non_rec=€2456 (p=0.0000) [N_hh: 200 recipients, 13168 non-recipients]
-2026-05-29 07:10:45,573 | INFO | [PASS] Test 6 — Formula plausibility 2018: mean_single=€527.63 vs statutory=€469.93 (diff=12.3%)
-2026-05-29 07:10:45,574 | INFO | ==================================================
-2026-05-29 07:10:45,574 | INFO | Validating IMV simulation — year 2019
-2026-05-29 07:10:45,598 | INFO | [WARN] Test 1 — Benefit bounds 2019: mean=€407.67, below_floor=0, above_max(110%)=7
-2026-05-29 07:10:45,721 | INFO | [PASS] Test 3 — Income means test 2019: mean_yds_rec=€1409 vs non_rec=€2475 (p=0.0000) [N_hh: 236 recipients, 15651 non-recipients]
-2026-05-29 07:10:45,793 | INFO | [PASS] Test 6 — Formula plausibility 2019: mean_single=€390.01 vs statutory=€469.93 (diff=17.0%)
-2026-05-29 07:10:45,797 | INFO | ==================================================
-2026-05-29 07:10:45,797 | INFO | Validating exposure index
-2026-05-29 07:10:45,807 | INFO | [WARN] Test 4 — Dimension stability (delta_exp_sim_yr) 2017 vs 2018: rho=0.568 (p=0.0272)
-2026-05-29 07:10:45,807 | INFO |        [INFO] Hybrid specs (delta_exp_hybrid, delta_cov_hybrid) are more stable by construction — administrative RMI baseline is fixed across ECV waves, removing sampling noise from RMI side.
-2026-05-29 07:10:45,810 | INFO | [WARN] Test 4 — Dimension stability (delta_exp_sim_yr) 2018 vs 2019: rho=0.504 (p=0.0557)
-2026-05-29 07:10:45,810 | INFO |        [INFO] Hybrid specs (delta_exp_hybrid, delta_cov_hybrid) are more stable by construction — administrative RMI baseline is fixed across ECV waves, removing sampling noise from RMI side.
-2026-05-29 07:10:45,855 | INFO | [INFO] Test 5 — IMV regional rank 2017 vs 2018: rho=0.396 (p=0.1435) — low rho expected for uniform programme
-2026-05-29 07:10:45,905 | INFO | [INFO] Test 5 — IMV regional rank 2018 vs 2019: rho=0.018 (p=0.9496) — low rho expected for uniform programme
-2026-05-29 07:10:45,915 | INFO | [PASS] Test 7 — Institutional consistency (coverage rate (titulares/pop×1000)): exposure_composite_hybrid rho=-0.782 (p=0.0006)
-2026-05-29 07:10:45,916 | INFO |        [INFO] Test 7 (exposure_exp_hybrid): rho=-0.579 (p=0.0238)
-2026-05-29 07:10:45,917 | INFO |        [INFO] Test 7 (exposure_cov_hybrid): rho=-0.807 (p=0.0003)
-2026-05-29 07:10:45,917 | INFO |        [INFO] Test 7 (exposure_composite_sim): rho=-0.757 (p=0.0011)
-2026-05-29 07:10:45,918 | INFO |        [INFO] Test 7 (exposure_admin): rho=-0.986 (p=0.0000)
-2026-05-29 07:10:45,919 | INFO | [PASS] Test 8 — Institutional consistency (expenditure per capita): exposure_composite_hybrid rho=-0.743 (p=0.0015)
-2026-05-29 07:10:45,919 | INFO |        [INFO] Test 8 (exposure_exp_hybrid): rho=-0.404 (p=0.1358)
-2026-05-29 07:10:45,920 | INFO |        [INFO] Test 8 (exposure_cov_hybrid): rho=-0.786 (p=0.0005)
-2026-05-29 07:10:45,921 | INFO |        [INFO] Test 8 (exposure_composite_sim): rho=-0.729 (p=0.0021)
-2026-05-29 07:10:45,921 | INFO |        [INFO] Test 8 (exposure_admin): rho=-0.896 (p=0.0000)
-2026-05-29 07:10:45,926 | INFO | Validation report saved → output/exposure/imv_validation_report.csv
-2026-05-29 07:10:45,926 | INFO | Validation summary: 10/15 tests passed
-2026-05-29 07:10:45,927 | INFO | Validation: 10/15 tests passed
-2026-05-29 07:10:45,927 | INFO | Step 6: Saving outputs
-2026-05-29 07:10:45,930 | INFO | Exposure index saved → output/exposure/exposure_index.csv
-2026-05-29 07:10:45,931 | INFO | Standardisation parameters saved → output/exposure/exposure_params.csv
-2026-05-29 07:10:46,669 | INFO | Exposure plot saved → output/exposure/exposure_index.png
-2026-05-29 07:10:46,670 | INFO | ============================================================
-2026-05-29 07:10:46,670 | INFO | Exposure pipeline complete.
-2026-05-29 07:10:46,670 | INFO | Primary spec:  exposure_composite_hybrid
-2026-05-29 07:10:46,670 | INFO | Outputs:       /workspaces/IMVmasterthesis/output/exposure
-2026-05-29 07:10:46,670 | INFO | ============================================================
+                 Andalucía     61                     1.4020               2.1881               1.0651                  1.5546         -0.2729
+      Comunitat Valenciana     52                     1.3732               3.1886               0.5952                  1.5297         -0.4353
+                  Canarias     70                     1.1640               2.7473               0.4854                  1.3261         -0.5385
+          Región de Murcia     62                     1.0687               1.5412               0.8662                  1.4131         -0.3768
+               Extremadura     43                     1.0084               1.6312               0.7414                  1.0071         -0.7475
+                  Cataluña     51                     0.9528               2.4147               0.3262                  1.0095         -0.4748
+        Castilla-La Mancha     42                     0.7054               0.9464               0.6021                  0.7959         -0.1727
+                   Galicia     11                     0.6245               1.1928               0.3810                  0.8207         -0.5282
+           Castilla y León     41                     0.4283               0.8213               0.2599                  0.4709         -0.6413
+       Comunidad de Madrid     30                     0.1515               0.2735               0.0992                  0.1322         -0.5270
+                    Aragón     24                     0.0736               0.1855               0.0256                     NaN         -0.8060
+             Illes Balears     53                     0.0128               0.1290              -0.0370                  0.2446         -0.7279
+                 Cantabria     13                    -0.1045               0.2274              -0.2467                 -0.0431         -1.1475
+                  La Rioja     23                    -0.1265               0.0251              -0.1915                     NaN         -0.9033
+    Principado de Asturias     12                    -0.7214               0.3965              -1.2005                 -0.6647         -2.3621
+Comunidad Foral de Navarra     22                    -1.1168               0.7013              -1.8960                 -0.9213         -2.8299
+                País Vasco     21                    -1.7364               0.4672              -2.6808                 -1.2846         -3.7405
+2026-05-29 16:03:21,571 | INFO | Step 5: Running validation suite
+2026-05-29 16:03:21,571 | INFO | ==================================================
+2026-05-29 16:03:21,571 | INFO | Validating IMV simulation — year 2017
+2026-05-29 16:03:21,588 | INFO | [WARN] Test 1 — Benefit bounds 2017: mean=€444.88, below_floor=0, above_max(110%)=14
+2026-05-29 16:03:21,680 | INFO | [PASS] Test 3 — Income means test 2017: mean_yds_rec=€1376 vs non_rec=€2415 (p=0.0000) [N_hh: 200 recipients, 13540 non-recipients]
+2026-05-29 16:03:21,709 | INFO | [PASS] Test 6 — Formula plausibility 2017: mean_single=€377.38 vs statutory=€469.93 (diff=19.7%)
+2026-05-29 16:03:21,709 | INFO | ==================================================
+2026-05-29 16:03:21,709 | INFO | Validating IMV simulation — year 2018
+2026-05-29 16:03:21,723 | INFO | [WARN] Test 1 — Benefit bounds 2018: mean=€445.37, below_floor=0, above_max(110%)=6
+2026-05-29 16:03:21,935 | INFO | [PASS] Test 3 — Income means test 2018: mean_yds_rec=€1441 vs non_rec=€2456 (p=0.0000) [N_hh: 200 recipients, 13168 non-recipients]
+2026-05-29 16:03:21,959 | INFO | [PASS] Test 6 — Formula plausibility 2018: mean_single=€527.63 vs statutory=€469.93 (diff=12.3%)
+2026-05-29 16:03:21,960 | INFO | ==================================================
+2026-05-29 16:03:21,960 | INFO | Validating IMV simulation — year 2019
+2026-05-29 16:03:21,973 | INFO | [WARN] Test 1 — Benefit bounds 2019: mean=€407.67, below_floor=0, above_max(110%)=7
+2026-05-29 16:03:22,090 | INFO | [PASS] Test 3 — Income means test 2019: mean_yds_rec=€1409 vs non_rec=€2475 (p=0.0000) [N_hh: 236 recipients, 15651 non-recipients]
+2026-05-29 16:03:22,126 | INFO | [PASS] Test 6 — Formula plausibility 2019: mean_single=€390.01 vs statutory=€469.93 (diff=17.0%)
+2026-05-29 16:03:22,127 | INFO | ==================================================
+2026-05-29 16:03:22,127 | INFO | Validating exposure index
+2026-05-29 16:03:22,133 | INFO | [WARN] Test 4 — Dimension stability (delta_exp_sim_yr) 2017 vs 2018: rho=0.502 (p=0.0398)
+2026-05-29 16:03:22,133 | INFO |        [INFO] Hybrid specs (delta_exp_hybrid, delta_cov_hybrid) are more stable by construction — administrative RMI baseline is fixed across ECV waves, removing sampling noise from RMI side.
+2026-05-29 16:03:22,136 | INFO | [WARN] Test 4 — Dimension stability (delta_exp_sim_yr) 2018 vs 2019: rho=0.382 (p=0.1299)
+2026-05-29 16:03:22,137 | INFO |        [INFO] Hybrid specs (delta_exp_hybrid, delta_cov_hybrid) are more stable by construction — administrative RMI baseline is fixed across ECV waves, removing sampling noise from RMI side.
+2026-05-29 16:03:22,192 | INFO | [INFO] Test 5 — IMV regional rank 2017 vs 2018: rho=0.287 (p=0.2644) — low rho expected for uniform programme
+2026-05-29 16:03:22,241 | INFO | [INFO] Test 5 — IMV regional rank 2018 vs 2019: rho=-0.137 (p=0.5994) — low rho expected for uniform programme
+2026-05-29 16:03:22,250 | INFO | [PASS] Test 7 — Institutional consistency (coverage rate (titulares/pop×1000)): exposure_composite_hybrid rho=-0.848 (p=0.0000)
+2026-05-29 16:03:22,251 | INFO |        [INFO] Test 7 (exposure_exp_hybrid): rho=-0.618 (p=0.0082)
+2026-05-29 16:03:22,252 | INFO |        [INFO] Test 7 (exposure_cov_hybrid): rho=-0.868 (p=0.0000)
+2026-05-29 16:03:22,252 | INFO |        [INFO] Test 7 (exposure_composite_sim): rho=nan (p=nan)
+2026-05-29 16:03:22,253 | INFO |        [INFO] Test 7 (exposure_admin): rho=-0.985 (p=0.0000)
+2026-05-29 16:03:22,253 | INFO | [PASS] Test 8 — Institutional consistency (expenditure per capita): exposure_composite_hybrid rho=-0.760 (p=0.0004)
+2026-05-29 16:03:22,254 | INFO |        [INFO] Test 8 (exposure_exp_hybrid): rho=-0.422 (p=0.0919)
+2026-05-29 16:03:22,255 | INFO |        [INFO] Test 8 (exposure_cov_hybrid): rho=-0.787 (p=0.0002)
+2026-05-29 16:03:22,255 | INFO |        [INFO] Test 8 (exposure_composite_sim): rho=nan (p=nan)
+2026-05-29 16:03:22,256 | INFO |        [INFO] Test 8 (exposure_admin): rho=-0.919 (p=0.0000)
+2026-05-29 16:03:22,260 | INFO | Validation report saved → output/exposure/imv_validation_report.csv
+2026-05-29 16:03:22,260 | INFO | Validation summary: 10/15 tests passed
+2026-05-29 16:03:22,261 | INFO | Validation: 10/15 tests passed
+2026-05-29 16:03:22,261 | INFO | Step 6: Saving outputs
+2026-05-29 16:03:22,264 | INFO | Exposure index saved → output/exposure/exposure_index.csv
+2026-05-29 16:03:22,265 | INFO | Standardisation parameters saved → output/exposure/exposure_params.csv
+2026-05-29 16:03:23,046 | INFO | Exposure plot saved → output/exposure/exposure_index.png
+2026-05-29 16:03:23,047 | INFO | ============================================================
+2026-05-29 16:03:23,047 | INFO | Exposure pipeline complete.
+2026-05-29 16:03:23,047 | INFO | Primary spec:  exposure_composite_hybrid
+2026-05-29 16:03:23,047 | INFO | Outputs:       /workspaces/IMVmasterthesis/output/exposure
+2026-05-29 16:03:23,047 | INFO | ============================================================

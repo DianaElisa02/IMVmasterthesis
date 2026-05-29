@@ -8,17 +8,21 @@ Steps
 1. Load EUROMOD RMI and IMV simulation outputs
 2. Compute and pool gain dimensions (average before differencing)
 3. Construct all exposure specifications
-4. Compute group-specific exposures (for triple-difference DiD)
 5. Run validation suite
 6. Save and plot outputs
 
 Primary DiD regressor is controlled by PRIMARY_SPEC in src/exposure_index.py.
 All specifications are always computed and saved regardless.
 
-Regions excluded throughout
------------------------------
-La Rioja (23), Aragón (24): broken EUROMOD RMI parameterisation
-Ceuta (63), Melilla (64):   ECV sample too small for regional estimates
+Regions excluded from ALL specs
+---------------------------------
+Ceuta (63), Melilla (64): ECV sample too small for regional estimates
+
+Regions excluded from fully simulated specs only
+-------------------------------------------------
+La Rioja (23), Aragón (24): bsarg_s = €1 placeholder in STD files →
+  delta_exp_sim / delta_cov_sim unusable.
+  Hybrid and admin specs are clean (RMI side = Informe admin data).
 
 Incompatible regions (bsarg_s zeroed in IMV run)
 -------------------------------------------------
@@ -45,6 +49,7 @@ from src.constants import (
     RMI_FILES,
     IMV_FILES,
     EXPOSURE_EXCLUDE_REGIONS,
+    EXPOSURE_SIM_EXCLUDE_REGIONS,        # <-- NEW
     EXPOSURE_OUTPUT_DIR,
     IMV_STATUTORY_2022,
     REGION_NAMES,
@@ -65,8 +70,11 @@ def main() -> None:
     logger.info("Primary specification: %s", PRIMARY_SPEC)
     logger.info("=" * 60)
     logger.info(
-        "Excluded regions: La Rioja (23), Aragón (24), "
-        "Ceuta (63), Melilla (64)"
+        "Excluded from ALL specs: Ceuta (63), Melilla (64)"
+    )
+    logger.info(
+        "Excluded from sim specs only: La Rioja (23), Aragón (24) "
+        "(bsarg_s €1 placeholder in STD files)"
     )
     logger.info(
         "Incompatible regions (bsarg_s_post=0): "
@@ -83,15 +91,17 @@ def main() -> None:
     # Step 2: Pool dimensions
     # Average raw simulated values across 2017-2019, merge administrative
     # Informe data, then compute all delta dimensions.
-    # Returns:
-    #   pooled   — one row per region, all delta dimensions
-    #   all_dims — one row per region-year, for Test 4 stability
+    #
+    # sim_exclude_regions: La Rioja and Aragón are excluded ONLY from
+    # delta_exp_sim and delta_cov_sim. Their hybrid and admin deltas are
+    # computed normally using Informe admin data on the RMI side.
     # ------------------------------------------------------------------
     logger.info("Step 2: Pooling dimensions (average before differencing)")
     pooled, all_dims = pool_dimensions(
         rmi_dfs=rmi_dfs,
         imv_dfs=imv_dfs,
         exclude_regions=EXPOSURE_EXCLUDE_REGIONS,
+        sim_exclude_regions=EXPOSURE_SIM_EXCLUDE_REGIONS,   # <-- NEW
         incompatible_regions=RMI_INCOMPATIBLE_REGIONS,
         informe_rmi=INFORME_RMI,
         region_population=REGION_POPULATION,
@@ -99,8 +109,6 @@ def main() -> None:
 
     # ------------------------------------------------------------------
     # Step 3: Construct all exposure specifications
-    # All five specs + rank variants always computed.
-    # Primary regressor controlled by PRIMARY_SPEC in exposure_index.py.
     # ------------------------------------------------------------------
     logger.info(
         "Step 3: Constructing exposure specifications "
@@ -110,8 +118,6 @@ def main() -> None:
 
     # ------------------------------------------------------------------
     # Step 5: Validate IMV simulation and exposure index
-    # Run after exposure_df is available so institutional consistency
-    # tests (7, 8) can compare all specifications.
     # ------------------------------------------------------------------
     logger.info("Step 5: Running validation suite")
     validation_report = run_validation(

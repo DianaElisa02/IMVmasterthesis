@@ -311,7 +311,7 @@ IMV_FILES: dict[int, Path] = {
 # Regions excluded from exposure computation entirely.
 # La Rioja (23), Aragón (24): broken RMI parameterisation in EUROMOD.
 # Ceuta (63), Melilla (64): too small for reliable regional estimates.
-EXPOSURE_EXCLUDE_REGIONS: frozenset[int] = frozenset({23, 24, 63, 64})
+EXPOSURE_EXCLUDE_REGIONS: frozenset[int] = frozenset({63, 64})
 
 RMI_INCOMPATIBLE_REGIONS: frozenset[int] = frozenset({
     11,  # Galicia
@@ -417,21 +417,24 @@ INFORME_RMI: dict[int, list[dict]] = {
 REGION_POPULATION: dict[int, dict[int, int]] = {
     2017: {
         11: 2708339, 12: 1034960, 13: 582905,
-        21: 2178049, 22: 640647,  30: 6466996,
+        21: 2178049, 22: 640647,  23: 317053,
+        24: 1319291, 30: 6466996,
         41: 2440188, 42: 2041631, 43: 1087905,
         51: 7496276, 52: 4941509, 53: 1115999,
         61: 8379248, 62: 1474449, 70: 2127685,
     },
     2018: {
         11: 2701743, 12: 1022800, 13: 581292,
-        21: 2193093, 22: 643709,  30: 6578079,
+        21: 2193093, 22: 643709,  23: 315381,
+        24: 1308563, 30: 6578079,
         41: 2422985, 42: 2032881, 43: 1082218,
         51: 7566431, 52: 4974986, 53: 1128908,
         61: 8384408, 62: 1478509, 70: 2127685,
     },
     2019: {
         11: 2699499, 12: 1018761, 13: 582905,
-        21: 2207776, 22: 654214,  30: 6663394,
+        21: 2207776, 22: 654214,  23: 316798,
+        24: 1319291, 30: 6663394,
         41: 2407766, 42: 2035642, 43: 1063987,
         51: 7675217, 52: 5003769, 53: 1149460,
         61: 8464411, 62: 1493898, 70: 2153389,
@@ -475,10 +478,11 @@ ANALYSIS_TP_COLUMNS: list[str] = [
 #   23 = La Rioja
 #   24 = Aragón 
 # Note: Ceuta (63) and Melilla (64) are already excluded
-ANALYSIS_EXCLUDE_DRGN2: frozenset[int] = frozenset({23, 24, 63, 64})
+ANALYSIS_EXCLUDE_DRGN2: frozenset[int] = frozenset({63, 64})
+EXPOSURE_SIM_EXCLUDE_REGIONS: frozenset[int] = frozenset({23, 24})
 
 # Expected number of region clusters after all exclusions.
-ANALYSIS_N_CLUSTERS: int = 15
+ANALYSIS_N_CLUSTERS: int = 17
 
 EXPOSURE_SPECS: list[str] = [
     "exposure_composite_hybrid",   
@@ -570,26 +574,29 @@ DID_POST_YEARS_COVID:    list[int] = [2022, 2023, 2024, 2025]
 POVERTY_GAP_OUTCOMES: list[str] = ["poverty_gap", "poverty_gap_sq"]
 EXPOSURE_TERCILES: dict[str, list[int]] = {
     "low": [
-        21,  # País Vasco        −1.6149
-        22,  # Navarra           −1.0294
-        12,  # Asturias          −0.6662
-        13,  # Cantabria         −0.0926
-        53,  # Illes Balears      0.0149
+        21,   # País Vasco          
+        22,   # Navarra          
+        12,   # Asturias           
+        23,   # La Rioja            
+        13,   # Cantabria           
     ],
     "medium": [
-        30,  # Madrid             0.1481
-        41,  # Castilla y León    0.4199
-        11,  # Galicia            0.6121
-        42,  # Castilla-La Mancha 0.6822
+        53,   # Illes Balears   
+        24,   # Aragón           
+        30,   # Madrid           
+        41,   # Castilla y León      
+        11,   # Galicia              
+        42,   # Castilla-La Mancha  
     ],
     "high": [
-        43,  # Extremadura        0.9816
-        51,  # Cataluña           0.9476
-        62,  # Murcia             1.0360
-        70,  # Canarias           1.1530
-        52,  # Comunitat Valenciana 1.3591
-        61,  # Andalucía          1.3629
+        51,   # Cataluña          
+        43,   # Extremadura        
+        62,   # Murcia               
+        70,   # Canarias            
+        52,   # C. Valenciana       
+        61,   # Andalucía
     ],
 }
+
 
 ALL_OUTCOMES: list[str] = ANALYSIS_OUTCOMES + POVERTY_GAP_OUTCOMES

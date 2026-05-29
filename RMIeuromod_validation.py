@@ -1,12 +1,6 @@
 """
 RMIeuromod_validation.py
-========================
-Multi-target validation of EUROMOD pre-reform RMI simulations against
-Informe RMI administrative benchmarks for 2017, 2018, and 2019.
-
-Validation targets:
-  1. Weighted recipient count vs Informe titulares
-  2. Total annual expenditure vs Informe gasto anual ejecutado
+========================z
 """
 
 from __future__ import annotations

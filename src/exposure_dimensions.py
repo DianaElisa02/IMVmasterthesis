@@ -58,6 +58,7 @@ def compute_regional_dimensions(
     exclude_regions: frozenset[int],
     incompatible_regions: frozenset[int],
 ) -> pd.DataFrame:
+    # ---- unchanged from original ----
     imv = imv_df.copy()
     imv.loc[imv["drgn2"].isin(incompatible_regions), "bsarg_s"] = 0.0
     imv["total_post"] = imv["bsa00_s"] + imv["bsarg_s"]
@@ -122,7 +123,21 @@ def pool_dimensions(
     incompatible_regions: frozenset[int],
     informe_rmi: dict[int, list[dict]],
     region_population: dict[int, dict[int, int]],
+    sim_exclude_regions: frozenset[int] = frozenset(),   # <-- NEW PARAMETER
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Parameters
+    ----------
+    sim_exclude_regions : regions to exclude ONLY from delta_exp_sim and
+        delta_cov_sim (fully simulated deltas).  Hybrid and admin deltas
+        are still computed for these regions.  Default: empty (no extra
+        exclusions beyond exclude_regions).
+
+        Use case: La Rioja (23) and Aragón (24) have a broken bsarg_s in
+        the pre-reform STD files (€1 placeholder), so their simulated RMI
+        expenditure and recipient counts are garbage.  The hybrid specs are
+        clean because the RMI side uses Informe admin data instead.
+    """
     frames = []
     for year in sorted(rmi_dfs.keys()):
         frames.append(
@@ -137,18 +152,19 @@ def pool_dimensions(
     pooled = (
         all_dims.groupby("drgn2")
         .agg(
-            pop         = ("pop",         "mean"),
-            rmi_exp_sim = ("rmi_exp_sim", "mean"),
-            imv_exp_sim = ("imv_exp_sim", "mean"),
-            rmi_rec_sim = ("rmi_rec_sim", "mean"),
-            imv_rec_sim = ("imv_rec_sim", "mean"),
-            rmi_mean_sim= ("rmi_mean_sim","mean"),
-            imv_mean_sim= ("imv_mean_sim","mean"),
+            pop          = ("pop",          "mean"),
+            rmi_exp_sim  = ("rmi_exp_sim",  "mean"),
+            imv_exp_sim  = ("imv_exp_sim",  "mean"),
+            rmi_rec_sim  = ("rmi_rec_sim",  "mean"),
+            imv_rec_sim  = ("imv_rec_sim",  "mean"),
+            rmi_mean_sim = ("rmi_mean_sim", "mean"),
+            imv_mean_sim = ("imv_mean_sim", "mean"),
         )
         .reset_index()
         .round(4)
     )
 
+    # --- Step 2: merge administrative Informe data ---
     admin_records = []
     years = sorted(informe_rmi.keys())
     for year in years:
@@ -169,9 +185,9 @@ def pool_dimensions(
         pd.DataFrame(admin_records)
         .groupby("drgn2")
         .agg(
-            avg_rmi_exp_admin  = ("rmi_exp_admin", "mean"),
-            avg_titulares_admin= ("titulares",      "mean"),
-            avg_pop_admin      = ("pop_admin",      "mean"),
+            avg_rmi_exp_admin   = ("rmi_exp_admin", "mean"),
+            avg_titulares_admin = ("titulares",      "mean"),
+            avg_pop_admin       = ("pop_admin",      "mean"),
         )
         .reset_index()
         .round(2)
@@ -179,6 +195,9 @@ def pool_dimensions(
 
     pooled = pooled.merge(admin_df, on="drgn2", how="left")
 
+    # --- Step 3: compute delta dimensions ---
+
+    # Hybrid deltas — clean for ALL regions (RMI side = Informe admin)
     pooled["delta_exp_hybrid"] = (
         (pooled["imv_exp_sim"] - pooled["avg_rmi_exp_admin"]) /
         pooled["avg_pop_admin"]
@@ -189,27 +208,42 @@ def pool_dimensions(
         pooled["avg_pop_admin"] * 100
     ).round(4)
 
+    # Fully simulated deltas — NaN for sim_exclude_regions (bsarg_s broken)
+    _sim_excl = exclude_regions | sim_exclude_regions
+    sim_mask = pooled["drgn2"].isin(_sim_excl)
+
     pooled["delta_exp_sim"] = (
         (pooled["imv_exp_sim"] - pooled["rmi_exp_sim"]) /
         pooled["pop"]
     ).round(4)
+    pooled.loc[sim_mask, "delta_exp_sim"] = np.nan   # mark unusable
 
     pooled["delta_cov_sim"] = (
         (pooled["imv_rec_sim"] - pooled["rmi_rec_sim"]) /
         pooled["pop"] * 100
     ).round(4)
+    pooled.loc[sim_mask, "delta_cov_sim"] = np.nan   # mark unusable
 
+    # Admin deltas — clean for ALL regions (no simulation involved)
     pooled["delta_exp_admin"] = (
-        - pooled["avg_rmi_exp_admin"] / pooled["pop"]
+        -pooled["avg_rmi_exp_admin"] / pooled["pop"]
     ).round(4)
 
     pooled["delta_cov_admin"] = (
-        - pooled["avg_titulares_admin"] / pooled["pop"] * 100
+        -pooled["avg_titulares_admin"] / pooled["pop"] * 100
     ).round(4)
 
+    # Descriptive only
     pooled["delta_mean"] = (
         pooled["imv_mean_sim"] - pooled["rmi_mean_sim"]
     ).round(2)
+
+    if sim_exclude_regions:
+        logger.info(
+            "delta_exp_sim / delta_cov_sim set to NaN for sim-excluded "
+            "regions: %s (bsarg_s €1 placeholder in STD files)",
+            sorted(sim_exclude_regions),
+        )
 
     logger.info(
         "Pooled %d years → %d regions (average before differencing)",

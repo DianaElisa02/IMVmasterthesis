@@ -58,7 +58,7 @@ SPECS: list[dict] = [
     {
         "name":        "exposure_composite_sim",
         "dims":        ["delta_exp_sim", "delta_cov_sim"],
-        "weights":     [0.5, 0.5],
+        "weights":     [0.3, 0.7],
         "description": "Fully simulated composite — both sides from EUROMOD "
                        "(expenditure + coverage, equally weighted)",
         "primary":     False,
@@ -136,9 +136,12 @@ def compute_exposure(
         ).round(4)
 
         # Rank version (1 = lowest exposure, N = highest)
-        result[f"{spec['name']}_rank"] = rankdata(
-            result[spec["name"]]
+        valid_mask = result[spec["name"]].notna()
+        ranks = pd.array([pd.NA] * len(result), dtype="Int64")
+        ranks[valid_mask.values] = rankdata(
+            result.loc[valid_mask, spec["name"]]
         ).astype(int)
+        result[f"{spec['name']}_rank"] = ranks
 
         logger.info(
             "Spec %-35s | dims: %s | weights: %s",
