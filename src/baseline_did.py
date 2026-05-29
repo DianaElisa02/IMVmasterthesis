@@ -18,7 +18,16 @@ Specification
   Estimated via unweighted OLS (PyFixest feols).
   Region + year FEs absorbed via Frisch-Waugh-Lovell demeaning.
   Standard errors clustered at region level (CRV1, 15 clusters).
-  Inference via wild cluster bootstrap (Webb weights, B=9999, seed=42).
+  Inference via wild cluster bootstrap (Webb weights, B=9999).
+
+Note on WCB seeds
+-----------------
+Seeds vary by outcome × exposure spec index to ensure independent
+bootstrap draws across all combinations. For outcome at index i and
+spec at index j in their respective lists:
+  seed = 42 + i * len(EXPOSURE_SPECS) + j
+This produces unique seeds for all 10 outcome × spec combinations
+(2 outcomes × 5 specs) while remaining fully reproducible.
 
 Note on survey weights
 ----------------------
@@ -32,8 +41,7 @@ a robustness check in the appendix (CRV1 SEs only, no WCB).
 Outcomes
 --------
 run_baseline_did() accepts an optional outcomes list. Defaults to
-ANALYSIS_OUTCOMES (matdep, poverty). Pass POVERTY_GAP_OUTCOMES to
-estimate poverty gap outcomes using the same infrastructure.
+ANALYSIS_OUTCOMES (matdep, poverty).
 
 Placebo test
 ------------
@@ -133,6 +141,7 @@ def run_did_spec(
     outcome: str,
     exposure_spec: str,
     controls: list[str],
+    seed: int = 42,
 ) -> dict:
     """
     Estimate baseline DiD for one outcome x exposure spec using PyFixest.
@@ -143,6 +152,9 @@ def run_did_spec(
     outcome       : outcome column name
     exposure_spec : one of EXPOSURE_SPECS
     controls      : list of control variable column names
+    seed          : random seed for wild cluster bootstrap. Should be
+                    varied across outcome x spec combinations — callers
+                    are responsible for passing distinct seeds.
 
     Returns
     -------
@@ -179,17 +191,27 @@ def run_did_spec(
     n_clusters = int(df_clean["drgn2"].nunique())
     t_crit     = float(t_dist.ppf(0.975, df=n_clusters - 1))
 
+    # ── R² within ─────────────────────────────────────────────────────────────
+    # Two calling conventions tried for pyfixest version compatibility.
+    # Logs a warning if both fail so the silent NaN is visible in the log.
+    r2_within = np.nan
     try:
         r2_within = float(fit.r2(type="within"))
     except Exception:
         try:
             r2_within = float(fit.r2("within"))
         except Exception:
-            r2_within = np.nan
+            logger.warning(
+                "R² within extraction failed -- %s x %s: "
+                "r2_within set to NaN in results CSV",
+                outcome, exposure_spec,
+            )
 
+    # ── Wild cluster bootstrap ────────────────────────────────────────────────
+    # seed is passed from the caller and varies by outcome x spec index.
     p_wbt = np.nan
     try:
-        boot  = fit.wildboottest(param=interaction_col, reps=9999, seed=42)
+        boot  = fit.wildboottest(param=interaction_col, reps=9999, seed=seed)
         p_raw = boot["Pr(>|t|)"]
         p_wbt = float(p_raw.iloc[0]) if hasattr(p_raw, "iloc") else float(p_raw)
         logger.info("WCB  -- %s x %s: p = %.4f", outcome, exposure_spec, p_wbt)
@@ -229,13 +251,15 @@ def run_baseline_did(
     """
     Estimate baseline DiD for all outcomes x all exposure specs.
 
+    Seeds are varied by outcome index × spec index to ensure independent
+    bootstrap draws across all combinations:
+      seed = 42 + outcome_idx * len(EXPOSURE_SPECS) + spec_idx
+
     Parameters
     ----------
     did      : Polars DataFrame from build_did_data()
     label    : label for this estimation window
-    outcomes : outcome columns to estimate (default: ANALYSIS_OUTCOMES).
-               Pass POVERTY_GAP_OUTCOMES to run poverty gap outcomes
-               using the same infrastructure without duplicating code.
+    outcomes : outcome columns to estimate (default: ANALYSIS_OUTCOMES)
 
     Returns
     -------
@@ -251,19 +275,24 @@ def run_baseline_did(
         logger.warning("No BALANCE_CONTROLS found -- estimating without controls")
 
     rows = []
-    for outcome in outcomes:
+    for outcome_idx, outcome in enumerate(outcomes):
         if outcome not in df.columns:
             logger.warning("Outcome '%s' not in panel -- skipping", outcome)
             continue
 
-        for spec in EXPOSURE_SPECS:
+        for spec_idx, spec in enumerate(EXPOSURE_SPECS):
             interaction_col = f"post_x_{spec}"
             if interaction_col not in df.columns:
-                logger.warning("Interaction '%s' not in panel -- skipping", interaction_col)
+                logger.warning(
+                    "Interaction '%s' not in panel -- skipping", interaction_col
+                )
                 continue
 
+            # Unique seed per outcome x spec combination
+            seed = 42 + outcome_idx * len(EXPOSURE_SPECS) + spec_idx
+
             try:
-                row = run_did_spec(df, outcome, spec, controls)
+                row = run_did_spec(df, outcome, spec, controls, seed=seed)
                 row["label"] = label
                 rows.append(row)
             except Exception as e:
@@ -340,7 +369,7 @@ def run_placebo_test(
     ctrl_str = (" + " + " + ".join(controls)) if controls else ""
 
     rows = []
-    for outcome in outcomes:
+    for outcome_idx, outcome in enumerate(outcomes):
         if outcome not in df.columns:
             logger.warning("Placebo: outcome '%s' not in panel -- skipping", outcome)
             continue
@@ -367,10 +396,12 @@ def run_placebo_test(
         n_clusters = int(df_clean["drgn2"].nunique())
         t_crit     = float(t_dist.ppf(0.975, df=n_clusters - 1))
 
+        # Seed varies by outcome index for independent bootstrap draws
+        seed  = 42 + outcome_idx
         p_wbt = np.nan
         try:
             boot  = fit.wildboottest(
-                param="post_fake_x_exposure", reps=9999, seed=42
+                param="post_fake_x_exposure", reps=9999, seed=seed
             )
             p_raw = boot["Pr(>|t|)"]
             p_wbt = float(p_raw.iloc[0]) if hasattr(p_raw, "iloc") else float(p_raw)

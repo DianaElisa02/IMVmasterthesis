@@ -5,10 +5,12 @@ Binned DiD specification — relaxes the linear dose-response assumption
 of the continuous TWFE by estimating separate ATTs for medium and high
 exposure terciles relative to the low tercile (reference group).
 
-Mirrors the structure of baseline_did.py exactly:
-  - build_binned_did_data() : constructs post indicator + tercile interactions
-  - run_binned_did_spec()   : estimates one outcome with PyFixest + WCB
-  - run_binned_did()        : loops over outcomes, returns tidy DataFrame
+Structure
+---------
+  - _compute_dynamic_terciles() : assigns regions to terciles for a given spec
+  - build_binned_did_data()     : constructs post indicator + tercile interactions
+  - run_binned_did_spec()       : estimates one outcome with PyFixest + WCB
+  - run_binned_did()            : loops over all specs x outcomes, returns tidy DataFrame
 
 Specification
 -------------
@@ -16,36 +18,37 @@ Specification
               + β_H (Post_t × 1[high_r])
               + γ_r + δ_t + X_hrt·θ + ε_hrt
 
-  Reference group: low-exposure tercile (most generous pre-reform RMI,
-  smallest reform-induced change in protection).
+  Reference group: low-exposure tercile (regions with smallest reform-
+  induced change in protection under each given exposure specification).
 
-Interpretation
---------------
-  β_M : post-reform change in outcome for medium tercile vs low tercile
-  β_H : post-reform change in outcome for high tercile vs low tercile
-  β_H ≈ 2 × β_M : linear dose-response holds — continuous TWFE is valid
-  β_H >> β_M    : effects concentrated at top — continuous TWFE dilutes
-  Both ≈ 0      : null result genuine across the entire distribution
-
-Note on tercile main effects and region FE
-------------------------------------------
-tercile_medium and tercile_high are time-invariant — regions never switch
-tercile. Their main effects are therefore perfectly absorbed by region FEs
-and must NOT be included as regressors (perfect collinearity). Only the
-Post × tercile interactions vary over time and are estimable.
+Tercile assignment
+------------------
+Terciles are computed dynamically for each exposure specification by
+ranking the 15 regions in ascending order of their exposure value and
+applying the same 5 / 4 / 6 split used in the primary specification.
+For the primary spec (exposure_composite_hybrid) this reproduces the
+fixed assignment in EXPOSURE_TERCILES exactly. For alternative specs
+the regional ordering changes and terciles are reassigned accordingly.
+This makes the binned specification a genuine robustness check: the
+poverty signal is tested across different definitions of high exposure.
 
 WCB seeds
 ---------
-post_x_medium uses seed=42; post_x_high uses seed=43.
-Different seeds ensure different bootstrap weight sequences.
-Each test is individually valid. They are not jointly calibrated —
-for joint inference use the Wald test (H0: β_M = β_H = 0).
+Seeds vary by spec index x outcome index to ensure independent bootstrap
+draws across all combinations. For spec at index i and outcome at index j:
+  seed_M = 42 + i * n_outcomes * 2 + j * 2
+  seed_H = seed_M + 1
+This produces unique seeds for all 10 combinations (5 specs x 2 outcomes).
 
 Linearity test
 --------------
 H0: β_H = 2 × β_M, implemented as a Wald test via PyFixest's wald_test().
-Assumes equal tercile spacing. Since the split is 5/4/6 regions (not
-equal thirds), the test is approximate — interpret as diagnostic only.
+The test statistic follows a chi-squared distribution (not F) because
+the constraint vector q is non-zero (Rβ = q with q != 0). This is
+asymptotically valid; with 15 cluster units the approximation is
+conservative in the direction of failing to reject linearity.
+The ratio b_H/b_M is a descriptive heuristic only and is suppressed
+when |b_M| < 0.001 (near-zero denominator).
 """
 
 from __future__ import annotations
@@ -62,13 +65,77 @@ from src.constants import (
     ANALYSIS_OUTCOMES,
     BALANCE_CONTROLS,
     DID_POST_YEARS_BASELINE,
-    EXPOSURE_TERCILES,
+    EXPOSURE_SPECS,
+    REGION_NAMES,
     YEARS,
 )
 
 logger = logging.getLogger(__name__)
 
-_PRE_YEARS: list[int] = YEARS   # [2017, 2018, 2019]
+_PRE_YEARS: list[int] = YEARS          # [2017, 2018, 2019]
+_N_LOW:     int       = 5              # regions in low tercile
+_N_MEDIUM:  int       = 4              # regions in medium tercile
+# high tercile = remainder (6 regions with 15 total)
+
+
+# =============================================================================
+# DYNAMIC TERCILE ASSIGNMENT
+# =============================================================================
+
+def _compute_dynamic_terciles(
+    panel: pl.DataFrame,
+    exposure_spec: str,
+    n_low: int = _N_LOW,
+    n_medium: int = _N_MEDIUM,
+) -> dict[str, list[int]]:
+    """
+    Assign regions to terciles by ranking them on exposure_spec (ascending).
+
+    The bottom n_low regions form the low (reference) tercile, the next
+    n_medium form the medium tercile, and the remainder form the high tercile.
+    The 5 / 4 / 6 split matches the primary specification.
+
+    For exposure_composite_hybrid this reproduces EXPOSURE_TERCILES exactly.
+    For alternative specs the ordering changes and regions are reassigned.
+
+    Parameters
+    ----------
+    panel         : full analysis panel (Polars DataFrame)
+    exposure_spec : name of the exposure column to rank on
+    n_low         : number of regions in the low (reference) tercile
+    n_medium      : number of regions in the medium tercile
+
+    Returns
+    -------
+    dict with keys 'low', 'medium', 'high' mapping to lists of drgn2 codes
+    """
+    if exposure_spec not in panel.columns:
+        raise ValueError(
+            f"Exposure spec '{exposure_spec}' not found in panel. "
+            f"Available specs: {[c for c in panel.columns if 'exposure' in c]}"
+        )
+
+    region_exposure = (
+        panel
+        .select(["drgn2", exposure_spec])
+        .unique(subset=["drgn2"])
+        .sort(exposure_spec, descending=False)   # ascending: lowest exposure first
+    )
+
+    regions = region_exposure["drgn2"].to_list()
+    n_total = len(regions)
+
+    if n_total < n_low + n_medium + 1:
+        raise ValueError(
+            f"Only {n_total} regions — cannot form three non-empty terciles "
+            f"with n_low={n_low}, n_medium={n_medium}."
+        )
+
+    return {
+        "low":    regions[:n_low],
+        "medium": regions[n_low : n_low + n_medium],
+        "high":   regions[n_low + n_medium :],
+    }
 
 
 # =============================================================================
@@ -78,22 +145,28 @@ _PRE_YEARS: list[int] = YEARS   # [2017, 2018, 2019]
 def build_binned_did_data(
     panel: pl.DataFrame,
     post_years: list[int] | None = None,
+    exposure_spec: str = EXPOSURE_SPECS[0],
 ) -> pl.DataFrame:
     """
     Prepare the analysis panel for binned DiD estimation.
 
     Constructs:
-      - post           : binary (0 = pre-reform, 1 = post-reform)
-      - exposure_tercile: 'low' / 'medium' / 'high' (static from constants)
-      - tercile_medium : binary indicator (1 = medium tercile)
-      - tercile_high   : binary indicator (1 = high tercile)
-      - post_x_medium  : Post × medium (coefficient of interest)
-      - post_x_high    : Post × high   (coefficient of interest)
+      - post             : binary (0 = pre-reform, 1 = post-reform)
+      - exposure_tercile : 'low' / 'medium' / 'high' (computed dynamically)
+      - tercile_medium   : binary indicator (1 = medium tercile)
+      - tercile_high     : binary indicator (1 = high tercile)
+      - post_x_medium    : Post x medium (coefficient of interest)
+      - post_x_high      : Post x high   (coefficient of interest)
+
+    Tercile boundaries are recomputed for each exposure_spec by ranking
+    regions on that spec's values. For the primary spec this reproduces
+    the constants.py assignment exactly.
 
     Parameters
     ----------
-    panel      : full analysis panel (Polars DataFrame)
-    post_years : post-reform years (default: DID_POST_YEARS_BASELINE)
+    panel         : full analysis panel (Polars DataFrame)
+    post_years    : post-reform years (default: DID_POST_YEARS_BASELINE)
+    exposure_spec : which exposure specification to use for tercile assignment
     """
     if post_years is None:
         post_years = DID_POST_YEARS_BASELINE
@@ -112,9 +185,20 @@ def build_binned_did_data(
         .alias("post")
     )
 
-    low_regions    = EXPOSURE_TERCILES["low"]
-    medium_regions = EXPOSURE_TERCILES["medium"]
-    high_regions   = EXPOSURE_TERCILES["high"]
+    # Compute tercile assignment dynamically for this spec
+    terciles       = _compute_dynamic_terciles(did, exposure_spec)
+    low_regions    = terciles["low"]
+    medium_regions = terciles["medium"]
+    high_regions   = terciles["high"]
+
+    # Log assignment so the output is traceable per spec
+    low_names    = [REGION_NAMES.get(r, str(r)) for r in low_regions]
+    medium_names = [REGION_NAMES.get(r, str(r)) for r in medium_regions]
+    high_names   = [REGION_NAMES.get(r, str(r)) for r in high_regions]
+    logger.info(
+        "  Tercile assignment [%s] | low: %s | medium: %s | high: %s",
+        exposure_spec, low_names, medium_names, high_names,
+    )
 
     did = did.with_columns(
         pl.when(pl.col("drgn2").is_in(low_regions))
@@ -134,8 +218,8 @@ def build_binned_did_data(
             .select("drgn2").unique().to_series().to_list()
         )
         raise ValueError(
-            f"Regions not assigned to any tercile: {unassigned}. "
-            f"Update EXPOSURE_TERCILES in constants.py."
+            f"Regions not assigned to any tercile under {exposure_spec}: "
+            f"{unassigned}."
         )
 
     did = did.with_columns(
@@ -149,8 +233,7 @@ def build_binned_did_data(
     )
 
     logger.info(
-        "Binned DiD data built: %d obs | pre=%s | post=%s | "
-        "low=%d regions, medium=%d, high=%d",
+        "  Data built: %d obs | pre=%s | post=%s | low=%d, medium=%d, high=%d regions",
         len(did), pre_years, post_years,
         len(low_regions), len(medium_regions), len(high_regions),
     )
@@ -165,15 +248,19 @@ def run_binned_did_spec(
     df: pd.DataFrame,
     outcome: str,
     controls: list[str],
+    seed_M: int = 42,
+    seed_H: int = 43,
 ) -> dict:
     """
     Estimate binned DiD for one outcome using PyFixest.
 
     Parameters
     ----------
-    df       : pandas DataFrame (pre-filtered to relevant columns)
+    df       : pandas DataFrame from build_binned_did_data()
     outcome  : outcome column name
     controls : list of control variable column names
+    seed_M   : WCB seed for post_x_medium (varies by spec x outcome)
+    seed_H   : WCB seed for post_x_high   (varies by spec x outcome)
 
     Returns
     -------
@@ -212,53 +299,49 @@ def run_binned_did_spec(
     n_clusters = int(df_clean["drgn2"].nunique())
     t_crit     = float(t_dist.ppf(0.975, df=n_clusters - 1))
 
-    # ── WCB — different seeds for independent bootstrap draws ─────────────────
+    # ── WCB — seeds passed from caller, unique per spec x outcome ─────────────
     p_wbt_M = np.nan
     try:
-        boot_M = fit.wildboottest(param="post_x_medium", reps=9999, seed=42)
-        raw_M  = boot_M["Pr(>|t|)"]
+        boot_M  = fit.wildboottest(param="post_x_medium", reps=9999, seed=seed_M)
+        raw_M   = boot_M["Pr(>|t|)"]
         p_wbt_M = float(raw_M.iloc[0]) if hasattr(raw_M, "iloc") else float(raw_M)
-        logger.info("WCB  -- %s x medium: p = %.4f", outcome, p_wbt_M)
+        logger.info("    WCB %s x medium: p = %.4f", outcome, p_wbt_M)
     except Exception as e:
-        logger.warning("WCB failed -- %s x medium: %s", outcome, e)
+        logger.warning("    WCB failed %s x medium: %s", outcome, e)
 
     p_wbt_H = np.nan
     try:
-        boot_H = fit.wildboottest(param="post_x_high", reps=9999, seed=43)
-        raw_H  = boot_H["Pr(>|t|)"]
+        boot_H  = fit.wildboottest(param="post_x_high", reps=9999, seed=seed_H)
+        raw_H   = boot_H["Pr(>|t|)"]
         p_wbt_H = float(raw_H.iloc[0]) if hasattr(raw_H, "iloc") else float(raw_H)
-        logger.info("WCB  -- %s x high: p = %.4f", outcome, p_wbt_H)
+        logger.info("    WCB %s x high: p = %.4f", outcome, p_wbt_H)
     except Exception as e:
-        logger.warning("WCB failed -- %s x high: %s", outcome, e)
+        logger.warning("    WCB failed %s x high: %s", outcome, e)
 
     # ── Linearity test H0: beta_H = 2 x beta_M ───────────────────────────────
-    lin_f, lin_p, linearity_ratio = np.nan, np.nan, np.nan
+    lin_stat, lin_p, linearity_ratio = np.nan, np.nan, np.nan
     try:
         coef_names = fit.coef().index.tolist()
         idx_M = coef_names.index("post_x_medium")
         idx_H = coef_names.index("post_x_high")
         R = np.zeros((1, len(coef_names)))
         R[0, idx_H] =  1.0
-        R[0, idx_M] = -2.0   # H0: beta_H - 2*beta_M = 0
-        wald    = fit.wald_test(R=R)
-        lin_f   = float(wald["statistic"])
-        lin_p   = float(wald["pvalue"])
-        # Suppress ratio when beta_M is near zero — division would be meaningless.
-        # Threshold 1e-3 ensures the ratio is only shown when both coefficients
-        # are substantively non-zero.
+        R[0, idx_M] = -2.0
+        wald     = fit.wald_test(R=R)
+        lin_stat = float(wald["statistic"])
+        lin_p    = float(wald["pvalue"])
         if abs(coef_M) > 1e-3:
             linearity_ratio = coef_H / coef_M
     except Exception as e:
-        logger.warning("Linearity test failed -- %s: %s", outcome, e)
+        logger.warning("    Linearity test failed %s: %s", outcome, e)
 
     logger.info(
-        "Binned -- %s: b_M=%+.4f (p_WCB=%.4f) | b_H=%+.4f (p_WCB=%.4f) | "
-        "linearity chi2=%.2f p=%.4f",
+        "    Result %s: b_M=%+.4f (p=%.4f) b_H=%+.4f (p=%.4f) Wald=%.2f p=%.4f",
         outcome,
         coef_M, p_wbt_M if not np.isnan(p_wbt_M) else -99,
         coef_H, p_wbt_H if not np.isnan(p_wbt_H) else -99,
-        lin_f   if not np.isnan(lin_f)   else -99,
-        lin_p   if not np.isnan(lin_p)   else -99,
+        lin_stat if not np.isnan(lin_stat) else -99,
+        lin_p    if not np.isnan(lin_p)    else -99,
     )
 
     return {
@@ -276,7 +359,7 @@ def run_binned_did_spec(
         "pval_cluster_high":   pval_H,
         "pval_wbt_high":       p_wbt_H,
         "linearity_ratio":     linearity_ratio,
-        "linearity_chi2":      lin_f,
+        "linearity_stat":      lin_stat,
         "linearity_p":         lin_p,
         "n_obs":               len(df_clean),
         "n_clusters":          n_clusters,
@@ -284,54 +367,78 @@ def run_binned_did_spec(
 
 
 # =============================================================================
-# RUN ALL OUTCOMES
+# RUN ALL SPECS x OUTCOMES
 # =============================================================================
 
 def run_binned_did(
-    did: pl.DataFrame,
+    panel: pl.DataFrame,
+    post_years: list[int],
     label: str = "baseline",
     outcomes: list[str] | None = None,
 ) -> pd.DataFrame:
     """
-    Estimate binned DiD for all outcomes.
+    Estimate binned DiD for all exposure specs x all outcomes.
+
+    For each exposure spec, terciles are recomputed dynamically so that
+    the low / medium / high assignment reflects that spec's regional ranking.
+    Seeds vary by spec x outcome index for independent bootstrap draws:
+      seed_M = 42 + spec_idx * n_outcomes * 2 + outcome_idx * 2
+      seed_H = seed_M + 1
 
     Parameters
     ----------
-    did      : Polars DataFrame from build_binned_did_data()
-    label    : label for this estimation window
-    outcomes : outcome columns to estimate (default: ANALYSIS_OUTCOMES)
+    panel      : full analysis panel (Polars DataFrame)
+    post_years : post-reform years for this estimation window
+    label      : label for this estimation window
+    outcomes   : outcome columns to estimate (default: ANALYSIS_OUTCOMES)
 
     Returns
     -------
-    pd.DataFrame, one row per outcome
+    pd.DataFrame, one row per exposure spec x outcome
     """
     if outcomes is None:
         outcomes = ANALYSIS_OUTCOMES
 
-    df       = did.to_pandas()
-    controls = [c for c in BALANCE_CONTROLS if c in df.columns]
+    n_outcomes = len(outcomes)
+    rows       = []
 
-    if "post_x_medium" not in df.columns or "post_x_high" not in df.columns:
-        raise RuntimeError(
-            "Tercile interactions not found. Run build_binned_did_data() first."
-        )
-
-    rows = []
-    for outcome in outcomes:
-        if outcome not in df.columns:
-            logger.warning("Outcome '%s' not in panel -- skipping", outcome)
-            continue
+    for spec_idx, spec in enumerate(EXPOSURE_SPECS):
+        logger.info("--- Spec %d/%d: %s ---", spec_idx + 1, len(EXPOSURE_SPECS), spec)
 
         try:
-            row = run_binned_did_spec(df, outcome, controls)
-            row["label"] = label
-            rows.append(row)
+            did = build_binned_did_data(panel, post_years=post_years, exposure_spec=spec)
         except Exception as e:
-            logger.error("Failed -- %s: %s", outcome, e)
+            logger.error("Failed to build data for spec=%s: %s", spec, e)
+            continue
+
+        df       = did.to_pandas()
+        controls = [c for c in BALANCE_CONTROLS if c in df.columns]
+
+        if not controls:
+            logger.warning("No BALANCE_CONTROLS found for spec=%s", spec)
+
+        for outcome_idx, outcome in enumerate(outcomes):
+            if outcome not in df.columns:
+                logger.warning("Outcome '%s' not in panel -- skipping", outcome)
+                continue
+
+            # Unique seed per spec x outcome combination
+            seed_M = 42 + spec_idx * n_outcomes * 2 + outcome_idx * 2
+            seed_H = seed_M + 1
+
+            try:
+                row = run_binned_did_spec(
+                    df, outcome, controls, seed_M=seed_M, seed_H=seed_H
+                )
+                row["label"]         = label
+                row["exposure_spec"] = spec
+                rows.append(row)
+            except Exception as e:
+                logger.error("Failed spec=%s outcome=%s: %s", spec, outcome, e)
 
     results = pd.DataFrame(rows)
     logger.info(
-        "[%s] Binned DiD complete: %d outcomes estimated",
+        "[%s] Binned DiD complete: %d spec-outcome pairs estimated",
         label, len(results),
     )
     return results

@@ -7,11 +7,10 @@ Runs two post-period windows:
   1. Baseline     : post = 2021-2025
   2. COVID robust : post = 2022-2025
 
-For each window, estimates ANALYSIS_OUTCOMES (matdep, poverty) plus
-POVERTY_GAP_OUTCOMES (poverty_gap, poverty_gap_sq) if available.
+For each window, estimates all EXPOSURE_SPECS x ANALYSIS_OUTCOMES (matdep, poverty).
+Tercile assignment is recomputed dynamically for each exposure spec.
 
-Reads from analysis_dataset_with_gap.parquet which contains all outcomes.
-Run run_poverty_gap.py first to generate the gap columns.
+Reads from analysis_dataset.parquet (primary analysis dataset).
 """
 
 from __future__ import annotations
@@ -22,14 +21,12 @@ from pathlib import Path
 import pandas as pd
 import polars as pl
 
-from src.binned_did import build_binned_did_data, run_binned_did
+from src.binned_did import run_binned_did
 from src.constants import (
     ANALYSIS_OUTCOMES,
     DID_POST_YEARS_BASELINE,
     DID_POST_YEARS_COVID,
-    EXPOSURE_TERCILES,
-    POVERTY_GAP_OUTCOMES,
-    REGION_NAMES,
+    EXPOSURE_SPECS,
 )
 
 logging.basicConfig(
@@ -39,14 +36,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BASE_PATH  = Path("/workspaces/IMVmasterthesis")
-INPUT_PATH = BASE_PATH / "output" / "analysis_dataset_with_gap.parquet"
+INPUT_PATH = BASE_PATH / "output" / "analysis_dataset.parquet"
 OUTPUT_DIR = BASE_PATH / "output" / "binned_did"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+PRIMARY_SPEC = EXPOSURE_SPECS[0]   # exposure_composite_hybrid
+
+
+# =============================================================================
+# PRINT HELPERS
+# =============================================================================
 
 def _stars(p: float) -> str:
     if pd.isna(p):
-        return "n/a"
+        return ""
     return "***" if p < 0.01 else "**" if p < 0.05 else "*" if p < 0.10 else ""
 
 
@@ -55,68 +58,89 @@ def print_results(df: pd.DataFrame, label: str) -> None:
         logger.warning("No results to print for %s", label)
         return
 
-    ref_names = [REGION_NAMES.get(r, str(r)) for r in EXPOSURE_TERCILES["low"]]
-    sep = "=" * 80
+    sep  = "=" * 80
+    sep2 = "-" * 65
 
     print(f"\n{sep}")
     print(f"  Binned DiD — {label}")
-    print(f"  Reference: low-exposure tercile ({', '.join(ref_names)})")
     print(f"  Inference: WCB p-value (primary) | CRV1 p-value (auxiliary)")
     print(sep)
 
-    for _, row in df.iterrows():
-        stars_M = _stars(row["pval_wbt_medium"])
-        stars_H = _stars(row["pval_wbt_high"])
+    for spec in EXPOSURE_SPECS:
+        spec_rows = df[df["exposure_spec"] == spec]
+        if spec_rows.empty:
+            continue
 
-        print(f"\n  Outcome: {row['outcome']}")
-        print(f"  {'-'*65}")
+        print(f"\n  Exposure spec: {spec}")
+        print(f"  {sep2}")
 
-        # Medium tercile
-        if not pd.isna(row["pval_wbt_medium"]):
-            print(
-                f"  b_M (medium vs low): {row['coef_medium']:+.4f}  "
-                f"SE={row['se_medium']:.4f}  "
-                f"CI=[{row['ci_low_medium']:+.4f}, {row['ci_high_medium']:+.4f}]  "
-                f"p_CRV1={row['pval_cluster_medium']:.4f}  "
-                f"p_WCB={row['pval_wbt_medium']:.4f} {stars_M}"
-            )
-        else:
-            print(
-                f"  b_M (medium vs low): {row['coef_medium']:+.4f}  "
-                f"SE={row['se_medium']:.4f}  WCB unavailable"
-            )
+        for _, row in spec_rows.iterrows():
+            stars_M = _stars(row["pval_wbt_medium"])
+            stars_H = _stars(row["pval_wbt_high"])
 
-        # High tercile
-        if not pd.isna(row["pval_wbt_high"]):
-            print(
-                f"  b_H (high vs low)  : {row['coef_high']:+.4f}  "
-                f"SE={row['se_high']:.4f}  "
-                f"CI=[{row['ci_low_high']:+.4f}, {row['ci_high_high']:+.4f}]  "
-                f"p_CRV1={row['pval_cluster_high']:.4f}  "
-                f"p_WCB={row['pval_wbt_high']:.4f} {stars_H}"
-            )
-        else:
-            print(
-                f"  b_H (high vs low)  : {row['coef_high']:+.4f}  "
-                f"SE={row['se_high']:.4f}  WCB unavailable"
-            )
+            print(f"\n    Outcome: {row['outcome']}")
 
-        # Linearity diagnostic
-        ratio_str = (
-            f"{row['linearity_ratio']:+.2f}"
-            if not pd.isna(row["linearity_ratio"]) else "n/a"
+            # Medium tercile
+            if not pd.isna(row["pval_wbt_medium"]):
+                print(
+                    f"    b_M (medium vs low): {row['coef_medium']:+.4f}  "
+                    f"SE={row['se_medium']:.4f}  "
+                    f"CI=[{row['ci_low_medium']:+.4f}, {row['ci_high_medium']:+.4f}]  "
+                    f"p_CRV1={row['pval_cluster_medium']:.4f}  "
+                    f"p_WCB={row['pval_wbt_medium']:.4f} {stars_M}"
+                )
+            else:
+                print(
+                    f"    b_M (medium vs low): {row['coef_medium']:+.4f}  "
+                    f"SE={row['se_medium']:.4f}  WCB unavailable"
+                )
+
+            # High tercile
+            if not pd.isna(row["pval_wbt_high"]):
+                print(
+                    f"    b_H (high vs low)  : {row['coef_high']:+.4f}  "
+                    f"SE={row['se_high']:.4f}  "
+                    f"CI=[{row['ci_low_high']:+.4f}, {row['ci_high_high']:+.4f}]  "
+                    f"p_CRV1={row['pval_cluster_high']:.4f}  "
+                    f"p_WCB={row['pval_wbt_high']:.4f} {stars_H}"
+                )
+            else:
+                print(
+                    f"    b_H (high vs low)  : {row['coef_high']:+.4f}  "
+                    f"SE={row['se_high']:.4f}  WCB unavailable"
+                )
+
+            # Linearity diagnostic
+            ratio_str = (
+                f"{row['linearity_ratio']:+.2f}"
+                if not pd.isna(row["linearity_ratio"]) else "n/a"
+            )
+            if not pd.isna(row["linearity_stat"]):
+                lin_verdict = "linear" if row["linearity_p"] > 0.10 else "NONLINEAR"
+                print(
+                    f"    Linearity b_H/b_M = {ratio_str}  |  "
+                    f"Wald stat={row['linearity_stat']:.2f}  "
+                    f"p={row['linearity_p']:.4f}  [{lin_verdict}]"
+                )
+            else:
+                print(f"    Linearity b_H/b_M = {ratio_str}  |  Wald test unavailable")
+
+
+def print_primary_summary(combined: pd.DataFrame) -> None:
+    sep = "=" * 80
+    print(f"\n{sep}")
+    print(f"  PRIMARY SPEC SUMMARY — {PRIMARY_SPEC}")
+    print(f"  b_H (high vs low) | outcome x window")
+    print(sep)
+
+    primary = combined[combined["exposure_spec"] == PRIMARY_SPEC]
+    for _, row in primary.iterrows():
+        stars = _stars(row["pval_wbt_high"])
+        print(
+            f"  {row['label']:<30} | {row['outcome']:<10} | "
+            f"b_H={row['coef_high']:+.4f}  SE={row['se_high']:.4f}  "
+            f"p_WCB={row['pval_wbt_high']:.4f} {stars}"
         )
-        if not pd.isna(row["linearity_chi2"]):
-            lin_verdict = (
-                "linear" if row["linearity_p"] > 0.10 else "NONLINEAR"
-            )
-            print(
-                f"  Linearity b_H/b_M = {ratio_str}  |  "
-                f"Wald chi2={row['linearity_chi2']:.2f}  "
-                f"p={row['linearity_p']:.4f}  [{lin_verdict}]"
-            )
-        else:
-            print(f"  Linearity b_H/b_M = {ratio_str}  |  Wald test unavailable")
 
 
 def main() -> None:
@@ -124,44 +148,29 @@ def main() -> None:
 
     panel = pl.read_parquet(INPUT_PATH)
     logger.info("Panel loaded: %d obs", len(panel))
-
-    # Check which outcomes are available — poverty gap requires run_poverty_gap.py
-    gap_available = [o for o in POVERTY_GAP_OUTCOMES if o in panel.columns]
-    if len(gap_available) < len(POVERTY_GAP_OUTCOMES):
-        missing_gap = set(POVERTY_GAP_OUTCOMES) - set(gap_available)
-        logger.warning(
-            "Poverty gap columns not found: %s — run run_poverty_gap.py first. "
-            "Proceeding with ANALYSIS_OUTCOMES only.",
-            missing_gap,
-        )
-    outcomes_to_run = ANALYSIS_OUTCOMES + gap_available
-
-    # Log tercile composition
-    logger.info("Tercile composition (fixed in constants.py):")
-    for grp, regions in EXPOSURE_TERCILES.items():
-        names = [REGION_NAMES.get(r, str(r)) for r in regions]
-        logger.info("  %s (%d regions): %s", grp, len(regions), names)
+    logger.info("Outcomes: %s", ANALYSIS_OUTCOMES)
+    logger.info("Exposure specs: %s", EXPOSURE_SPECS)
 
     all_results = []
 
     # ── Baseline (2021-2025) ──────────────────────────────────────────────────
-    logger.info("--- Binned DiD: post = 2021-2025 ---")
-    did_baseline = build_binned_did_data(panel, post_years=DID_POST_YEARS_BASELINE)
+    logger.info("======= Baseline: post = 2021-2025 =======")
     results_baseline = run_binned_did(
-        did_baseline,
+        panel,
+        post_years=DID_POST_YEARS_BASELINE,
         label="baseline_2021_2025",
-        outcomes=outcomes_to_run,
+        outcomes=ANALYSIS_OUTCOMES,
     )
     print_results(results_baseline, "Full post-reform period (2021-2025)")
     all_results.append(results_baseline)
 
     # ── COVID robust (2022-2025) ──────────────────────────────────────────────
-    logger.info("--- Binned DiD: post = 2022-2025 ---")
-    did_covid = build_binned_did_data(panel, post_years=DID_POST_YEARS_COVID)
+    logger.info("======= COVID robust: post = 2022-2025 =======")
     results_covid = run_binned_did(
-        did_covid,
+        panel,
+        post_years=DID_POST_YEARS_COVID,
         label="covid_robust_2022_2025",
-        outcomes=outcomes_to_run,
+        outcomes=ANALYSIS_OUTCOMES,
     )
     print_results(results_covid, "COVID robust — post = 2022-2025")
     all_results.append(results_covid)
@@ -170,6 +179,9 @@ def main() -> None:
     combined = pd.concat(all_results, ignore_index=True)
     combined.to_csv(OUTPUT_DIR / "binned_did_results.csv", index=False)
     logger.info("Saved: %s", OUTPUT_DIR / "binned_did_results.csv")
+
+    # ── Primary spec summary ──────────────────────────────────────────────────
+    print_primary_summary(combined)
 
     logger.info("Binned DiD complete. Results: %s", OUTPUT_DIR)
 
