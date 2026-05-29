@@ -568,28 +568,27 @@ DID_POST_YEARS_BASELINE: list[int] = [2021, 2022, 2023, 2024, 2025]
 DID_POST_YEARS_COVID:    list[int] = [2022, 2023, 2024, 2025]
 
 POVERTY_GAP_OUTCOMES: list[str] = ["poverty_gap", "poverty_gap_sq"]
-
 EXPOSURE_TERCILES: dict[str, list[int]] = {
     "low": [
-        21,  # País Vasco
-        22,  # Comunidad Foral de Navarra
-        12,  # Principado de Asturias
-        13,  # Cantabria
-        53,  # Illes Balears
+        21,  # País Vasco        −1.6149
+        22,  # Navarra           −1.0294
+        12,  # Asturias          −0.6662
+        13,  # Cantabria         −0.0926
+        53,  # Illes Balears      0.0149
     ],
     "medium": [
-        41,  # Castilla y León
-        42,  # Castilla-La Mancha
-        30,  # Comunidad de Madrid
-        11,  # Galicia
+        30,  # Madrid             0.1481
+        41,  # Castilla y León    0.4199
+        11,  # Galicia            0.6121
+        42,  # Castilla-La Mancha 0.6822
     ],
     "high": [
-        62,  # Región de Murcia
-        51,  # Cataluña
-        70,  # Canarias
-        61,  # Andalucía
-        52,  # Comunitat Valenciana
-        43,
+        43,  # Extremadura        0.9816
+        51,  # Cataluña           0.9476
+        62,  # Murcia             1.0360
+        70,  # Canarias           1.1530
+        52,  # Comunitat Valenciana 1.3591
+        61,  # Andalucía          1.3629
     ],
 }
 

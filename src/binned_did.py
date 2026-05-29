@@ -243,14 +243,17 @@ def run_binned_did_spec(
         wald    = fit.wald_test(R=R)
         lin_f   = float(wald["statistic"])
         lin_p   = float(wald["pvalue"])
-        if abs(coef_M) > 1e-8:
+        # Suppress ratio when beta_M is near zero — division would be meaningless.
+        # Threshold 1e-3 ensures the ratio is only shown when both coefficients
+        # are substantively non-zero.
+        if abs(coef_M) > 1e-3:
             linearity_ratio = coef_H / coef_M
     except Exception as e:
         logger.warning("Linearity test failed -- %s: %s", outcome, e)
 
     logger.info(
         "Binned -- %s: b_M=%+.4f (p_WCB=%.4f) | b_H=%+.4f (p_WCB=%.4f) | "
-        "linearity F=%.2f p=%.4f",
+        "linearity chi2=%.2f p=%.4f",
         outcome,
         coef_M, p_wbt_M if not np.isnan(p_wbt_M) else -99,
         coef_H, p_wbt_H if not np.isnan(p_wbt_H) else -99,
@@ -273,7 +276,7 @@ def run_binned_did_spec(
         "pval_cluster_high":   pval_H,
         "pval_wbt_high":       p_wbt_H,
         "linearity_ratio":     linearity_ratio,
-        "linearity_f":         lin_f,
+        "linearity_chi2":      lin_f,
         "linearity_p":         lin_p,
         "n_obs":               len(df_clean),
         "n_clusters":          n_clusters,

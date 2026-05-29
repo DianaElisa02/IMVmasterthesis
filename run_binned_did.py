@@ -106,13 +106,13 @@ def print_results(df: pd.DataFrame, label: str) -> None:
             f"{row['linearity_ratio']:+.2f}"
             if not pd.isna(row["linearity_ratio"]) else "n/a"
         )
-        if not pd.isna(row["linearity_f"]):
+        if not pd.isna(row["linearity_chi2"]):
             lin_verdict = (
                 "linear" if row["linearity_p"] > 0.10 else "NONLINEAR"
             )
             print(
                 f"  Linearity b_H/b_M = {ratio_str}  |  "
-                f"Wald F={row['linearity_f']:.2f}  "
+                f"Wald chi2={row['linearity_chi2']:.2f}  "
                 f"p={row['linearity_p']:.4f}  [{lin_verdict}]"
             )
         else:
