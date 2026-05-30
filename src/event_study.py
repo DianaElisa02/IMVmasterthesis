@@ -1,353 +1,393 @@
 """
 event_study.py
 ==============
-Event study data structure and estimation for the IMV DiD analysis.
+Event study, placebo test, and region-specific time trend robustness
+for the IMV DiD analysis. All estimation via PyFixest (feols + wildboottest),
+following the same stack as binned_did.py.
 
-Design decisions
-----------------
-1. SPECIFICATION
-   The event study interacts each year dummy with the continuous exposure
-   index (exposure_composite_hybrid). This gives one coefficient per year
-   measuring the differential change in outcomes between high- and
-   low-exposure regions relative to the reference year (2019).
+Specifications
+--------------
+1. Event study (main):
+   Y_hrt = sum_t!=2019 beta_t (yr_t x Exposure_r) + gamma_r + delta_t + X theta + e
+   Reference year: 2019. Pre-trend test: joint Wald on yr_2017 and yr_2018 interactions.
 
-   Y_hrt = α + Σ_t≠2019 β_t (yr_t × Exposure_r) + γ_r + δ_t + X_hrt θ + ε_hrt
+2. Placebo test:
+   Uses only pre-reform years (2017, 2018, 2019).
+   Fake post = 1 if year == 2019, 0 if year in {2017, 2018}.
+   Reference year (year FE): 2018.
+   Tests H0: beta_placebo = 0 via WCB. If not rejected, parallel trends hold.
 
-   β_t < 0 for t ∈ pre-reform years → parallel trends violated
-   β_t = 0 for t ∈ pre-reform years → parallel trends supported
-   β_t < 0 for t ∈ post-reform years → IMV reduced deprivation in
-                                        high-exposure regions
+3. Region-specific time trends robustness:
+   Adds drgn2 x year_centered interaction terms to the event study formula.
+   Documented as underpowered with 17 clusters — run once for completeness,
+   do not report as primary evidence.
 
-2. FIXED EFFECTS
-   Region FE (γ_r): absorb time-invariant regional characteristics
-   (geography, institutional history, culture). With repeated cross-
-   sections, household ID changes each year so entity FE cannot be
-   household-level. We implement region FE via region dummies.
-   Year FE (δ_t): absorb aggregate time shocks common to all regions
-   (business cycle, COVID, inflation). Implemented via year dummies
-   already in the specification.
-
-3. STANDARD ERRORS
-   Clustered at region level (drgn2) — 15 clusters. With only 15
-   clusters, standard cluster-robust SEs are unreliable. CIs in the
-   event study plot use a t critical value with G-1 = 14 degrees of
-   freedom (~2.14 at 95%) rather than the asymptotic 1.96. Primary
-   inference uses wild cluster bootstrap (WCB) applied to all
-   interaction terms — both pre- and post-reform — via Webb weights
-   (B=9999). CIs in the plot are for visualisation only; use WCB
-   p-values for inference.
-
-4. WEIGHTS
-   Survey weights (weight_hh) used throughout via WLS.
-
-5. PRIMARY SPEC ONLY
-   Event study uses exposure_composite_hybrid only. Robustness across
-   alternative specs is checked in the baseline DiD, not here.
-
-6. REGION-SPECIFIC LINEAR TRENDS
-   When EVENT_STUDY_REGION_TREND=True in constants.py, adds region ×
-   linear time trend terms to absorb pre-existing differential trends.
-   Used as robustness check for the income pre-trend concern.
+Output
+------
+    output/event_study/event_study_{outcome}.csv
+    output/event_study/event_study_{outcome}.png
+    output/event_study/placebo_{outcome}.csv
+    output/event_study/region_trends_{outcome}.csv
 """
 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import polars as pl
-import scipy.stats
-import scipy.linalg
-import statsmodels.api as sm
+import pyfixest as pf
 
 from src.constants import (
+    ANALYSIS_OUTCOMES,
     BALANCE_CONTROLS,
-    BALANCE_CONTROLS_EXTENDED,
-    EVENT_STUDY_REGION_TREND,
     EVENT_STUDY_REFERENCE_YEAR,
     EVENT_STUDY_YEARS,
     EXPOSURE_SPECS,
-    REGION_NAMES,
+    PLACEBO_FAKE_TREATMENT_YEAR,
+    PLACEBO_REFERENCE_YEAR,
+    PLACEBO_YEARS,
+    YEARS,
 )
 
 logger = logging.getLogger(__name__)
 
-PRIMARY_SPEC = EXPOSURE_SPECS[0]   # exposure_composite_hybrid
+PRIMARY_SPEC  = EXPOSURE_SPECS[0]   # exposure_composite_hybrid
+_PRE_YEARS    = YEARS               # [2017, 2018, 2019]
+_REF_YEAR     = EVENT_STUDY_REFERENCE_YEAR   # 2019
+_EVENT_YEARS  = EVENT_STUDY_YEARS            # [2017, 2018, 2021, 2022, 2023, 2024, 2025]
 
-def _extract_wbt_pvalue(wbt: object, col: str) -> float:
 
-    P_VALUE_KEYS = ["p-value", "p_value", "pvalue", "Pr(>|t|)"]
+# =============================================================================
+# STEP 1 — BUILD EVENT STUDY PANEL
+# =============================================================================
 
-    if isinstance(wbt, pd.DataFrame):
-        for key in P_VALUE_KEYS:
-            if key in wbt.columns:
-                return float(wbt[key].iloc[0])
-        raise ValueError(
-            f"wildboottest returned a DataFrame for '{col}' but none of the "
-            f"expected p-value columns {P_VALUE_KEYS} were found. "
-            f"Actual columns: {wbt.columns.tolist()}"
-        )
-
-    if isinstance(wbt, dict):
-        for key in P_VALUE_KEYS:
-            if key in wbt:
-                raw = wbt[key]
-                return float(raw.iloc[0]) if hasattr(raw, "iloc") else float(raw)
-        raise ValueError(
-            f"wildboottest returned a dict for '{col}' but none of the "
-            f"expected p-value keys {P_VALUE_KEYS} were found. "
-            f"Actual keys: {list(wbt.keys())}"
-        )
-
-    if isinstance(wbt, (float, int, np.floating, np.integer)):
-        return float(wbt)
-
-    raise ValueError(
-        f"wildboottest returned an unrecognised type for '{col}': "
-        f"{type(wbt)}. Update _extract_wbt_pvalue() to handle this version."
-    )
-
-def build_event_study_data(panel: pl.DataFrame) -> pl.DataFrame:
+def build_event_study_data(panel: pl.DataFrame) -> pd.DataFrame:
     """
-    Add year dummies and year × exposure interactions to the panel.
+    Filter to event-study years (pre + post, excl. 2020) and construct
+    year x exposure interaction terms for each non-reference year.
 
-    For each year in EVENT_STUDY_YEARS (2019 omitted):
-      - yr_{year}:              year dummy (1 if obs is from that year)
-      - yr_{year}_x_exposure:   year dummy × exposure_composite_hybrid
-
-    The reference year (2019) is omitted — its coefficient is normalised
-    to zero by construction. All β_t are interpreted relative to 2019.
+    Returns a pandas DataFrame ready for pyfixest.
     """
-    for year in EVENT_STUDY_YEARS:
-        panel = panel.with_columns(
-            pl.when(pl.col("year").eq(year))
-            .then(pl.lit(1.0))
-            .otherwise(pl.lit(0.0))
-            .alias(f"yr_{year}")
-        )
-        panel = panel.with_columns(
-            (pl.col(f"yr_{year}") * pl.col(PRIMARY_SPEC))
-            .alias(f"yr_{year}_x_exposure")
-        )
+    keep = _PRE_YEARS + _EVENT_YEARS
+    df = panel.filter(pl.col("year").is_in(keep)).to_pandas()
+
+    for yr in _EVENT_YEARS:
+        df[f"yr_{yr}"] = (df["year"] == yr).astype(float)
+        df[f"yr_{yr}_x_exp"] = df[f"yr_{yr}"] * df[PRIMARY_SPEC]
 
     logger.info(
-        "Event study interactions built for years: %s (reference: %s)",
-        EVENT_STUDY_YEARS, EVENT_STUDY_REFERENCE_YEAR,
+        "Event study data: %d obs | years: %s | reference: %d",
+        len(df), sorted(df["year"].unique().tolist()), _REF_YEAR,
     )
-    return panel
+    return df
+
+
+# =============================================================================
+# STEP 2 — ESTIMATE EVENT STUDY
+# =============================================================================
 
 def run_event_study(
-    panel: pl.DataFrame,
-    outcome: str = "matdep",
-    controls: list[str] | None = None,
-    extended_controls: bool = False,
-) -> tuple[pd.DataFrame, object, dict[str, float]]:
+    df: pd.DataFrame,
+    outcome: str,
+    controls: list[str],
+    output_dir: Path,
+    region_trends: bool = False,
+) -> pd.DataFrame:
     """
+    Estimate the event study for one outcome via pyfixest feols + WCB.
+
+    Formula:
+        outcome ~ yr_2017_x_exp + yr_2018_x_exp + yr_2021_x_exp + ...
+                  [+ controls] [+ region x year_centered]
+                  | drgn2 + year
+
+    Clusters: drgn2 (CRV1).
+    WCB: wildboottest with Webb weights, B=9999, per interaction term.
+    Pre-trend Wald test: joint H0 that yr_2017_x_exp = yr_2018_x_exp = 0.
+
     Parameters
     ----------
-    panel            : panel with event study columns from build_event_study_data()
-    outcome          : outcome variable — "matdep", "poverty", or "income_net_annual"
-    controls         : household-level controls — defaults to BALANCE_CONTROLS
-    extended_controls: if True, use BALANCE_CONTROLS_EXTENDED (includes labour vars)
+    df           : pandas DataFrame from build_event_study_data()
+    outcome      : outcome column name
+    controls     : list of control variable column names
+    output_dir   : directory to save CSV output
+    region_trends: if True, add drgn2 x year_centered interaction terms
 
     Returns
     -------
-    coef_table  : pd.DataFrame — year, coef, se, ci_low, ci_high, pval, pval_wbt
-    result      : statsmodels RegressionResultsWrapper — full model output
-    wbt_results : dict — wild bootstrap p-values for all interaction terms
+    pd.DataFrame with one row per event-study year
     """
-    if controls is None:
-        ctrl_list = BALANCE_CONTROLS_EXTENDED if extended_controls else BALANCE_CONTROLS
-        controls = [c for c in ctrl_list if c in panel.columns]
+    interaction_terms = [f"yr_{yr}_x_exp" for yr in _EVENT_YEARS]
+    ctrl_str = (" + " + " + ".join(controls)) if controls else ""
 
-    interaction_cols = [f"yr_{y}_x_exposure" for y in EVENT_STUDY_YEARS]
-    year_dummy_cols  = [f"yr_{y}" for y in EVENT_STUDY_YEARS]
-
-    keep = (
-        ["household_id", "drgn2", "year", outcome, "weight_hh"]
-        + interaction_cols
-        + year_dummy_cols
-        + controls
-    )
-    keep = [c for c in keep if c in panel.columns]
-
-    all_required = [outcome] + interaction_cols + year_dummy_cols + controls
-    df = (
-        panel.select(keep)
-        .to_pandas()
-        .dropna(subset=[c for c in all_required if c in panel.columns])
-        .reset_index(drop=True)
-    )
-    logger.info("Estimation sample: %d observations", len(df))
-
-    region_dummies = pd.get_dummies(
-        df["drgn2"], prefix="reg", drop_first=True
-    ).astype(float)
-    df = pd.concat([df, region_dummies], axis=1)
-    region_cols = region_dummies.columns.tolist()
-
-    all_regions = sorted(df["drgn2"].unique().tolist())
-    ref_region_code = all_regions[0]
-    ref_region_name = REGION_NAMES.get(int(ref_region_code), str(ref_region_code))
-    logger.info(
-        "Region FE reference category: drgn2=%d (%s) — "
-        "all region effects interpreted relative to this region",
-        ref_region_code, ref_region_name,
-    )
-
-    trend_cols: list[str] = []
-    if EVENT_STUDY_REGION_TREND:
-        # Build region-specific linear trends: indicator(region==r) × year
-        # for each non-reference region. These replace region dummies and
-        # absorb both the region fixed effect and any pre-existing linear
-        # differential trend.
-        for r in all_regions:
-            if r != ref_region_code:
-                col = f"trend_reg_{r}"
-                df[col] = (df["drgn2"] == r).astype(float) * df["year"]
-                trend_cols.append(col)
-
-        # With region-specific linear trends, one interaction term becomes
-        # unidentified: the trend terms at the boundary year are collinear
-        # with the exposure interaction for that year (exposure is region-
-        # level, so yr_last × exposure is a linear combination of the region
-        # trends). Drop the redundant interaction but retain its year dummy.
-        last_year     = max(EVENT_STUDY_YEARS)
-        drop_interact = f"yr_{last_year}_x_exposure"
-        trimmed_interactions = [c for c in interaction_cols if c != drop_interact]
-        logger.warning(
-            "Robustness spec: '%s' is collinear with region trends and "
-            "cannot be identified — dropped from regressors. "
-            "Its year dummy (yr_%d) is retained. "
-            "This coefficient will be NaN in coef_table.",
-            drop_interact, last_year,
-        )
-        regressors = (
-            trimmed_interactions
-            + year_dummy_cols
-            + trend_cols
-            + controls
-        )
+    if region_trends:
+        # Center year at reference year to reduce collinearity
+        df = df.copy()
+        df["year_c"] = df["year"] - _REF_YEAR
+        region_list = sorted(df["drgn2"].unique().tolist())
+        # Add all but one region trend (the reference, smallest drgn2)
+        ref_region = region_list[0]
+        trend_terms = []
+        for reg in region_list[1:]:
+            col = f"trend_r{reg}"
+            df[col] = ((df["drgn2"] == reg).astype(float)) * df["year_c"]
+            trend_terms.append(col)
+        trend_str = " + " + " + ".join(trend_terms)
         logger.info(
-            "Robustness spec: %d region-specific linear trends added; "
-            "region dummies dropped — subsumed by trends + constant. "
-            "Year FE retained.",
-            len(trend_cols),
+            "  Region trends: %d terms added (reference region: %d)",
+            len(trend_terms), ref_region,
         )
     else:
-        regressors = (
-            interaction_cols
-            + year_dummy_cols
-            + region_cols
-            + controls
-        )
+        trend_str = ""
 
-    X = sm.add_constant(df[regressors])
-    y = df[outcome]
-    w = df["weight_hh"]
-
-    rank   = np.linalg.matrix_rank(X.values)
-    n_cols = X.shape[1]
-    if rank < n_cols:
-        raise ValueError(
-            f"Design matrix is rank-deficient: rank={rank}, n_cols={n_cols}. "
-            f"Perfect multicollinearity detected — check region dummies vs "
-            f"year × exposure interactions. Cannot estimate model."
-        )
-    logger.info(
-        "Design matrix rank check passed: rank=%d = n_cols=%d ✓", rank, n_cols,
+    formula = (
+        f"{outcome} ~ "
+        + " + ".join(interaction_terms)
+        + ctrl_str
+        + trend_str
+        + " | drgn2 + year"
     )
+    logger.info("  Formula: %s", formula)
 
-    model  = sm.WLS(y, X, weights=w)
-    result = model.fit(
-        cov_type="cluster",
-        cov_kwds={"groups": df["drgn2"]},
-    )
+    df_clean = df[[
+        c for c in [outcome, "drgn2", "year"] + interaction_terms + controls
+        + (list(df.filter(like="trend_").columns) if region_trends else [])
+        if c in df.columns
+    ]].dropna().reset_index(drop=True)
 
-    logger.info(
-        "Event study estimated — outcome: %s | R²=%.4f | N=%d | "
-        "region trends: %s",
-        outcome, result.rsquared, int(result.nobs),
-        "yes" if EVENT_STUDY_REGION_TREND else "no",
-    )
-
-    wbt_results: dict[str, float] = {}
-
-    try:
-        from wildboottest.wildboottest import wildboottest
-        import contextlib
-        import io
-
-        for col in interaction_cols:
-            if col not in result.params.index:
-                logger.warning(
-                    "Skipping WCB for %s — not found in model params.", col
-                )
-                continue
-
-            _trap = io.StringIO()
-            with contextlib.redirect_stdout(_trap):
-                wbt = wildboottest(
-                    model,
-                    cluster=df["drgn2"].values,
-                    param=col,
-                    B=9999,
-                    weights_type="webb",
-                    seed=42,
-                )
-
-            logger.debug("wildboottest raw output for %s: %s", col, wbt)
-
-            p_wbt = _extract_wbt_pvalue(wbt, col)
-            wbt_results[col] = p_wbt
-            logger.info("Wild bootstrap — %s: p = %.4f", col, p_wbt)
-
-    except ImportError:
+    # Rank check
+    X_cols = interaction_terms + controls
+    if region_trends:
+        X_cols += [c for c in df_clean.columns if c.startswith("trend_")]
+    X = df_clean[X_cols]
+    rank = np.linalg.matrix_rank(X.values)
+    if rank < X.shape[1]:
         logger.warning(
-            "wildboottest not installed — run: pip install wildboottest. "
-            "Cluster-robust p-values used instead."
-        )
-    except Exception as e:
-        logger.warning(
-            "wildboottest failed: %s — cluster-robust SEs used instead.", e
+            "  Design matrix rank-deficient: rank=%d, cols=%d. "
+            "Region trends likely collinear — results may be unreliable.",
+            rank, X.shape[1],
         )
 
-    n_clusters = df["drgn2"].nunique()
-    t_crit = scipy.stats.t.ppf(0.975, df=n_clusters - 1)
-    logger.info(
-        "CI critical value: t(df=%d, 0.975) = %.4f  [clusters=%d]",
-        n_clusters - 1, t_crit, n_clusters,
-    )
+    fit = pf.feols(formula, data=df_clean, vcov={"CRV1": "drgn2"})
+    logger.info("  Estimated: %d obs, %d clusters", len(df_clean),
+                df_clean["drgn2"].nunique())
 
+    # ── Coefficients ──────────────────────────────────────────────────────────
     rows = []
-    for year in EVENT_STUDY_YEARS:
-        col  = f"yr_{year}_x_exposure"
-        coef = result.params.get(col, np.nan)
-        se   = result.bse.get(col, np.nan)
+    for yr in _EVENT_YEARS:
+        term = f"yr_{yr}_x_exp"
+        coef = float(fit.coef()[term])
+        se   = float(fit.se()[term])
+        pval = float(fit.pvalue()[term])
+
+        # WCB per term
+        p_wbt = np.nan
+        try:
+            boot = fit.wildboottest(param=term, reps=9999, seed=42 + yr)
+            raw  = boot["Pr(>|t|)"]
+            p_wbt = float(raw.iloc[0]) if hasattr(raw, "iloc") else float(raw)
+        except Exception as e:
+            logger.warning("    WCB failed for %s %d: %s", outcome, yr, e)
+
         rows.append({
-            "year":     year,
-            "coef":     coef,
-            "se":       se,
-            "ci_low":   coef - t_crit * se,
-            "ci_high":  coef + t_crit * se,
-            "pval":     result.pvalues.get(col, np.nan),
-            "pval_wbt": wbt_results.get(col, np.nan),
+            "year":         yr,
+            "rel_year":     yr - _REF_YEAR,
+            "coef":         coef,
+            "se":           se,
+            "pval_crv1":    pval,
+            "pval_wbt":     p_wbt,
+            "ci_low":       coef - 2.12 * se,   # t_{16} crit for 17 clusters
+            "ci_high":      coef + 2.12 * se,
+            "pre_period":   yr < 2020,
         })
 
+    # Add reference year (coefficient = 0 by construction)
     rows.append({
-        "year":     EVENT_STUDY_REFERENCE_YEAR,
-        "coef":     0.0,
-        "se":       0.0,
-        "ci_low":   0.0,
-        "ci_high":  0.0,
-        "pval":     np.nan,
-        "pval_wbt": np.nan,
+        "year":       _REF_YEAR,
+        "rel_year":   0,
+        "coef":       0.0,
+        "se":         0.0,
+        "pval_crv1":  np.nan,
+        "pval_wbt":   np.nan,
+        "ci_low":     0.0,
+        "ci_high":    0.0,
+        "pre_period": True,
     })
 
-    coef_table = (
-        pd.DataFrame(rows)
-        .sort_values("year")
-        .reset_index(drop=True)
+    coef_df = pd.DataFrame(rows).sort_values("year").reset_index(drop=True)
+
+    # ── Pre-trend joint Wald test ─────────────────────────────────────────────
+    pre_terms = [f"yr_{yr}_x_exp" for yr in _EVENT_YEARS if yr < 2020]
+    coef_names = fit.coef().index.tolist()
+    pre_indices = [coef_names.index(t) for t in pre_terms if t in coef_names]
+
+    if len(pre_indices) >= 1:
+        R = np.zeros((len(pre_indices), len(coef_names)))
+        for row_i, col_i in enumerate(pre_indices):
+            R[row_i, col_i] = 1.0
+        try:
+            wald = fit.wald_test(R=R)
+            wald_stat = float(wald["statistic"])
+            wald_p    = float(wald["pvalue"])
+            logger.info(
+                "  Pre-trend Wald test (%s): stat=%.3f p=%.4f %s",
+                outcome, wald_stat, wald_p,
+                "✓ pre-trends not rejected" if wald_p > 0.10 else "⚠ pre-trends rejected",
+            )
+            coef_df["pretrend_wald_stat"] = wald_stat
+            coef_df["pretrend_wald_p"]    = wald_p
+        except Exception as e:
+            logger.warning("  Pre-trend Wald test failed: %s", e)
+
+    # ── Save ─────────────────────────────────────────────────────────────────
+    tag = "region_trends" if region_trends else "event_study"
+    out_path = output_dir / f"{tag}_{outcome}.csv"
+    coef_df.to_csv(out_path, index=False)
+    logger.info("  Saved: %s", out_path)
+
+    return coef_df
+
+
+# =============================================================================
+# STEP 3 — PLACEBO TEST
+# =============================================================================
+
+def run_placebo(
+    panel: pl.DataFrame,
+    outcome: str,
+    controls: list[str],
+    output_dir: Path,
+) -> dict:
+    """
+    Placebo test using pre-reform years only (2017, 2018, 2019).
+
+    Specification:
+        Y_hrt = alpha + beta_placebo (Post_fake_t x Exposure_r)
+                + gamma_r + delta_t + X theta + e
+
+    Post_fake = 1 if year == 2019 (fake post), 0 if year in {2017, 2018}.
+    Reference year FE: 2018 (omitted).
+    H0: beta_placebo = 0.
+    If WCB p > 0.10, parallel trends validated.
+
+    Returns
+    -------
+    dict with coef, se, p_crv1, p_wbt
+    """
+    df = (
+        panel
+        .filter(pl.col("year").is_in(PLACEBO_YEARS))
+        .to_pandas()
     )
-    return coef_table, result, wbt_results
+
+    df["post_fake"]       = (df["year"] == PLACEBO_FAKE_TREATMENT_YEAR).astype(float)
+    df["post_fake_x_exp"] = df["post_fake"] * df[PRIMARY_SPEC]
+
+    ctrl_str = (" + " + " + ".join(controls)) if controls else ""
+    formula  = f"{outcome} ~ post_fake_x_exp{ctrl_str} | drgn2 + year"
+
+    df_clean = df[
+        [c for c in [outcome, "drgn2", "year", "post_fake_x_exp"] + controls
+         if c in df.columns]
+    ].dropna().reset_index(drop=True)
+
+    fit  = pf.feols(formula, data=df_clean, vcov={"CRV1": "drgn2"})
+    coef = float(fit.coef()["post_fake_x_exp"])
+    se   = float(fit.se()["post_fake_x_exp"])
+    pval = float(fit.pvalue()["post_fake_x_exp"])
+
+    p_wbt = np.nan
+    try:
+        boot  = fit.wildboottest(param="post_fake_x_exp", reps=9999, seed=42)
+        raw   = boot["Pr(>|t|)"]
+        p_wbt = float(raw.iloc[0]) if hasattr(raw, "iloc") else float(raw)
+    except Exception as e:
+        logger.warning("  Placebo WCB failed (%s): %s", outcome, e)
+
+    result = {
+        "outcome":   outcome,
+        "coef":      coef,
+        "se":        se,
+        "pval_crv1": pval,
+        "pval_wbt":  p_wbt,
+        "n_obs":     len(df_clean),
+        "n_clusters": df_clean["drgn2"].nunique(),
+    }
+    logger.info(
+        "  Placebo [%s]: coef=%+.4f SE=%.4f p_CRV1=%.4f p_WCB=%.4f %s",
+        outcome, coef, se, pval, p_wbt,
+        "✓ placebo null not rejected" if p_wbt > 0.10 else "⚠ placebo significant",
+    )
+
+    out_path = output_dir / f"placebo_{outcome}.csv"
+    pd.DataFrame([result]).to_csv(out_path, index=False)
+    return result
+
+
+# =============================================================================
+# STEP 4 — PLOT EVENT STUDY
+# =============================================================================
+
+def plot_event_study(
+    coef_df: pd.DataFrame,
+    outcome: str,
+    output_dir: Path,
+    title_suffix: str = "",
+) -> None:
+    """
+    Standard event study coefficient plot with 95% CI.
+    Pre-reform years in blue, post-reform in orange, reference year in teal.
+    """
+    df = coef_df.sort_values("year").copy()
+
+    fig, ax = plt.subplots(figsize=(11, 5))
+
+    pre  = df[df["rel_year"] <  0]
+    ref  = df[df["rel_year"] == 0]
+    post = df[df["rel_year"] >  0]
+
+    for subset, color, label in [
+        (pre,  "#378ADD", "Pre-reform"),
+        (post, "#F4A261", "Post-reform"),
+    ]:
+        ax.errorbar(
+            subset["rel_year"], subset["coef"],
+            yerr=subset["coef"] - subset["ci_low"],
+            fmt="o", color=color, capsize=4, linewidth=1.5,
+            markersize=6, label=label,
+        )
+
+    ax.scatter(ref["rel_year"], ref["coef"], color="#2A9D8F",
+               zorder=5, s=80, label=f"Reference ({_REF_YEAR})")
+
+    ax.axhline(0, color="#B4B2A9", linewidth=0.8, linestyle="--")
+    ax.axvline(-0.5, color="#B4B2A9", linewidth=0.8, linestyle=":",
+               label="Reform (mid-2020)")
+
+    outcome_label = {"matdep": "Severe material deprivation",
+                     "poverty": "At-risk-of-poverty"}.get(outcome, outcome)
+    wald_p = df["pretrend_wald_p"].dropna().iloc[0] if "pretrend_wald_p" in df.columns else None
+    wald_note = f"Pre-trend Wald p={wald_p:.3f}" if wald_p is not None else ""
+
+    ax.set_xlabel("Years relative to reform (reference: 2019)", fontsize=11)
+    ax.set_ylabel("Coefficient (pp change per SD exposure)", fontsize=11)
+    ax.set_title(
+        f"Event study — {outcome_label}{title_suffix}\n"
+        f"Primary spec: {PRIMARY_SPEC}  |  {wald_note}",
+        fontsize=10,
+    )
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.3, linewidth=0.5)
+
+    plt.tight_layout()
+    tag = "region_trends" if "region_trends" in title_suffix.lower() else "event_study"
+    out_path = output_dir / f"{tag}_{outcome}.png"
+    plt.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close()
+    logger.info("  Plot saved: %s", out_path)

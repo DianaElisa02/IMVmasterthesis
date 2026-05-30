@@ -1,5 +1,16 @@
 """
 run_event_study.py
+==================
+Runner for the event study, placebo test, and region-specific time trends.
+
+Runs three analyses:
+  1. Event study         — full sample, all event-study years
+  2. Placebo test        — pre-reform years only (2017–2019), fake post=2019
+  3. Region trends       — event study + drgn2 x year_centered interactions
+                           (robustness check, documented as underpowered)
+
+Reads from output/analysis_dataset.parquet.
+Writes to output/event_study/.
 """
 
 from __future__ import annotations
@@ -7,13 +18,19 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-import matplotlib.pyplot as plt
-import matplotlib.ticker as mtick
-import numpy as np
+import pandas as pd
 import polars as pl
 
-from src.constants import EVENT_STUDY_REFERENCE_YEAR
-from src.event_study import build_event_study_data, run_event_study
+from src.event_study import (
+    build_event_study_data,
+    run_event_study,
+    run_placebo,
+    plot_event_study,
+)
+from src.constants import (
+    ANALYSIS_OUTCOMES,
+    BALANCE_CONTROLS,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,98 +38,52 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-BASE_PATH  = Path("/workspaces/IMVmasterthesis")
-INPUT_PATH = BASE_PATH / "output" / "analysis_dataset.parquet"
-OUTPUT_DIR = BASE_PATH / "output" / "event_study"
+BASE_DIR   = Path(__file__).resolve().parent
+INPUT_PATH = BASE_DIR / "output" / "analysis_dataset.parquet"
+OUTPUT_DIR = BASE_DIR / "output" / "event_study"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-def plot_event_study(
-    coef_table,
-    outcome: str,
-    output_path: Path,
-) -> None:
-    """
-    Plot event study coefficients with 95% confidence intervals.
 
-    Design choices:
-    - Pre-reform coefficients in blue, post-reform in orange
-    - Vertical dashed line at 2019 (reference year)
-    - Vertical dashed line at 2020.5 (IMV introduction)
-    - Horizontal line at zero (null hypothesis)
-    - y-axis in percentage points for binary outcomes
-    - CIs use t_{G-1} critical value (computed in run_event_study) and are
-      read directly from ci_low / ci_high columns — not recomputed here
-    """
-    fig, ax = plt.subplots(figsize=(10, 5))
+def print_event_summary(coef_df: pd.DataFrame, outcome: str) -> None:
+    sep = "-" * 65
+    print(f"\n  Outcome: {outcome}")
+    print(f"  {sep}")
+    print(f"  {'Year':>6}  {'Rel.yr':>6}  {'Coef':>8}  {'SE':>7}  "
+          f"{'p_CRV1':>8}  {'p_WCB':>8}")
+    print(f"  {'-'*6}  {'-'*6}  {'-'*8}  {'-'*7}  {'-'*8}  {'-'*8}")
+    for _, row in coef_df.sort_values("year").iterrows():
+        stars = ""
+        if not pd.isna(row.get("pval_wbt", float("nan"))):
+            p = row["pval_wbt"]
+            stars = "***" if p < 0.01 else "**" if p < 0.05 else "*" if p < 0.10 else ""
+        pval_crv1 = f"{row['pval_crv1']:.4f}" if not pd.isna(row["pval_crv1"]) else "  ref "
+        pval_wbt  = f"{row['pval_wbt']:.4f} {stars}" if not pd.isna(row.get("pval_wbt", float("nan"))) else "  ref "
+        ref_tag   = " ← ref" if row["rel_year"] == 0 else ""
+        print(f"  {int(row['year']):>6}  {int(row['rel_year']):>+6}  "
+              f"{row['coef']:>+8.4f}  {row['se']:>7.4f}  "
+              f"{pval_crv1:>8}  {pval_wbt:>10}{ref_tag}")
 
-    ax.axhline(0, color="black", linewidth=0.8, linestyle="-", alpha=0.4)
-    ax.axvline(
-        EVENT_STUDY_REFERENCE_YEAR, color="grey",
-        linewidth=0.8, linestyle=":",
-        label=f"Reference year ({EVENT_STUDY_REFERENCE_YEAR})",
-    )
-    ax.axvline(
-        2020.5, color="red", linewidth=0.8, linestyle="--",
-        label="IMV introduced (mid-2020)",
-    )
+    if "pretrend_wald_p" in coef_df.columns:
+        wp = coef_df["pretrend_wald_p"].dropna().iloc[0]
+        ws = coef_df["pretrend_wald_stat"].dropna().iloc[0]
+        verdict = "✓ pre-trends not rejected (p > 0.10)" if wp > 0.10 else "⚠ pre-trends rejected (p ≤ 0.10)"
+        print(f"\n  Pre-trend joint Wald: stat={ws:.3f}  p={wp:.4f}  {verdict}")
 
-    pre  = coef_table[coef_table["year"] <= EVENT_STUDY_REFERENCE_YEAR]
-    post = coef_table[coef_table["year"] >  EVENT_STUDY_REFERENCE_YEAR]
 
-    for subset, color, label in [
-        (pre,  "steelblue",  "Pre-reform (95% CI)"),
-        (post, "darkorange", "Post-reform (95% CI)"),
-    ]:
-        ci_lower = subset["coef"] - subset["ci_low"]
-        ci_upper = subset["ci_high"] - subset["coef"]
-        yerr = np.array([ci_lower.values, ci_upper.values])
-
-        ax.errorbar(
-            subset["year"], subset["coef"],
-            yerr=yerr,
-            fmt="o", color=color, capsize=4,
-            label=label, linewidth=1.5, markersize=5,
-            zorder=3,
-        )
-        ax.plot(
-            subset["year"], subset["coef"],
-            color=color, linewidth=1.2, zorder=2,
-        )
-
-    if outcome in ["matdep", "poverty"]:
-        ax.yaxis.set_major_formatter(
-            mtick.FuncFormatter(lambda x, _: f"{x*100:.1f} pp")
-        )
-
-    ax.set_xlabel("Survey year", fontsize=11)
-    ax.set_ylabel(
-        "Coefficient (pp change in probability)"
-        if outcome in ["matdep", "poverty"]
-        else "Coefficient (€ change in income)",
-        fontsize=11,
-    )
-    ax.set_title(
-        f"Event study: {outcome}\n"
-        f"Year × Exposure interactions (reference: {EVENT_STUDY_REFERENCE_YEAR})",
-        fontsize=12,
-    )
-    ax.set_xticks(sorted(coef_table["year"].tolist()))
-    ax.legend(fontsize=10)
-    ax.grid(axis="y", alpha=0.3)
-
-    ax.text(
-        0.01, 0.01,
-        "95% CIs use t(df=14) critical value (~2.145) on cluster-robust SEs "
-        "[15 clusters] — indicative only.\n"
-        "Use wild cluster bootstrap p-values (pval_wbt) for formal inference.",
-        transform=ax.transAxes, fontsize=7.5,
-        color="grey", va="bottom", style="italic",
-    )
-
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150)
-    plt.close()
-    logger.info("Plot saved: %s", output_path)
+def print_placebo_summary(results: list[dict]) -> None:
+    sep = "=" * 65
+    print(f"\n{sep}")
+    print(f"  PLACEBO TEST — fake post = 2019, pre-reform years 2017–2019")
+    print(f"  H0: beta_placebo = 0  (WCB primary inference)")
+    print(sep)
+    print(f"  {'Outcome':<12}  {'Coef':>8}  {'SE':>7}  {'p_CRV1':>8}  {'p_WCB':>8}  {'Verdict'}")
+    print(f"  {'-'*12}  {'-'*8}  {'-'*7}  {'-'*8}  {'-'*8}  {'-'*20}")
+    for r in results:
+        p = r["pval_wbt"]
+        stars = "***" if p < 0.01 else "**" if p < 0.05 else "*" if p < 0.10 else ""
+        verdict = "✓ null not rejected" if p > 0.10 else "⚠ significant"
+        print(f"  {r['outcome']:<12}  {r['coef']:>+8.4f}  {r['se']:>7.4f}  "
+              f"{r['pval_crv1']:>8.4f}  {r['pval_wbt']:>7.4f} {stars:<3}  {verdict}")
 
 
 def main() -> None:
@@ -121,84 +92,64 @@ def main() -> None:
     panel = pl.read_parquet(INPUT_PATH)
     logger.info("Panel loaded: %d obs", len(panel))
 
-    panel = build_event_study_data(panel)
+    controls = [c for c in BALANCE_CONTROLS if c in panel.columns]
+    df_event = build_event_study_data(panel)
 
-    for outcome in ["matdep", "poverty", "income_net_annual"]:
-        logger.info("--- Outcome: %s ---", outcome)
+    # ── 1. Event study ────────────────────────────────────────────────────────
+    print("\n" + "=" * 65)
+    print("  EVENT STUDY — primary specification")
+    print("  Interaction: year_t x exposure_composite_hybrid")
+    print("  Inference: WCB (primary) | CRV1 (auxiliary)")
+    print("=" * 65)
 
-        coef_table, result, wbt_results = run_event_study(panel, outcome=outcome)
-
-        print(f"\n=== Event study — {outcome} ===")
-        print(coef_table.to_string(index=False, float_format="{:.4f}".format))
-
-        pre_cols = ["yr_2017_x_exposure", "yr_2018_x_exposure"]
-        pre_cols_present = [c for c in pre_cols if c in result.params.index]
-
-        if pre_cols_present:
-            param_names = result.params.index.tolist()
-
-            R = np.zeros((len(pre_cols_present), len(param_names)))
-            for i, col in enumerate(pre_cols_present):
-                if col in param_names:
-                    R[i, param_names.index(col)] = 1.0
-                else:
-                    logger.warning(
-                        "Pre-trend column %s not in params — skipping", col
-                    )
-
-            joint_test = result.f_test(R)
-            f_stat  = float(np.squeeze(joint_test.fvalue))
-            p_value = float(joint_test.pvalue)
-
-            print(f"\nPre-trend joint F-test (2017, 2018 jointly = 0):")
-            print(f"  F-stat  = {f_stat:.4f}")
-            print(
-                f"  p-value = {p_value:.4f} "
-                f"(cluster-robust, indicative only — 15 clusters)"
-            )
-
-        if wbt_results:
-            pre_wbt  = {k: v for k, v in wbt_results.items() if "2017" in k or "2018" in k}
-            post_wbt = {k: v for k, v in wbt_results.items() if k not in pre_wbt}
-
-            if pre_wbt:
-                print(f"\nWild cluster bootstrap — pre-reform (parallel trends check):")
-                for col, p_wbt in pre_wbt.items():
-                    flag = "✓" if p_wbt > 0.1 else " WARNING"
-                    print(f"    {col}: p = {p_wbt:.4f}  {flag}")
-
-                worst_pre_p = min(pre_wbt.values())
-                if worst_pre_p > 0.1:
-                    print(
-                        "  → Pre-trends not rejected at 10% (WCB individual tests)"
-                    )
-                else:
-                    print(
-                        "  → WARNING: At least one pre-trend term rejected at 10% "
-                        "(WCB). Parallel trends assumption may be violated."
-                    )
-
-            if post_wbt:
-                print(f"\nWild cluster bootstrap — post-reform (primary inference):")
-                for col, p_wbt in post_wbt.items():
-                    flag = "**" if p_wbt < 0.05 else ("*" if p_wbt < 0.1 else "")
-                    print(f"    {col}: p = {p_wbt:.4f}  {flag}")
-
-        else:
-            print(
-                "\n  Wild bootstrap not available — "
-                "install wildboottest or check version.\n"
-                "  Cluster-robust p-values (pval column) are indicative only."
-            )
-
-        coef_table.to_csv(
-            OUTPUT_DIR / f"event_study_{outcome}.csv", index=False
+    for outcome in ANALYSIS_OUTCOMES:
+        logger.info("--- Event study: %s ---", outcome)
+        coef_df = run_event_study(
+            df_event, outcome=outcome,
+            controls=controls,
+            output_dir=OUTPUT_DIR,
+            region_trends=False,
         )
+        print_event_summary(coef_df, outcome)
+        plot_event_study(coef_df, outcome, OUTPUT_DIR)
 
-        plot_event_study(
-            coef_table, outcome,
-            OUTPUT_DIR / f"event_study_{outcome}.png",
+    # ── 2. Placebo test ───────────────────────────────────────────────────────
+    logger.info("=== Placebo test ===")
+    placebo_results = []
+    for outcome in ANALYSIS_OUTCOMES:
+        logger.info("--- Placebo: %s ---", outcome)
+        result = run_placebo(
+            panel, outcome=outcome,
+            controls=controls,
+            output_dir=OUTPUT_DIR,
         )
+        placebo_results.append(result)
+
+    print_placebo_summary(placebo_results)
+
+    # ── 3. Region-specific time trends ────────────────────────────────────────
+    print("\n" + "=" * 65)
+    print("  REGION-SPECIFIC TIME TRENDS (robustness)")
+    print("  Note: underpowered with 17 clusters — for documentation only")
+    print("=" * 65)
+
+    for outcome in ANALYSIS_OUTCOMES:
+        logger.info("--- Region trends: %s ---", outcome)
+        try:
+            coef_df_rt = run_event_study(
+                df_event, outcome=outcome,
+                controls=controls,
+                output_dir=OUTPUT_DIR,
+                region_trends=True,
+            )
+            print_event_summary(coef_df_rt, outcome)
+            plot_event_study(
+                coef_df_rt, outcome, OUTPUT_DIR,
+                title_suffix=" (region-specific trends)"
+            )
+        except Exception as e:
+            logger.error("Region trends failed for %s: %s", outcome, e)
+            print(f"  Region trends failed for {outcome}: {e}")
 
     logger.info("Event study complete. Results saved to %s", OUTPUT_DIR)
 

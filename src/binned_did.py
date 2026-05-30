@@ -73,8 +73,8 @@ from src.constants import (
 logger = logging.getLogger(__name__)
 
 _PRE_YEARS: list[int] = YEARS          # [2017, 2018, 2019]
-_N_LOW:     int       = 5              # regions in low tercile
-_N_MEDIUM:  int       = 4              # regions in medium tercile
+_N_LOW:     int       = 6              # regions in low tercile
+_N_MEDIUM:  int       = 5              # regions in medium tercile
 # high tercile = remainder (6 regions with 15 total)
 
 
@@ -119,7 +119,8 @@ def _compute_dynamic_terciles(
         panel
         .select(["drgn2", exposure_spec])
         .unique(subset=["drgn2"])
-        .sort(exposure_spec, descending=False)   # ascending: lowest exposure first
+        .drop_nulls(subset=[exposure_spec]) 
+        .sort(exposure_spec, descending=False)
     )
 
     regions = region_exposure["drgn2"].to_list()
@@ -136,6 +137,7 @@ def _compute_dynamic_terciles(
         "medium": regions[n_low : n_low + n_medium],
         "high":   regions[n_low + n_medium :],
     }
+
 
 
 # =============================================================================
@@ -217,10 +219,13 @@ def build_binned_did_data(
             did.filter(pl.col("exposure_tercile").is_null())
             .select("drgn2").unique().to_series().to_list()
         )
-        raise ValueError(
-            f"Regions not assigned to any tercile under {exposure_spec}: "
-            f"{unassigned}."
+        unassigned_names = [REGION_NAMES.get(r, str(r)) for r in unassigned]
+        logger.info(
+            "  Dropping %d obs from regions with NaN exposure (%s) — "
+            "excluded from %s by construction",
+            n_null, unassigned_names, exposure_spec,
         )
+        did = did.filter(pl.col("exposure_tercile").is_not_null())
 
     did = did.with_columns(
         pl.col("exposure_tercile").eq("medium").cast(pl.Float64).alias("tercile_medium"),
