@@ -21,13 +21,6 @@ Specifications
    Adds drgn2 x year_centered interaction terms to the event study formula.
    Documented as underpowered with 17 clusters — run once for completeness,
    do not report as primary evidence.
-
-Output
-------
-    output/event_study/event_study_{outcome}.csv
-    output/event_study/event_study_{outcome}.png
-    output/event_study/placebo_{outcome}.csv
-    output/event_study/region_trends_{outcome}.csv
 """
 
 from __future__ import annotations
@@ -57,23 +50,12 @@ from src.constants import (
 
 logger = logging.getLogger(__name__)
 
-PRIMARY_SPEC  = EXPOSURE_SPECS[0]   # exposure_composite_hybrid
+PRIMARY_SPEC  = EXPOSURE_SPECS[0]   #
 _PRE_YEARS    = YEARS               # [2017, 2018, 2019]
 _REF_YEAR     = EVENT_STUDY_REFERENCE_YEAR   # 2019
 _EVENT_YEARS  = EVENT_STUDY_YEARS            # [2017, 2018, 2021, 2022, 2023, 2024, 2025]
 
-
-# =============================================================================
-# STEP 1 — BUILD EVENT STUDY PANEL
-# =============================================================================
-
 def build_event_study_data(panel: pl.DataFrame) -> pd.DataFrame:
-    """
-    Filter to event-study years (pre + post, excl. 2020) and construct
-    year x exposure interaction terms for each non-reference year.
-
-    Returns a pandas DataFrame ready for pyfixest.
-    """
     keep = _PRE_YEARS + _EVENT_YEARS
     df = panel.filter(pl.col("year").is_in(keep)).to_pandas()
 
@@ -86,11 +68,6 @@ def build_event_study_data(panel: pl.DataFrame) -> pd.DataFrame:
         len(df), sorted(df["year"].unique().tolist()), _REF_YEAR,
     )
     return df
-
-
-# =============================================================================
-# STEP 2 — ESTIMATE EVENT STUDY
-# =============================================================================
 
 def run_event_study(
     df: pd.DataFrame,
@@ -110,18 +87,6 @@ def run_event_study(
     Clusters: drgn2 (CRV1).
     WCB: wildboottest with Webb weights, B=9999, per interaction term.
     Pre-trend Wald test: joint H0 that yr_2017_x_exp = yr_2018_x_exp = 0.
-
-    Parameters
-    ----------
-    df           : pandas DataFrame from build_event_study_data()
-    outcome      : outcome column name
-    controls     : list of control variable column names
-    output_dir   : directory to save CSV output
-    region_trends: if True, add drgn2 x year_centered interaction terms
-
-    Returns
-    -------
-    pd.DataFrame with one row per event-study year
     """
     interaction_terms = [f"yr_{yr}_x_exp" for yr in _EVENT_YEARS]
     ctrl_str = (" + " + " + ".join(controls)) if controls else ""
@@ -161,7 +126,6 @@ def run_event_study(
         if c in df.columns
     ]].dropna().reset_index(drop=True)
 
-    # Rank check
     X_cols = interaction_terms + controls
     if region_trends:
         X_cols += [c for c in df_clean.columns if c.startswith("trend_")]
@@ -178,7 +142,6 @@ def run_event_study(
     logger.info("  Estimated: %d obs, %d clusters", len(df_clean),
                 df_clean["drgn2"].nunique())
 
-    # ── Coefficients ──────────────────────────────────────────────────────────
     rows = []
     for yr in _EVENT_YEARS:
         term = f"yr_{yr}_x_exp"
@@ -186,7 +149,6 @@ def run_event_study(
         se   = float(fit.se()[term])
         pval = float(fit.pvalue()[term])
 
-        # WCB per term
         p_wbt = np.nan
         try:
             boot = fit.wildboottest(param=term, reps=9999, seed=42 + yr)
@@ -202,12 +164,11 @@ def run_event_study(
             "se":           se,
             "pval_crv1":    pval,
             "pval_wbt":     p_wbt,
-            "ci_low":       coef - 2.12 * se,   # t_{16} crit for 17 clusters
+            "ci_low":       coef - 2.12 * se, 
             "ci_high":      coef + 2.12 * se,
             "pre_period":   yr < 2020,
         })
 
-    # Add reference year (coefficient = 0 by construction)
     rows.append({
         "year":       _REF_YEAR,
         "rel_year":   0,
@@ -222,7 +183,6 @@ def run_event_study(
 
     coef_df = pd.DataFrame(rows).sort_values("year").reset_index(drop=True)
 
-    # ── Pre-trend joint Wald test ─────────────────────────────────────────────
     pre_terms = [f"yr_{yr}_x_exp" for yr in _EVENT_YEARS if yr < 2020]
     coef_names = fit.coef().index.tolist()
     pre_indices = [coef_names.index(t) for t in pre_terms if t in coef_names]
@@ -245,7 +205,6 @@ def run_event_study(
         except Exception as e:
             logger.warning("  Pre-trend Wald test failed: %s", e)
 
-    # ── Save ─────────────────────────────────────────────────────────────────
     tag = "region_trends" if region_trends else "event_study"
     out_path = output_dir / f"{tag}_{outcome}.csv"
     coef_df.to_csv(out_path, index=False)
@@ -253,33 +212,12 @@ def run_event_study(
 
     return coef_df
 
-
-# =============================================================================
-# STEP 3 — PLACEBO TEST
-# =============================================================================
-
 def run_placebo(
     panel: pl.DataFrame,
     outcome: str,
     controls: list[str],
     output_dir: Path,
 ) -> dict:
-    """
-    Placebo test using pre-reform years only (2017, 2018, 2019).
-
-    Specification:
-        Y_hrt = alpha + beta_placebo (Post_fake_t x Exposure_r)
-                + gamma_r + delta_t + X theta + e
-
-    Post_fake = 1 if year == 2019 (fake post), 0 if year in {2017, 2018}.
-    Reference year FE: 2018 (omitted).
-    H0: beta_placebo = 0.
-    If WCB p > 0.10, parallel trends validated.
-
-    Returns
-    -------
-    dict with coef, se, p_crv1, p_wbt
-    """
     df = (
         panel
         .filter(pl.col("year").is_in(PLACEBO_YEARS))
@@ -322,17 +260,12 @@ def run_placebo(
     logger.info(
         "  Placebo [%s]: coef=%+.4f SE=%.4f p_CRV1=%.4f p_WCB=%.4f %s",
         outcome, coef, se, pval, p_wbt,
-        "✓ placebo null not rejected" if p_wbt > 0.10 else "⚠ placebo significant",
+        "✓ placebo null not rejected" if p_wbt > 0.10 else "placebo significant",
     )
 
     out_path = output_dir / f"placebo_{outcome}.csv"
     pd.DataFrame([result]).to_csv(out_path, index=False)
     return result
-
-
-# =============================================================================
-# STEP 4 — PLOT EVENT STUDY
-# =============================================================================
 
 def plot_event_study(
     coef_df: pd.DataFrame,

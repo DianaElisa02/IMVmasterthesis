@@ -1,16 +1,10 @@
 """
 run_event_study.py
-==================
-Runner for the event study, placebo test, and region-specific time trends.
-
 Runs three analyses:
   1. Event study         — full sample, all event-study years
   2. Placebo test        — pre-reform years only (2017–2019), fake post=2019
   3. Region trends       — event study + drgn2 x year_centered interactions
                            (robustness check, documented as underpowered)
-
-Reads from output/analysis_dataset.parquet.
-Writes to output/event_study/.
 """
 
 from __future__ import annotations
@@ -95,7 +89,6 @@ def main() -> None:
     controls = [c for c in BALANCE_CONTROLS if c in panel.columns]
     df_event = build_event_study_data(panel)
 
-    # ── 1. Event study ────────────────────────────────────────────────────────
     print("\n" + "=" * 65)
     print("  EVENT STUDY — primary specification")
     print("  Interaction: year_t x exposure_composite_hybrid")
@@ -113,7 +106,6 @@ def main() -> None:
         print_event_summary(coef_df, outcome)
         plot_event_study(coef_df, outcome, OUTPUT_DIR)
 
-    # ── 2. Placebo test ───────────────────────────────────────────────────────
     logger.info("=== Placebo test ===")
     placebo_results = []
     for outcome in ANALYSIS_OUTCOMES:
@@ -127,7 +119,6 @@ def main() -> None:
 
     print_placebo_summary(placebo_results)
 
-    # ── 3. Region-specific time trends ────────────────────────────────────────
     print("\n" + "=" * 65)
     print("  REGION-SPECIFIC TIME TRENDS (robustness)")
     print("  Note: underpowered with 17 clusters — for documentation only")
