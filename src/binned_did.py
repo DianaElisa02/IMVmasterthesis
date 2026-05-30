@@ -75,12 +75,6 @@ logger = logging.getLogger(__name__)
 _PRE_YEARS: list[int] = YEARS          # [2017, 2018, 2019]
 _N_LOW:     int       = 6              # regions in low tercile
 _N_MEDIUM:  int       = 5              # regions in medium tercile
-# high tercile = remainder (6 regions with 15 total)
-
-
-# =============================================================================
-# DYNAMIC TERCILE ASSIGNMENT
-# =============================================================================
 
 def _compute_dynamic_terciles(
     panel: pl.DataFrame,
@@ -187,13 +181,11 @@ def build_binned_did_data(
         .alias("post")
     )
 
-    # Compute tercile assignment dynamically for this spec
     terciles       = _compute_dynamic_terciles(did, exposure_spec)
     low_regions    = terciles["low"]
     medium_regions = terciles["medium"]
     high_regions   = terciles["high"]
 
-    # Log assignment so the output is traceable per spec
     low_names    = [REGION_NAMES.get(r, str(r)) for r in low_regions]
     medium_names = [REGION_NAMES.get(r, str(r)) for r in medium_regions]
     high_names   = [REGION_NAMES.get(r, str(r)) for r in high_regions]
@@ -244,11 +236,6 @@ def build_binned_did_data(
     )
     return did
 
-
-# =============================================================================
-# ESTIMATE ONE OUTCOME
-# =============================================================================
-
 def run_binned_did_spec(
     df: pd.DataFrame,
     outcome: str,
@@ -281,8 +268,6 @@ def run_binned_did_spec(
     if len(df_clean) == 0:
         raise ValueError(f"No complete cases for outcome={outcome}")
 
-    # tercile_medium and tercile_high intentionally excluded —
-    # they are time-invariant and absorbed by region FEs.
     ctrl_str = (" + " + " + ".join(controls)) if controls else ""
     formula  = f"{outcome} ~ post_x_medium + post_x_high{ctrl_str} | drgn2 + year"
 
@@ -292,7 +277,6 @@ def run_binned_did_spec(
         vcov={"CRV1": "drgn2"},
     )
 
-    # ── Coefficients ──────────────────────────────────────────────────────────
     coef_M = float(fit.coef()["post_x_medium"])
     se_M   = float(fit.se()["post_x_medium"])
     pval_M = float(fit.pvalue()["post_x_medium"])
@@ -304,7 +288,6 @@ def run_binned_did_spec(
     n_clusters = int(df_clean["drgn2"].nunique())
     t_crit     = float(t_dist.ppf(0.975, df=n_clusters - 1))
 
-    # ── WCB — seeds passed from caller, unique per spec x outcome ─────────────
     p_wbt_M = np.nan
     try:
         boot_M  = fit.wildboottest(param="post_x_medium", reps=9999, seed=seed_M)
@@ -323,7 +306,6 @@ def run_binned_did_spec(
     except Exception as e:
         logger.warning("    WCB failed %s x high: %s", outcome, e)
 
-    # ── Linearity test H0: beta_H = 2 x beta_M ───────────────────────────────
     lin_stat, lin_p, linearity_ratio = np.nan, np.nan, np.nan
     try:
         coef_names = fit.coef().index.tolist()
@@ -369,11 +351,6 @@ def run_binned_did_spec(
         "n_obs":               len(df_clean),
         "n_clusters":          n_clusters,
     }
-
-
-# =============================================================================
-# RUN ALL SPECS x OUTCOMES
-# =============================================================================
 
 def run_binned_did(
     panel: pl.DataFrame,
@@ -427,7 +404,6 @@ def run_binned_did(
                 logger.warning("Outcome '%s' not in panel -- skipping", outcome)
                 continue
 
-            # Unique seed per spec x outcome combination
             seed_M = 42 + spec_idx * n_outcomes * 2 + outcome_idx * 2
             seed_H = seed_M + 1
 

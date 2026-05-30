@@ -1,16 +1,5 @@
 """
 run_binned_did.py
-=================
-Runner for the binned DiD specification.
-
-Runs two post-period windows:
-  1. Baseline     : post = 2021-2025
-  2. COVID robust : post = 2022-2025
-
-For each window, estimates all EXPOSURE_SPECS x ANALYSIS_OUTCOMES (matdep, poverty).
-Tercile assignment is recomputed dynamically for each exposure spec.
-
-Reads from analysis_dataset.parquet (primary analysis dataset).
 """
 
 from __future__ import annotations
@@ -75,7 +64,6 @@ def print_results(df: pd.DataFrame, label: str) -> None:
 
             print(f"\n    Outcome: {row['outcome']}")
 
-            # Medium tercile
             if not pd.isna(row["pval_wbt_medium"]):
                 print(
                     f"    b_M (medium vs low): {row['coef_medium']:+.4f}  "
@@ -90,7 +78,6 @@ def print_results(df: pd.DataFrame, label: str) -> None:
                     f"SE={row['se_medium']:.4f}  WCB unavailable"
                 )
 
-            # High tercile
             if not pd.isna(row["pval_wbt_high"]):
                 print(
                     f"    b_H (high vs low)  : {row['coef_high']:+.4f}  "
@@ -105,7 +92,6 @@ def print_results(df: pd.DataFrame, label: str) -> None:
                     f"SE={row['se_high']:.4f}  WCB unavailable"
                 )
 
-            # Linearity diagnostic
             ratio_str = (
                 f"{row['linearity_ratio']:+.2f}"
                 if not pd.isna(row["linearity_ratio"]) else "n/a"

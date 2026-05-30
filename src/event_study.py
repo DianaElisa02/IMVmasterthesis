@@ -303,8 +303,11 @@ def plot_event_study(
     ax.axvline(-0.5, color="#B4B2A9", linewidth=0.8, linestyle=":",
                label="Reform (mid-2020)")
 
-    outcome_label = {"matdep": "Severe material deprivation",
-                     "poverty": "At-risk-of-poverty"}.get(outcome, outcome)
+    outcome_label = {
+        "matdep":            "Severe material deprivation",
+        "poverty":           "At-risk-of-poverty",
+        "income_net_annual": "Net disposable household income (€)",
+    }.get(outcome, outcome)
     wald_p = df["pretrend_wald_p"].dropna().iloc[0] if "pretrend_wald_p" in df.columns else None
     wald_note = f"Pre-trend Wald p={wald_p:.3f}" if wald_p is not None else ""
 

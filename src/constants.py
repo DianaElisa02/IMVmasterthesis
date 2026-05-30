@@ -549,7 +549,7 @@ PLACEBO_YEARS: list[int] = [2017, 2018, 2019]
 PLACEBO_FAKE_TREATMENT_YEAR: int = 2019   # year coded as "post" in placebo
 PLACEBO_REFERENCE_YEAR: int = 2018        # omitted category
 
-ANALYSIS_OUTCOMES: list[str] = ["matdep", "poverty"]
+ANALYSIS_OUTCOMES: list[str] = ["poverty", "matdep", "income_net_annual"]
 APPENDIX_OUTCOMES: list[str] = ["income_net_annual"]
 
 # COVID robustness — two exclusion windows
