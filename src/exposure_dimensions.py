@@ -214,23 +214,23 @@ def pool_dimensions(
 
     pooled["delta_exp_sim"] = (
         (pooled["imv_exp_sim"] - pooled["rmi_exp_sim"]) /
-        pooled["pop"]
+        pooled["avg_pop_admin"]
     ).round(4)
     pooled.loc[sim_mask, "delta_exp_sim"] = np.nan   # mark unusable
 
     pooled["delta_cov_sim"] = (
         (pooled["imv_rec_sim"] - pooled["rmi_rec_sim"]) /
-        pooled["pop"] * 100
+        pooled["avg_pop_admin"] * 100
     ).round(4)
     pooled.loc[sim_mask, "delta_cov_sim"] = np.nan   # mark unusable
 
     # Admin deltas — clean for ALL regions (no simulation involved)
     pooled["delta_exp_admin"] = (
-        -pooled["avg_rmi_exp_admin"] / pooled["pop"]
+        -pooled["avg_rmi_exp_admin"] / pooled["avg_pop_admin"]
     ).round(4)
 
     pooled["delta_cov_admin"] = (
-        -pooled["avg_titulares_admin"] / pooled["pop"] * 100
+        -pooled["avg_titulares_admin"] / pooled["avg_pop_admin"] * 100
     ).round(4)
 
     # Descriptive only
