@@ -304,9 +304,10 @@ def plot_event_study(
                label="Reform (mid-2020)")
 
     outcome_label = {
-        "matdep":            "Severe material deprivation",
-        "poverty":           "At-risk-of-poverty",
-        "income_net_annual": "Net disposable household income (€)",
+        "matdep":          "Severe material deprivation",
+        "poverty":         "At-risk-of-poverty",
+        "poverty_gap":     "Poverty gap (FGT-1)",
+        "poverty_gap_sq":  "Poverty gap squared (FGT-2)",
     }.get(outcome, outcome)
     wald_p = df["pretrend_wald_p"].dropna().iloc[0] if "pretrend_wald_p" in df.columns else None
     wald_note = f"Pre-trend Wald p={wald_p:.3f}" if wald_p is not None else ""
