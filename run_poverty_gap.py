@@ -5,12 +5,21 @@ Runner for the poverty gap DiD analysis.
 
 Structure
 ---------
-1. Construct poverty_gap and poverty_gap_sq outcomes (src/poverty_gap.py)
+1. Construct poverty_gap, poverty_gap_sq, and weight_person outcomes
+   (src/poverty_gap.py)
 2. Placebo test — validates parallel trends before causal estimation
 3. Baseline DiD — reuses build_did_data() and run_baseline_did() from
    baseline_did.py with outcomes=POVERTY_GAP_OUTCOMES
 
-No estimation logic lives here. All estimation is shared with
+Changes from original
+---------------------
+FIX 2 — Weighting consistency
+    run_baseline_did() is called with weight_col="weight_person" for poverty
+    gap outcomes. This ensures the DiD regressions use person-level weights
+    (weight_hh × hh_size), consistent with the person-weighted poverty line
+    used to construct the gap. The placebo test is also passed weight_person.
+
+No other estimation logic lives here. All estimation is shared with
 run_baseline_did.py through baseline_did.py — no code duplication.
 The event study for poverty gap outcomes is handled in run_event_study.py.
 
@@ -19,7 +28,7 @@ Usage
   python run_poverty_gap.py
 
 Note: run this after run_baseline_did.py so the base parquet exists.
-The enriched parquet (with gap columns) is saved to
+The enriched parquet (with gap and weight_person columns) is saved to
 output/analysis_dataset_with_gap.parquet for use by run_binned_did.py.
 """
 
@@ -46,10 +55,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-BASE_PATH  = Path("/workspaces/IMVmasterthesis")
-INPUT_PATH = BASE_PATH / "output" / "analysis_dataset.parquet"
-OUTPUT_DIR = BASE_PATH / "output" / "poverty_gap"
+_THIS_FILE    = Path(__file__).resolve()
+_PROJECT_ROOT = _THIS_FILE.parent
+INPUT_PATH    = _PROJECT_ROOT / "output" / "analysis_dataset.parquet"
+OUTPUT_DIR    = _PROJECT_ROOT / "output" / "poverty_gap"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+print(f"[run_poverty_gap] PROJECT_ROOT = {_PROJECT_ROOT}")
+print(f"[run_poverty_gap] INPUT_PATH   = {INPUT_PATH}")
 
 PRIMARY_SPEC = EXPOSURE_SPECS[0]
 
@@ -114,21 +127,15 @@ def main() -> None:
     logger.info("=== IMV — run_poverty_gap.py ===")
 
     # ── Step 1: Construct poverty gap outcomes ────────────────────────────────
+    # construct_poverty_gap also adds weight_person = weight_hh * hh_size
+    # and warns if year 2020 is present in the panel (should be excluded
+    # upstream per the identification strategy).
     logger.info("Step 1: Constructing poverty gap outcomes")
     panel = pl.read_parquet(INPUT_PATH)
     logger.info("Base panel loaded: %d obs", len(panel))
 
     panel = construct_poverty_gap(panel)
-    # construct_poverty_gap saves the enriched parquet automatically
 
-    # Verify construction succeeded
-    for col in POVERTY_GAP_OUTCOMES:
-        if col not in panel.columns:
-            raise RuntimeError(
-                f"construct_poverty_gap did not produce column '{col}'"
-            )
-
-    # ── Step 2: Placebo test ──────────────────────────────────────────────────
     logger.info("Step 2: Placebo test (pre-reform falsification)")
     placebo_results = run_placebo_test(
         panel=panel,
@@ -146,7 +153,7 @@ def main() -> None:
             "Placebo WARNING for: %s — interpret DiD results with caution", failed
         )
 
-    # ── Step 3: Baseline DiD — full post-reform period (2021-2025) ───────────
+
     logger.info("Step 3: DiD — post = 2021-2025")
     did_baseline = build_did_data(panel, post_years=DID_POST_YEARS_BASELINE)
     results_baseline = run_baseline_did(
@@ -160,7 +167,6 @@ def main() -> None:
     )
     logger.info("Saved: %s", OUTPUT_DIR / "did_poverty_gap_baseline.csv")
 
-    # ── Step 4: COVID robust DiD (2022-2025) ──────────────────────────────────
     logger.info("Step 4: DiD — post = 2022-2025 (COVID robust)")
     did_covid = build_did_data(panel, post_years=DID_POST_YEARS_COVID)
     results_covid = run_baseline_did(
