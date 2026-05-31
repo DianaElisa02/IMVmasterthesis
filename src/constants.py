@@ -474,22 +474,17 @@ ANALYSIS_TP_COLUMNS: list[str] = [
     "PE041",
 ]
 
-# Regions excluded from the DiD (pre-registered decision, see handoff note).
-#   23 = La Rioja
-#   24 = Aragón 
-# Note: Ceuta (63) and Melilla (64) are already excluded
 ANALYSIS_EXCLUDE_DRGN2: frozenset[int] = frozenset({63, 64})
 EXPOSURE_SIM_EXCLUDE_REGIONS: frozenset[int] = frozenset({23, 24})
 
-# Expected number of region clusters after all exclusions.
 ANALYSIS_N_CLUSTERS: int = 17
 
 EXPOSURE_SPECS: list[str] = [
     "exposure_composite_hybrid",   
-    "exposure_exp_hybrid",         # robustness: expenditure dimension only
-    "exposure_cov_hybrid",         # robustness: coverage dimension only
-    "exposure_composite_sim",      # robustness: simulation-based composite
-    "exposure_admin",              # robustness: admin-based (sign fix pending)
+    "exposure_exp_hybrid",  
+    "exposure_cov_hybrid",         
+    "exposure_composite_sim",
+    "exposure_admin",           
 ]
 
 

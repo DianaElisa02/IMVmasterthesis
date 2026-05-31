@@ -117,16 +117,18 @@ def construct_poverty_gap(panel: pl.DataFrame) -> pl.DataFrame:
     )
     logger.info("weight_person column added (weight_hh × hh_size)")
 
-    # ── Equivalised income ────────────────────────────────────────────────────
-    # HY020 (net annual household income) divided by HX240 (OECD scale).
-    # HX240 for a single adult = 1.0; couple = 1.5; couple + 1 child = 1.8; etc.
     panel = panel.with_columns(
         pl.when(
             pl.col("equiv_income").is_not_null() &
             pl.col("equiv_income").gt(0.0) &
             pl.col("income_net_annual").is_not_null()
         )
-        .then(pl.col("income_net_annual") / pl.col("equiv_income"))
+        .then(
+            pl.max_horizontal(
+                pl.col("income_net_annual"),
+                pl.lit(0.0)
+            ) / pl.col("equiv_income")
+        )
         .otherwise(pl.lit(None))
         .alias("equivalised_income")
     )
