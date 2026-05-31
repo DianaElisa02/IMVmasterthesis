@@ -25,7 +25,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
-INPUT_PATH = BASE_DIR / "output" / "analysis_dataset.parquet"
+INPUT_PATH = BASE_DIR / "output" / "analysis_dataset_with_gap.parquet"
 OUTPUT_DIR = BASE_DIR / "output" / "binned_did"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
