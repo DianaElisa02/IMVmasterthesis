@@ -73,8 +73,8 @@ from src.constants import (
 logger = logging.getLogger(__name__)
 
 _PRE_YEARS: list[int] = YEARS          # [2017, 2018, 2019]
-_N_LOW:     int       = 5              # regions in low tercile
-_N_MEDIUM:  int       = 4              # regions in medium tercile
+_N_LOW:     int       = 6              # regions in low tercile
+_N_MEDIUM:  int       = 5              # regions in medium tercile
 
 def _compute_dynamic_terciles(
     panel: pl.DataFrame,

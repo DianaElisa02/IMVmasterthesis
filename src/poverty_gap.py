@@ -51,8 +51,7 @@ _SRC_DIR        = Path(__file__).resolve().parent        # → .../IMVmasterthes
 _PROJECT_ROOT   = _SRC_DIR.parent                        # → .../IMVmasterthesis
 ENRICHED_OUTPUT = _PROJECT_ROOT / "output" / "analysis_dataset_with_gap.parquet"
 print(f"[poverty_gap] ENRICHED_OUTPUT = {ENRICHED_OUTPUT}")
-# FIX 5b: threshold changed from 0.60 to 0.40
-POVERTY_LINE_SHARE = 0.40
+POVERTY_LINE_SHARE = 0.60
 
 
 def construct_poverty_gap(panel: pl.DataFrame) -> pl.DataFrame:
