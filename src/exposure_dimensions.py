@@ -229,11 +229,11 @@ def pool_dimensions(
     pooled.loc[sim_mask, "delta_cov_sim"] = np.nan
     
     pooled["delta_exp_admin"] = (
-        pooled["avg_rmi_exp_admin"] / pooled["avg_pop_admin"]
+       - pooled["avg_rmi_exp_admin"] / pooled["avg_pop_admin"]
     ).round(4)
 
     pooled["delta_cov_admin"] = (
-        pooled["avg_titulares_admin"] / pooled["avg_pop_admin"] * 100
+       - pooled["avg_titulares_admin"] / pooled["avg_pop_admin"] * 100
     ).round(4)
 
     # Descriptive only
