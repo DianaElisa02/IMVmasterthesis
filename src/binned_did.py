@@ -24,7 +24,7 @@ Specification
 Tercile assignment
 ------------------
 Terciles are computed dynamically for each exposure specification by
-ranking the 15 regions in ascending order of their exposure value and
+ranking the 17 regions in ascending order of their exposure value and
 applying the same 5 / 4 / 6 split used in the primary specification.
 For the primary spec (exposure_composite_hybrid) this reproduces the
 fixed assignment in EXPOSURE_TERCILES exactly. For alternative specs
@@ -45,7 +45,7 @@ Linearity test
 H0: β_H = 2 × β_M, implemented as a Wald test via PyFixest's wald_test().
 The test statistic follows a chi-squared distribution (not F) because
 the constraint vector q is non-zero (Rβ = q with q != 0). This is
-asymptotically valid; with 15 cluster units the approximation is
+asymptotically valid; with 17 cluster units the approximation is
 conservative in the direction of failing to reject linearity.
 The ratio b_H/b_M is a descriptive heuristic only and is suppressed
 when |b_M| < 0.001 (near-zero denominator).
