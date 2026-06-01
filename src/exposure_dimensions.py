@@ -28,8 +28,8 @@ Fully simulated (both sides from EUROMOD):
     delta_cov_sim      = (avg_imv_rec_sim - avg_rmi_rec_sim) / avg_pop × 100
 
 Purely administrative (no simulation):
-    delta_exp_admin    = (-avg_rmi_exp_admin) / avg_pop
-    delta_cov_admin    = (-avg_titulares_admin) / avg_pop × 100
+    delta_exp_admin    = (avg_rmi_exp_admin) / avg_pop
+    delta_cov_admin    = (avg_titulares_admin) / avg_pop × 100
 
 Descriptive only (not used in any exposure spec):
     delta_mean         = avg_imv_mean - avg_rmi_mean
@@ -229,11 +229,11 @@ def pool_dimensions(
     pooled.loc[sim_mask, "delta_cov_sim"] = np.nan
     
     pooled["delta_exp_admin"] = (
-        -pooled["avg_rmi_exp_admin"] / pooled["avg_pop_admin"]
+        pooled["avg_rmi_exp_admin"] / pooled["avg_pop_admin"]
     ).round(4)
 
     pooled["delta_cov_admin"] = (
-        -pooled["avg_titulares_admin"] / pooled["avg_pop_admin"] * 100
+        pooled["avg_titulares_admin"] / pooled["avg_pop_admin"] * 100
     ).round(4)
 
     # Descriptive only
