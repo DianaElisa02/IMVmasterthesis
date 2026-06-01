@@ -195,9 +195,15 @@ def pool_dimensions(
 
     pooled = pooled.merge(admin_df, on="drgn2", how="left")
 
-    # --- Step 3: compute delta dimensions ---
+    if sim_exclude_regions:
+        fix_mask = pooled["drgn2"].isin(sim_exclude_regions)
+        pooled.loc[fix_mask, "rmi_exp_sim"] = pooled.loc[fix_mask, "avg_rmi_exp_admin"]
+        pooled.loc[fix_mask, "rmi_rec_sim"] = pooled.loc[fix_mask, "avg_titulares_admin"]
+        logger.info(
+            "Substituted broken EUROMOD RMI (€1 placeholder) with admin data "
+            "for regions: %s", sorted(sim_exclude_regions)
+        )
 
-    # Hybrid deltas — clean for ALL regions (RMI side = Informe admin)
     pooled["delta_exp_hybrid"] = (
         (pooled["imv_exp_sim"] - pooled["avg_rmi_exp_admin"]) /
         pooled["avg_pop_admin"]
@@ -208,23 +214,20 @@ def pool_dimensions(
         pooled["avg_pop_admin"] * 100
     ).round(4)
 
-    # Fully simulated deltas — NaN for sim_exclude_regions (bsarg_s broken)
-    _sim_excl = exclude_regions | sim_exclude_regions
-    sim_mask = pooled["drgn2"].isin(_sim_excl)
+    sim_mask = pooled["drgn2"].isin(exclude_regions)
 
     pooled["delta_exp_sim"] = (
         (pooled["imv_exp_sim"] - pooled["rmi_exp_sim"]) /
         pooled["avg_pop_admin"]
     ).round(4)
-    pooled.loc[sim_mask, "delta_exp_sim"] = np.nan   # mark unusable
+    pooled.loc[sim_mask, "delta_exp_sim"] = np.nan
 
     pooled["delta_cov_sim"] = (
         (pooled["imv_rec_sim"] - pooled["rmi_rec_sim"]) /
         pooled["avg_pop_admin"] * 100
     ).round(4)
-    pooled.loc[sim_mask, "delta_cov_sim"] = np.nan   # mark unusable
-
-    # Admin deltas — clean for ALL regions (no simulation involved)
+    pooled.loc[sim_mask, "delta_cov_sim"] = np.nan
+    
     pooled["delta_exp_admin"] = (
         -pooled["avg_rmi_exp_admin"] / pooled["avg_pop_admin"]
     ).round(4)
