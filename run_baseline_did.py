@@ -32,9 +32,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-BASE_PATH  = Path("/workspaces/IMVmasterthesis")
-INPUT_PATH = BASE_PATH / "output" / "analysis_dataset.parquet"
-OUTPUT_DIR = BASE_PATH / "output" / "baseline_did"
+BASE_DIR = Path(__file__).resolve().parent
+INPUT_PATH = BASE_DIR / "output" / "analysis_dataset_with_gap.parquet"
+OUTPUT_DIR = BASE_DIR / "output" / "baseline_did"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 PRIMARY_SPEC = EXPOSURE_SPECS[0]   # exposure_composite_hybrid
