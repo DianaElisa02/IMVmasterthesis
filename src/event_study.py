@@ -200,9 +200,6 @@ def run_event_study(
         model_tag, len(df_clean), df_clean["drgn2"].nunique(),
     )
 
-    # ------------------------------------------------------------------
-    # Collect per-year coefficients + WCB p-values
-    # ------------------------------------------------------------------
     rows = []
     for yr in _EVENT_YEARS:
         term = f"yr_{yr}_x_exp"

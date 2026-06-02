@@ -18,9 +18,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-BASE_PATH   = Path("/workspaces/IMVmasterthesis")
-INPUT_PATH  = BASE_PATH / "output" / "analysis_dataset.parquet"
-OUTPUT_DIR  = BASE_PATH / "output" / "balance_checks"
+BASE_DIR   = Path(__file__).resolve().parent
+INPUT_PATH = BASE_DIR / "output" / "analysis_dataset_with_gap.parquet"
+OUTPUT_DIR  = BASE_DIR / "output" / "balance_checks"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 TABLE_OUTPUT = OUTPUT_DIR / "balance_table.csv"
