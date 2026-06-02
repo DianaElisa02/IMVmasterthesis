@@ -1,0 +1,2 @@
+outcome,model,wald_stat,wald_p,lead_mean,lead_max_abs,n_pre_terms,n_obs,n_clusters
+matdep,region_trends,23798.096196890107,0.0,-0.3634129723219168,0.4808508671108664,2,171999,17

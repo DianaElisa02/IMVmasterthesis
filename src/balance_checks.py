@@ -7,10 +7,6 @@ Computes a Table 1 style balance table comparing pre-reform means of
 outcomes and controls across exposure terciles (low / medium / high),
 defined on exposure_composite_hybrid at the region level.
 
-Public API
-----------
-  run_balance_checks(panel) -> pl.DataFrame
-      Returns the balance table as a Polars DataFrame.
 """
 
 from __future__ import annotations

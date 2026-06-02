@@ -1,0 +1,2 @@
+outcome,model,wald_stat,wald_p,lead_mean,lead_max_abs,n_pre_terms,n_obs,n_clusters
+poverty,baseline_exposure_exp_hybrid,2.3309995698732373,0.311766806735082,0.002393022703575297,0.005245954448314393,2,171999,17

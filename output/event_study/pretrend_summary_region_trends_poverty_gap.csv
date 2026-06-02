@@ -1,0 +1,2 @@
+outcome,model,wald_stat,wald_p,lead_mean,lead_max_abs,n_pre_terms,n_obs,n_clusters
+poverty_gap,region_trends,100629.07807615631,0.0,-0.5655294463636903,0.7528919547789972,2,171999,17
