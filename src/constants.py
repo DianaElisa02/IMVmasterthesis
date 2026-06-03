@@ -513,6 +513,8 @@ BALANCE_OUTCOMES: list[str] = [
     "matdep",
     "poverty",
     "income_net_annual",
+    "poverty_gap", 
+    "poverty_gap_sq"
 ]
 
 BALANCE_CONTROLS: list[str] = [
@@ -537,18 +539,13 @@ BALANCE_PRIMARY_SPEC: str = "exposure_composite_hybrid"
 EVENT_STUDY_REFERENCE_YEAR: int = 2019   # omitted category — parallel trends reference
 EVENT_STUDY_YEARS: list[int] = [2017, 2018, 2021, 2022, 2023, 2024, 2025]  # 2020 excluded
 
-# Placebo reform test
-# Uses only pre-reform years (2017-2019)
-# Fake treatment date: 2018 (Post_fake = 1 if year = 2019, 0 otherwise)
 PLACEBO_YEARS: list[int] = [2017, 2018, 2019]
 PLACEBO_FAKE_TREATMENT_YEAR: int = 2019   # year coded as "post" in placebo
 PLACEBO_REFERENCE_YEAR: int = 2018        # omitted category
 
 ANALYSIS_OUTCOMES: list[str] = ["poverty", "matdep", "poverty_gap", "poverty_gap_sq"]
 
-# COVID robustness — two exclusion windows
-# Version A: exclude 2021 only — removes peak COVID + incomplete IMV rollout year
-# Version B: exclude 2021 and 2022 — removes COVID recovery + low take-up period
+
 COVID_ROBUST_SPECS: dict[str, dict] = {
     "excl_2021": {
         "exclude_years":  [2021],

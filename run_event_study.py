@@ -312,6 +312,11 @@ def plot_placebo_primary(placebo_df: pd.DataFrame, output_path: Path) -> None:
     x_span = d["ci_high"].max() - d["ci_low"].min()
     offset = 0.03 * x_span if np.isfinite(x_span) and x_span > 0 else 0.001
 
+    xmin = d["ci_low"].min()
+    xmax = d["ci_high"].max()
+    span = xmax - xmin
+    ax.set_xlim(xmin - 0.05 * span, xmax + 0.18 * span)
+
     for pos, (_, row) in enumerate(d.iterrows()):
         p = row.get("pval_wbt", np.nan)
         txt = f"WCB p={p:.3f}" if not pd.isna(p) else "WCB p=NA"

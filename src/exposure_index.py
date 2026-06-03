@@ -58,7 +58,7 @@ SPECS: list[dict] = [
     {
         "name":        "exposure_composite_sim",
         "dims":        ["delta_exp_sim", "delta_cov_sim"],
-        "weights":     [0.3, 0.7],
+        "weights":     [0.5, 0.5],
         "description": "Fully simulated composite — both sides from EUROMOD "
                        "(expenditure + coverage, equally weighted)",
         "primary":     False,
@@ -66,7 +66,7 @@ SPECS: list[dict] = [
     {
         "name":        "exposure_admin",
         "dims":        ["delta_exp_admin", "delta_cov_admin"],
-        "weights":     [0.3, 0.7],
+        "weights":     [0.5, 0.5],
         "description": "Purely administrative — negative pre-reform RMI "
                        "expenditure + coverage intensity (no simulation)",
         "primary":     False,
