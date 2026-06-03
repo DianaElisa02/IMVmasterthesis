@@ -46,7 +46,6 @@ ALL_EVENT_SAMPLE_YEARS = sorted(set(PRE_YEARS + EVENT_YEARS + [REF_YEAR]))
 # =============================================================================
 # Utilities
 # =============================================================================
-
 def _safe_float(value) -> float:
     try:
         if hasattr(value, "iloc"):
@@ -125,7 +124,6 @@ def _wald_joint_test(fit, terms: list[str]) -> tuple[float, float]:
 # =============================================================================
 # Tercile utilities retained for appendix checks
 # =============================================================================
-
 def make_region_terciles(
     panel: pl.DataFrame,
     exposure: str,
@@ -154,9 +152,7 @@ def make_region_terciles(
 
     df["_rank"] = df["exposure_value"].rank(method="first")
     df["exposure_tercile"] = pd.qcut(
-        df["_rank"],
-        q=3,
-        labels=["low", "medium", "high"],
+        df["_rank"], q=3, labels=["low", "medium", "high"]
     ).astype(str)
 
     df["medium_exp"] = (df["exposure_tercile"] == "medium").astype(float)
@@ -191,10 +187,6 @@ def attach_terciles(
     )
     return df, terciles
 
-
-# =============================================================================
-# Continuous event study
-# =============================================================================
 
 def build_event_study_data(
     panel: pl.DataFrame,
@@ -276,11 +268,7 @@ def run_event_study(
     )
 
     keep_cols = [outcome, "drgn2", "year"] + interaction_terms + controls + trend_terms
-    work = (
-        work[[c for c in keep_cols if c in work.columns]]
-        .dropna()
-        .reset_index(drop=True)
-    )
+    work = work[[c for c in keep_cols if c in work.columns]].dropna().reset_index(drop=True)
 
     if work.empty:
         raise ValueError(f"No complete cases for outcome={outcome}, exposure={exposure}.")
@@ -292,7 +280,6 @@ def run_event_study(
     n_obs = len(work)
 
     rows = []
-
     for yr in EVENT_YEARS:
         term = f"yr_{yr}_x_exp"
         coef = float(fit.coef().get(term, np.nan))
@@ -364,9 +351,7 @@ def run_event_study(
     post_max_abs = float(np.max(np.abs(post_coefs))) if post_coefs else np.nan
     lead_to_post_ratio = (
         lead_max_abs / post_max_abs
-        if not np.isnan(lead_max_abs)
-        and not np.isnan(post_max_abs)
-        and post_max_abs > 0
+        if not np.isnan(lead_max_abs) and not np.isnan(post_max_abs) and post_max_abs > 0
         else np.nan
     )
 
@@ -381,10 +366,6 @@ def run_event_study(
 
     return result
 
-
-# =============================================================================
-# Continuous placebo
-# =============================================================================
 
 def run_placebo_continuous(
     panel: pl.DataFrame,
@@ -409,11 +390,7 @@ def run_placebo_continuous(
     formula = f"{outcome} ~ post_fake_x_exp{ctrl_str} | drgn2 + year"
 
     keep_cols = [outcome, "drgn2", "year", "post_fake_x_exp"] + controls
-    df_clean = (
-        df[[c for c in keep_cols if c in df.columns]]
-        .dropna()
-        .reset_index(drop=True)
-    )
+    df_clean = df[[c for c in keep_cols if c in df.columns]].dropna().reset_index(drop=True)
 
     if df_clean.empty:
         raise ValueError(f"No complete cases for continuous placebo: {outcome}, {exposure}")
@@ -454,14 +431,12 @@ def run_placebo_continuous(
 # =============================================================================
 # Tercile appendix checks
 # =============================================================================
-
 def build_tercile_event_study_data(
     panel: pl.DataFrame,
     exposure: str = PRIMARY_SPEC,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Build event-study data using exposure terciles for appendix checks."""
     keep_years = sorted(set(PRE_YEARS + EVENT_YEARS + [REF_YEAR]))
-
     panel_keep = panel.filter(pl.col("year").is_in(keep_years))
     df, terciles = attach_terciles(panel_keep, exposure=exposure)
 
@@ -497,19 +472,10 @@ def run_event_study_terciles(
         interaction_terms.extend([f"yr_{yr}_x_medium", f"yr_{yr}_x_high"])
 
     ctrl_str = (" + " + " + ".join(controls)) if controls else ""
-    formula = (
-        f"{outcome} ~ "
-        + " + ".join(interaction_terms)
-        + ctrl_str
-        + " | drgn2 + year"
-    )
+    formula = f"{outcome} ~ " + " + ".join(interaction_terms) + ctrl_str + " | drgn2 + year"
 
     keep_cols = [outcome, "drgn2", "year"] + interaction_terms + controls
-    work = (
-        df[[c for c in keep_cols if c in df.columns]]
-        .dropna()
-        .reset_index(drop=True)
-    )
+    work = df[[c for c in keep_cols if c in df.columns]].dropna().reset_index(drop=True)
 
     if work.empty:
         raise ValueError(f"No complete cases for tercile event study: {outcome}, {exposure}")
@@ -520,24 +486,13 @@ def run_event_study_terciles(
     n_obs = len(work)
 
     rows = []
-
     for yr in EVENT_YEARS:
         for group in ["medium", "high"]:
             term = f"yr_{yr}_x_{group}"
             coef = float(fit.coef().get(term, np.nan))
             se = float(fit.se().get(term, np.nan))
             p_crv1 = float(fit.pvalue().get(term, np.nan))
-            p_wbt = (
-                _run_wcb(
-                    fit,
-                    term,
-                    seed=seed_base + yr + (10 if group == "high" else 0),
-                    reps=reps,
-                )
-                if run_wcb
-                else np.nan
-            )
-
+            p_wbt = _run_wcb(fit, term, seed=seed_base + yr + (10 if group == "high" else 0), reps=reps) if run_wcb else np.nan
             rows.append({
                 "model": "tercile_event_study",
                 "exposure_spec": exposure,
@@ -589,7 +544,6 @@ def run_event_study_terciles(
     wald_stat, wald_p = _wald_joint_test(fit, pre_terms)
     result["pretrend_wald_stat"] = wald_stat
     result["pretrend_wald_p"] = wald_p
-
     return result
 
 
@@ -612,19 +566,10 @@ def run_placebo_terciles(
 
     terms = ["post_fake_x_medium", "post_fake_x_high"]
     ctrl_str = (" + " + " + ".join(controls)) if controls else ""
-    formula = (
-        f"{outcome} ~ "
-        + " + ".join(terms)
-        + ctrl_str
-        + " | drgn2 + year"
-    )
+    formula = f"{outcome} ~ " + " + ".join(terms) + ctrl_str + " | drgn2 + year"
 
     keep_cols = [outcome, "drgn2", "year"] + terms + controls
-    work = (
-        df[[c for c in keep_cols if c in df.columns]]
-        .dropna()
-        .reset_index(drop=True)
-    )
+    work = df[[c for c in keep_cols if c in df.columns]].dropna().reset_index(drop=True)
 
     if work.empty:
         raise ValueError(f"No complete cases for tercile placebo: {outcome}, {exposure}")
@@ -640,7 +585,6 @@ def run_placebo_terciles(
         p_crv1 = float(fit.pvalue().get(term, np.nan))
         p_wbt = _run_wcb(fit, term, seed=seed_base + idx, reps=reps)
         group = "medium" if term.endswith("medium") else "high"
-
         rows.append({
             "model": "tercile_placebo",
             "exposure_spec": exposure,
@@ -669,5 +613,4 @@ def run_placebo_terciles(
     result = pd.DataFrame(rows)
     result["joint_wald_stat"] = wald_stat
     result["joint_wald_p"] = wald_p
-
     return result
