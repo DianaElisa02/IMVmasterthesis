@@ -1,0 +1,5 @@
+model,exposure_spec,outcome,pretrend_wald_stat,pretrend_wald_p,lead_mean,lead_max_abs,n_obs,n_clusters
+continuous_event_study_region_trends,exposure_composite_hybrid,matdep,23.762144100536897,6.920157349207337e-06,0.009854770671239344,0.016184541891859566,171999,17
+continuous_event_study_region_trends,exposure_composite_hybrid,poverty,37.1370532550633,8.625640399812955e-09,0.02141734176638878,0.027904848422615182,171999,17
+continuous_event_study_region_trends,exposure_composite_hybrid,poverty_gap,65.68259293871259,5.4601700041013665e-15,0.013253081998597784,0.019742749450152575,171999,17
+continuous_event_study_region_trends,exposure_composite_hybrid,poverty_gap_sq,72.93008813876254,1.4569095104493682e-16,0.009157691524592294,0.014024361494851026,171999,17
