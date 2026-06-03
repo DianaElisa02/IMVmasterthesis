@@ -8,10 +8,17 @@ the level of a small number of Autonomous Communities.
 
 Main outputs:
     output/robustness/event_study_primary.csv
+    output/robustness/event_study_primary_table.csv
     output/robustness/event_study_primary_pretrend_summary.csv
+    output/robustness/event_study_primary_verdict.csv
+
     output/robustness/placebo_primary.csv
+    output/robustness/placebo_primary_verdict.csv
+
     output/robustness/event_study_alternative_exposures.csv
+    output/robustness/event_study_alternative_exposures_table.csv
     output/robustness/event_study_alternative_pretrend_summary.csv
+    output/robustness/event_study_alternative_pretrend_verdict.csv
 
 Figures:
     output/robustness/fig_event_study_primary.png
@@ -25,7 +32,9 @@ import logging
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -55,6 +64,10 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 PRIMARY_SPEC = "exposure_composite_hybrid"
 
+# Diagnostic threshold for pretrend/placebo checks.
+# This is intentionally a diagnostic threshold, not a definitive causal test.
+DIAGNOSTIC_ALPHA = 0.10
+
 OUTCOME_LABELS = {
     "poverty": "At-risk-of-poverty",
     "matdep": "Severe material deprivation",
@@ -80,6 +93,7 @@ def _write(df: pd.DataFrame, path: Path) -> None:
     if df.empty:
         logger.warning("No rows to write: %s", path)
         return
+
     df.to_csv(path, index=False)
     logger.info("Saved: %s | rows=%d", path, len(df))
 
@@ -105,16 +119,258 @@ def _pretrend_summary(event_df: pd.DataFrame) -> pd.DataFrame:
         "lead_to_post_ratio",
         "n_obs",
         "n_clusters",
+        "expected_pre_years",
+        "estimated_pre_years",
+        "n_pretrend_terms_expected",
+        "n_pretrend_terms_estimated",
     ]
     available = [c for c in summary_cols if c in event_df.columns]
 
-    return (
+    summary = (
         event_df
         .groupby(group_cols, dropna=False)[available]
         .first()
         .reset_index()
     )
 
+    summary["outcome_label"] = summary["outcome"].map(OUTCOME_LABELS).fillna(summary["outcome"])
+    summary["exposure_label"] = (
+        summary["exposure_spec"].map(EXPOSURE_LABELS).fillna(summary["exposure_spec"])
+    )
+
+    first_cols = [
+        "model",
+        "exposure_spec",
+        "exposure_label",
+        "outcome",
+        "outcome_label",
+    ]
+    other_cols = [c for c in summary.columns if c not in first_cols]
+
+    return summary[first_cols + other_cols]
+
+def _add_pretrend_verdict(summary: pd.DataFrame, alpha: float = 0.10) -> pd.DataFrame:
+    """
+    Add a cautious pass/fail diagnostic for the event-study pretrend test.
+
+    PASS is only assigned if all expected pre-period terms were estimated and
+    the joint Wald diagnostic does not reject at the selected alpha.
+    """
+    if summary.empty:
+        return summary
+
+    out = summary.copy()
+
+    def verdict(row) -> str:
+        p = row.get("pretrend_wald_p", np.nan)
+        expected = row.get("n_pretrend_terms_expected", np.nan)
+        estimated = row.get("n_pretrend_terms_estimated", np.nan)
+
+        if pd.isna(p):
+            return "UNKNOWN_pretrend_test_unavailable"
+
+        if not pd.isna(expected) and not pd.isna(estimated):
+            if int(estimated) < int(expected):
+                return "UNKNOWN_not_all_pretrend_terms_estimated"
+
+        if p > alpha:
+            return "PASS_no_evidence_of_differential_pretrend"
+
+        return "WARNING_pretrend_diagnostic_failed"
+
+    out["pretrend_alpha"] = alpha
+    out["pretrend_verdict"] = out.apply(verdict, axis=1)
+
+    out["interpretation"] = out["pretrend_verdict"].map(
+        {
+            "PASS_no_evidence_of_differential_pretrend": (
+                "No statistically significant evidence of differential pre-reform "
+                "trends at the diagnostic threshold."
+            ),
+            "WARNING_pretrend_diagnostic_failed": (
+                "Pre-reform exposure-year interactions are jointly statistically "
+                "different from zero; interpret DiD estimates cautiously."
+            ),
+            "UNKNOWN_pretrend_test_unavailable": (
+                "Pretrend diagnostic unavailable."
+            ),
+            "UNKNOWN_not_all_pretrend_terms_estimated": (
+                "Not all expected pre-period event-study terms were estimated; "
+                "do not interpret this as a valid pass/fail diagnostic."
+            ),
+        }
+    )
+
+    return out
+
+
+def _event_study_table(event_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Create a compact, table-ready event-study output by outcome and year.
+    """
+    if event_df.empty:
+        return pd.DataFrame()
+
+    cols = [
+        "model",
+        "exposure_spec",
+        "outcome",
+        "year",
+        "rel_year",
+        "term",
+        "coef",
+        "se",
+        "ci_low",
+        "ci_high",
+        "pval_crv1",
+        "pval_wbt",
+        "pre_period",
+        "reference_year",
+        "pretrend_wald_p",
+        "n_obs",
+        "n_clusters",
+    ]
+
+    available = [c for c in cols if c in event_df.columns]
+    out = event_df[available].copy()
+
+    out["outcome_label"] = out["outcome"].map(OUTCOME_LABELS).fillna(out["outcome"])
+    out["exposure_label"] = out["exposure_spec"].map(EXPOSURE_LABELS).fillna(out["exposure_spec"])
+
+    # Table-friendly formatted columns.
+    out["coef_rounded"] = out["coef"].round(4)
+    out["se_rounded"] = out["se"].round(4)
+    out["ci_95"] = (
+        "["
+        + out["ci_low"].round(4).astype(str)
+        + ", "
+        + out["ci_high"].round(4).astype(str)
+        + "]"
+    )
+    out["pval_wbt_rounded"] = out["pval_wbt"].round(4)
+    out["pval_crv1_rounded"] = out["pval_crv1"].round(4)
+
+    first_cols = [
+        "model",
+        "exposure_spec",
+        "exposure_label",
+        "outcome",
+        "outcome_label",
+        "year",
+        "rel_year",
+        "term",
+        "coef",
+        "se",
+        "ci_low",
+        "ci_high",
+        "ci_95",
+        "pval_crv1",
+        "pval_wbt",
+        "pretrend_wald_p",
+        "pre_period",
+        "reference_year",
+        "n_obs",
+        "n_clusters",
+        "coef_rounded",
+        "se_rounded",
+        "pval_crv1_rounded",
+        "pval_wbt_rounded",
+    ]
+
+    existing = [c for c in first_cols if c in out.columns]
+    remaining = [c for c in out.columns if c not in existing]
+
+    return out[existing + remaining].sort_values(
+        ["model", "exposure_spec", "outcome", "year"]
+    ).reset_index(drop=True)
+
+
+def _placebo_verdict(placebo_df: pd.DataFrame, alpha: float = DIAGNOSTIC_ALPHA) -> pd.DataFrame:
+    """
+    Add a clear diagnostic verdict for the placebo test.
+    """
+    if placebo_df.empty:
+        return pd.DataFrame()
+
+    out = placebo_df.copy()
+    out["outcome_label"] = out["outcome"].map(OUTCOME_LABELS).fillna(out["outcome"])
+    out["exposure_label"] = out["exposure_spec"].map(EXPOSURE_LABELS).fillna(out["exposure_spec"])
+    out["placebo_alpha"] = alpha
+
+    def verdict(p: float) -> str:
+        if pd.isna(p):
+            return "UNKNOWN_placebo_test_unavailable"
+        if p > alpha:
+            return "PASS_placebo_not_statistically_different_from_zero"
+        return "WARNING_placebo_statistically_different_from_zero"
+
+    out["placebo_verdict"] = out["pval_wbt"].apply(verdict)
+    out["interpretation"] = out["placebo_verdict"].map(
+        {
+            "PASS_placebo_not_statistically_different_from_zero": (
+                "The placebo interaction is not statistically distinguishable "
+                "from zero at the diagnostic threshold."
+            ),
+            "WARNING_placebo_statistically_different_from_zero": (
+                "The placebo interaction is statistically distinguishable from "
+                "zero; this weakens support for parallel pre-trends."
+            ),
+            "UNKNOWN_placebo_test_unavailable": (
+                "Placebo diagnostic unavailable."
+            ),
+        }
+    )
+
+    preferred_cols = [
+        "model",
+        "exposure_spec",
+        "exposure_label",
+        "outcome",
+        "outcome_label",
+        "term",
+        "coef",
+        "se",
+        "ci_low",
+        "ci_high",
+        "pval_crv1",
+        "pval_wbt",
+        "placebo_alpha",
+        "placebo_verdict",
+        "interpretation",
+        "fake_treatment_year",
+        "n_obs",
+        "n_clusters",
+    ]
+
+    existing = [c for c in preferred_cols if c in out.columns]
+    remaining = [c for c in out.columns if c not in existing]
+
+    return out[existing + remaining]
+
+
+def _log_verdicts(verdict_df: pd.DataFrame, label: str, verdict_col: str) -> None:
+    """
+    Log a readable summary of diagnostic verdicts.
+    """
+    if verdict_df.empty or verdict_col not in verdict_df.columns:
+        logger.warning("No verdicts available for %s", label)
+        return
+
+    logger.info("=== %s diagnostic verdicts ===", label)
+
+    cols = ["outcome", "exposure_spec", verdict_col]
+    cols = [c for c in cols if c in verdict_df.columns]
+
+    for _, row in verdict_df[cols].iterrows():
+        exposure = row.get("exposure_spec", "")
+        outcome = row.get("outcome", "")
+        verdict = row.get(verdict_col, "")
+        logger.info("%s | %s | %s", exposure, outcome, verdict)
+
+
+# =============================================================================
+# Plotting
+# =============================================================================
 
 def _plot_one_event_study(
     ax: plt.Axes,
@@ -179,7 +435,7 @@ def _plot_one_event_study(
 
 def plot_primary_event_study(event_df: pd.DataFrame, output_path: Path) -> None:
     """
-    Option A layout:
+    Preferred layout:
         poverty | matdep
         poverty_gap | poverty_gap_sq
     """
@@ -315,7 +571,9 @@ def plot_placebo_primary(placebo_df: pd.DataFrame, output_path: Path) -> None:
     xmin = d["ci_low"].min()
     xmax = d["ci_high"].max()
     span = xmax - xmin
-    ax.set_xlim(xmin - 0.05 * span, xmax + 0.18 * span)
+
+    if np.isfinite(span) and span > 0:
+        ax.set_xlim(xmin - 0.05 * span, xmax + 0.18 * span)
 
     for pos, (_, row) in enumerate(d.iterrows()):
         p = row.get("pval_wbt", np.nan)
@@ -342,6 +600,7 @@ def main() -> None:
     logger.info("=== Simplified IMV event-study diagnostics ===")
     logger.info("Input: %s", INPUT_PATH)
     logger.info("Output: %s", OUTPUT_DIR)
+    logger.info("Diagnostic alpha: %.2f", DIAGNOSTIC_ALPHA)
 
     panel = pl.read_parquet(INPUT_PATH)
     panel_cols = set(panel.columns)
@@ -370,7 +629,7 @@ def main() -> None:
                 region_trends=False,
                 model="primary_continuous_event_study",
                 seed_base=42 + 10 * outcome_idx,
-                run_wcb=True,
+                run_wcb=False,
             )
             primary_rows.append(res)
         except Exception as exc:
@@ -383,17 +642,27 @@ def main() -> None:
     )
 
     _write(primary_event, OUTPUT_DIR / "event_study_primary.csv")
-    _write(
-        _pretrend_summary(primary_event),
-        OUTPUT_DIR / "event_study_primary_pretrend_summary.csv",
+
+    primary_table = _event_study_table(primary_event)
+    _write(primary_table, OUTPUT_DIR / "event_study_primary_table.csv")
+
+    primary_summary = _pretrend_summary(primary_event)
+    primary_verdict = _add_pretrend_verdict(primary_summary, alpha=DIAGNOSTIC_ALPHA)
+
+    _write(primary_summary, OUTPUT_DIR / "event_study_primary_pretrend_summary.csv")
+    _write(primary_verdict, OUTPUT_DIR / "event_study_primary_verdict.csv")
+
+    _log_verdicts(
+    primary_verdict,
+    label="Primary event-study pretrend",
+    verdict_col="pretrend_verdict",
     )
 
     if not primary_event.empty:
         plot_primary_event_study(
             primary_event,
             OUTPUT_DIR / "fig_event_study_primary.png",
-        )
-
+    )
     # -------------------------------------------------------------------------
     # 2. Primary placebo
     # -------------------------------------------------------------------------
@@ -418,7 +687,16 @@ def main() -> None:
         else pd.DataFrame()
     )
 
+    placebo_verdict = _placebo_verdict(placebo_primary, alpha=DIAGNOSTIC_ALPHA)
+
     _write(placebo_primary, OUTPUT_DIR / "placebo_primary.csv")
+    _write(placebo_verdict, OUTPUT_DIR / "placebo_primary_verdict.csv")
+
+    _log_verdicts(
+        placebo_verdict,
+        label="Primary placebo",
+        verdict_col="placebo_verdict",
+    )
 
     if not placebo_primary.empty:
         plot_placebo_primary(
@@ -451,7 +729,7 @@ def main() -> None:
                     region_trends=False,
                     model="alternative_exposure_event_study",
                     seed_base=2000 + 100 * exposure_idx + 10 * outcome_idx,
-                    run_wcb=True,
+                    run_wcb=False,
                 )
                 alt_rows.append(res)
             except Exception as exc:
@@ -469,9 +747,20 @@ def main() -> None:
     )
 
     _write(alt_event, OUTPUT_DIR / "event_study_alternative_exposures.csv")
-    _write(
-        _pretrend_summary(alt_event),
-        OUTPUT_DIR / "event_study_alternative_pretrend_summary.csv",
+
+    alt_table = _event_study_table(alt_event)
+    _write(alt_table, OUTPUT_DIR / "event_study_alternative_exposures_table.csv")
+
+    alt_summary = _pretrend_summary(alt_event)
+    alt_verdict = _add_pretrend_verdict(alt_summary, alpha=DIAGNOSTIC_ALPHA)
+
+    _write(alt_summary, OUTPUT_DIR / "event_study_alternative_pretrend_summary.csv")
+    _write(alt_verdict, OUTPUT_DIR / "event_study_alternative_pretrend_verdict.csv")
+
+    _log_verdicts(
+        alt_verdict,
+        label="Alternative exposure event-study pretrend",
+        verdict_col="pretrend_verdict",
     )
 
     if not alt_event.empty:

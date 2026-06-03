@@ -1,0 +1,2 @@
+check,available,n_obs,min,max,mean,all_zero,message
+hh_size_minus_n_children_minus_n_adults,True,171999,0.0,0.0,0.0,True,"If all_zero is True, do not include hh_size, n_children, and n_adults together."

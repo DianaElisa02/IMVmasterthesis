@@ -219,8 +219,6 @@ def build_event_study_data(
     )
 
     return df
-
-
 def run_event_study(
     df: pd.DataFrame,
     outcome: str,
@@ -232,11 +230,24 @@ def run_event_study(
     seed_base: int = 42,
     run_wcb: bool = True,
 ) -> pd.DataFrame:
-    """Estimate continuous event-study model for one outcome and one exposure."""
+    """
+    Estimate continuous event-study model for one outcome and one exposure.
+
+    This specification estimates year-specific exposure slopes relative to
+    REF_YEAR using PyFixest's interaction syntax. Region fixed effects absorb
+    the time-invariant exposure level, while year fixed effects absorb common
+    annual shocks.
+    """
     controls = _available_controls(df, controls)
-    interaction_terms = [f"yr_{yr}_x_exp" for yr in EVENT_YEARS]
 
     work = df.copy()
+
+    if exposure not in work.columns and "_exposure" not in work.columns:
+        raise ValueError(f"Exposure variable '{exposure}' not found in event-study data.")
+
+    if "_exposure" not in work.columns:
+        work["_exposure"] = work[exposure]
+
     trend_terms: list[str] = []
 
     if region_trends:
@@ -247,7 +258,10 @@ def run_event_study(
 
         for reg in regions_for_trends:
             col = f"trend_r{reg}"
-            work[col] = (work["drgn2"].astype(int) == reg).astype(float) * work["year_c"]
+            work[col] = (
+                (work["drgn2"].astype(int) == reg).astype(float)
+                * work["year_c"]
+            )
             trend_terms.append(col)
 
         logger.info(
@@ -259,33 +273,68 @@ def run_event_study(
     ctrl_str = (" + " + " + ".join(controls)) if controls else ""
     trend_str = (" + " + " + ".join(trend_terms)) if trend_terms else ""
 
+    event_term = f"i(year, _exposure, ref={REF_YEAR})"
+
     formula = (
-        f"{outcome} ~ "
-        + " + ".join(interaction_terms)
+        f"{outcome} ~ {event_term}"
         + ctrl_str
         + trend_str
         + " | drgn2 + year"
     )
 
-    keep_cols = [outcome, "drgn2", "year"] + interaction_terms + controls + trend_terms
-    work = work[[c for c in keep_cols if c in work.columns]].dropna().reset_index(drop=True)
+    keep_cols = [outcome, "drgn2", "year", "_exposure"] + controls + trend_terms
+    work = (
+        work[[c for c in keep_cols if c in work.columns]]
+        .dropna()
+        .reset_index(drop=True)
+    )
 
     if work.empty:
         raise ValueError(f"No complete cases for outcome={outcome}, exposure={exposure}.")
 
     fit = pf.feols(formula, data=work, vcov={"CRV1": "drgn2"})
 
+    coef_index = fit.coef().index.tolist()
+    logger.info(
+        "Estimated event-study coefficients for %s x %s: %s",
+        outcome,
+        exposure,
+        coef_index,
+    )
+
     tcrit = _tcrit_from_clusters(work)
     n_clusters = _cluster_count(work)
     n_obs = len(work)
 
     rows = []
-    for yr in EVENT_YEARS:
-        term = f"yr_{yr}_x_exp"
-        coef = float(fit.coef().get(term, np.nan))
-        se = float(fit.se().get(term, np.nan))
-        p_crv1 = float(fit.pvalue().get(term, np.nan))
-        p_wbt = _run_wcb(fit, term, seed=seed_base + yr, reps=reps) if run_wcb else np.nan
+
+    event_years_in_sample = sorted(
+        int(y)
+        for y in work["year"].dropna().unique().tolist()
+        if int(y) != REF_YEAR
+    )
+
+    for name in coef_index:
+        if "_exposure" not in name and "year" not in name:
+            continue
+
+        yr = None
+        for candidate in event_years_in_sample:
+            if str(candidate) in name:
+                yr = int(candidate)
+                break
+
+        if yr is None:
+            logger.warning("Could not parse event year from coefficient name: %s", name)
+            continue
+
+        coef = float(fit.coef().get(name, np.nan))
+        se = float(fit.se().get(name, np.nan))
+        p_crv1 = float(fit.pvalue().get(name, np.nan))
+
+        p_wbt = np.nan
+        if run_wcb:
+            p_wbt = _run_wcb(fit, name, seed=seed_base + yr, reps=reps)
 
         rows.append({
             "model": model,
@@ -293,7 +342,7 @@ def run_event_study(
             "outcome": outcome,
             "year": yr,
             "rel_year": yr - REF_YEAR,
-            "term": term,
+            "term": name,
             "coef": coef,
             "se": se,
             "ci_low": coef - tcrit * se,
@@ -327,8 +376,18 @@ def run_event_study(
 
     result = pd.DataFrame(rows).sort_values(["year"]).reset_index(drop=True)
 
-    pre_terms = [f"yr_{yr}_x_exp" for yr in EVENT_YEARS if yr < REF_YEAR]
-    post_terms = [f"yr_{yr}_x_exp" for yr in EVENT_YEARS if yr > REF_YEAR]
+    pre_terms = [
+        row["term"]
+        for _, row in result.iterrows()
+        if row["pre_period"] and row["term"] != "reference"
+    ]
+
+    post_terms = [
+        row["term"]
+        for _, row in result.iterrows()
+        if (not row["pre_period"]) and row["term"] != "reference"
+    ]
+
     wald_stat, wald_p = _wald_joint_test(fit, pre_terms)
 
     lead_coefs = [
@@ -349,10 +408,21 @@ def run_event_study(
     lead_max_abs = float(np.max(np.abs(lead_coefs))) if lead_coefs else np.nan
     post_mean = float(np.mean(post_coefs)) if post_coefs else np.nan
     post_max_abs = float(np.max(np.abs(post_coefs))) if post_coefs else np.nan
+
     lead_to_post_ratio = (
         lead_max_abs / post_max_abs
-        if not np.isnan(lead_max_abs) and not np.isnan(post_max_abs) and post_max_abs > 0
+        if not np.isnan(lead_max_abs)
+        and not np.isnan(post_max_abs)
+        and post_max_abs > 0
         else np.nan
+    )
+
+    expected_pre_years = [yr for yr in EVENT_YEARS if yr < REF_YEAR]
+    estimated_pre_years = sorted(
+        result.loc[
+            (result["pre_period"]) & (result["term"] != "reference"),
+            "year",
+        ].dropna().astype(int).unique().tolist()
     )
 
     result["pretrend_wald_stat"] = wald_stat
@@ -363,9 +433,12 @@ def run_event_study(
     result["post_max_abs"] = post_max_abs
     result["lead_to_post_ratio"] = lead_to_post_ratio
     result["region_trends"] = bool(region_trends)
+    result["expected_pre_years"] = ",".join(map(str, expected_pre_years))
+    result["estimated_pre_years"] = ",".join(map(str, estimated_pre_years))
+    result["n_pretrend_terms_expected"] = len(expected_pre_years)
+    result["n_pretrend_terms_estimated"] = len(estimated_pre_years)
 
     return result
-
 
 def run_placebo_continuous(
     panel: pl.DataFrame,

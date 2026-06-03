@@ -517,8 +517,13 @@ BALANCE_OUTCOMES: list[str] = [
     "poverty_gap_sq"
 ]
 
-BALANCE_CONTROLS: list[str] = [
+BALANCE_CONTROLS = [
     "hh_size",
+    "n_children",
+    "any_high_education_hh",
+    "head_sex",
+    "head_labour_group",
+    "homeowner",
 ]
 
 BALANCE_CONTROLS_EXTENDED: list[str] = [
