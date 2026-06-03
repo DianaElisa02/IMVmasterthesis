@@ -64,8 +64,6 @@ PRE_YEARS = YEARS
 EVENT_YEARS = EVENT_STUDY_YEARS
 ALL_EVENT_SAMPLE_YEARS = sorted(set(PRE_YEARS + EVENT_YEARS + [REF_YEAR]))
 
-run_wcb: bool = True
-
 def _safe_float(value) -> float:
     try:
         if hasattr(value, "iloc"):
@@ -452,7 +450,7 @@ def run_placebo_continuous(
     coef = float(fit.coef().get(term, np.nan))
     se = float(fit.se().get(term, np.nan))
     p_crv1 = float(fit.pvalue().get(term, np.nan))
-    p_wbt = _run_wcb(fit, term, seed=seed, reps=reps) if run_wcb else np.nan
+    p_wbt = _run_wcb(fit, term, seed=seed, reps=reps)
 
     tcrit = _tcrit_from_clusters(df_clean)
 
@@ -571,7 +569,7 @@ def run_event_study_terciles(
                 term,
                 seed=seed_base + yr + (10 if group == "high" else 0),
                 reps=reps,
-            ) if run_wcb else np.nan
+            )
 
             rows.append({
                 "model": "tercile_event_study",
@@ -685,7 +683,7 @@ def run_placebo_terciles(
         coef = float(fit.coef().get(term, np.nan))
         se = float(fit.se().get(term, np.nan))
         p_crv1 = float(fit.pvalue().get(term, np.nan))
-        p_wbt = _run_wcb(fit, term, seed=seed_base + idx, reps=reps) if run_wcb else np.nan
+        p_wbt = _run_wcb(fit, term, seed=seed_base + idx, reps=reps)
 
         group = "medium" if term.endswith("medium") else "high"
 

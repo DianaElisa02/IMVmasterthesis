@@ -131,15 +131,15 @@ def main() -> None:
 
             try:
                 result = run_event_study(
-                    df=df_event_primary,
+                    df=df_event,
                     outcome=outcome,
                     controls=controls,
-                    exposure=PRIMARY_SPEC,
-                    region_trends=True,
-                    model="continuous_event_study_region_trends",
-                    seed_base=4000 + 10 * outcome_idx,
-                    run_wcb=False,
-            )
+                    exposure=exposure,
+                    region_trends=False,
+                    model="continuous_event_study",
+                    seed_base=42 + 100 * exposure_idx + 10 * outcome_idx,
+                    run_wcb=True,
+                )
                 continuous_event_rows.append(result)
             except Exception as exc:
                 logger.error(
@@ -325,6 +325,7 @@ def main() -> None:
                     region_trends=True,
                     model="continuous_event_study_region_trends",
                     seed_base=4000 + 10 * outcome_idx,
+                    run_wcb=False,
                 )
                 region_trend_rows.append(result)
             except Exception as exc:
