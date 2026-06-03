@@ -1,2 +1,0 @@
-outcome,model,wald_stat,wald_p,lead_mean,lead_max_abs,n_pre_terms,n_obs,n_clusters
-matdep,baseline_exposure_composite_hybrid,2.195615629620923,0.33360159917784427,0.0021746179898062797,0.005916078473376452,2,171999,17
