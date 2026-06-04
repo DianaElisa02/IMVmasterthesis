@@ -523,6 +523,10 @@ BALANCE_CONTROLS = [
     "head_age_group",
     "head_sex",
     "head_labour_group",
+    "single_parent_hh",
+    "homeowner",
+
+
 ]
 
 BALANCE_CONTROLS_EXTENDED: list[str] = [
