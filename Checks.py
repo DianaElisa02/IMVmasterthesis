@@ -73,7 +73,8 @@ def _run_model(
 
     work = work[keep_cols].dropna().reset_index(drop=True)
 
-    ctrl_str = (" + " + " + ".join(controls)) if controls else ""
+    control_terms = _control_terms_for_formula(controls)
+    ctrl_str = (" + " + " + ".join(control_terms)) if control_terms else ""
 
     formula = (
         f"{outcome} ~ i(year, _exposure, ref={REF_YEAR})"

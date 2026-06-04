@@ -42,6 +42,42 @@ PRE_YEARS = YEARS
 EVENT_YEARS = EVENT_STUDY_YEARS
 ALL_EVENT_SAMPLE_YEARS = sorted(set(PRE_YEARS + EVENT_YEARS + [REF_YEAR]))
 
+# These controls are substantively categorical. They are cast to pandas
+# category before estimation. Do not wrap them in i(...), because PyFixest's
+# wildboottest may fail when re-evaluating formulas containing i().
+CATEGORICAL_CONTROLS = {
+    "head_age_group",
+    "head_sex",
+    "head_labour_group",
+}
+
+
+def _control_terms_for_formula(controls: list[str]) -> list[str]:
+    """
+    Return formula terms for controls.
+
+    Categorical controls are kept as plain column names because they are cast
+    to pandas 'category' before estimation. This keeps the formula compatible
+    with wild cluster bootstrap.
+    """
+    return controls
+
+
+def _prepare_controls_for_formula(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ensure categorical controls are treated as factors by the formula parser.
+
+    This avoids using i(control), which can break wild cluster bootstrap
+    re-evaluation in PyFixest.
+    """
+    out = df.copy()
+
+    for col in CATEGORICAL_CONTROLS:
+        if col in out.columns:
+            out[col] = out[col].astype("category")
+
+    return out
+
 
 # =============================================================================
 # Utilities
@@ -219,6 +255,8 @@ def build_event_study_data(
     )
 
     return df
+
+
 def run_event_study(
     df: pd.DataFrame,
     outcome: str,
@@ -270,7 +308,8 @@ def run_event_study(
             omitted_regions,
         )
 
-    ctrl_str = (" + " + " + ".join(controls)) if controls else ""
+    control_terms = _control_terms_for_formula(controls)
+    ctrl_str = (" + " + " + ".join(control_terms)) if control_terms else ""
     trend_str = (" + " + " + ".join(trend_terms)) if trend_terms else ""
 
     event_term = f"i(year, _exposure, ref={REF_YEAR})"
@@ -291,6 +330,8 @@ def run_event_study(
 
     if work.empty:
         raise ValueError(f"No complete cases for outcome={outcome}, exposure={exposure}.")
+
+    work = _prepare_controls_for_formula(work)
 
     fit = pf.feols(formula, data=work, vcov={"CRV1": "drgn2"})
 
@@ -440,6 +481,7 @@ def run_event_study(
 
     return result
 
+
 def run_placebo_continuous(
     panel: pl.DataFrame,
     outcome: str,
@@ -459,7 +501,8 @@ def run_placebo_continuous(
     df["post_fake"] = (df["year"] == PLACEBO_FAKE_TREATMENT_YEAR).astype(float)
     df["post_fake_x_exp"] = df["post_fake"] * df["_exposure"]
 
-    ctrl_str = (" + " + " + ".join(controls)) if controls else ""
+    control_terms = _control_terms_for_formula(controls)
+    ctrl_str = (" + " + " + ".join(control_terms)) if control_terms else ""
     formula = f"{outcome} ~ post_fake_x_exp{ctrl_str} | drgn2 + year"
 
     keep_cols = [outcome, "drgn2", "year", "post_fake_x_exp"] + controls
@@ -467,6 +510,8 @@ def run_placebo_continuous(
 
     if df_clean.empty:
         raise ValueError(f"No complete cases for continuous placebo: {outcome}, {exposure}")
+
+    df_clean = _prepare_controls_for_formula(df_clean)
 
     fit = pf.feols(formula, data=df_clean, vcov={"CRV1": "drgn2"})
 
@@ -544,7 +589,8 @@ def run_event_study_terciles(
     for yr in EVENT_YEARS:
         interaction_terms.extend([f"yr_{yr}_x_medium", f"yr_{yr}_x_high"])
 
-    ctrl_str = (" + " + " + ".join(controls)) if controls else ""
+    control_terms = _control_terms_for_formula(controls)
+    ctrl_str = (" + " + " + ".join(control_terms)) if control_terms else ""
     formula = f"{outcome} ~ " + " + ".join(interaction_terms) + ctrl_str + " | drgn2 + year"
 
     keep_cols = [outcome, "drgn2", "year"] + interaction_terms + controls
@@ -552,6 +598,8 @@ def run_event_study_terciles(
 
     if work.empty:
         raise ValueError(f"No complete cases for tercile event study: {outcome}, {exposure}")
+
+    work = _prepare_controls_for_formula(work)
 
     fit = pf.feols(formula, data=work, vcov={"CRV1": "drgn2"})
     tcrit = _tcrit_from_clusters(work)
@@ -565,7 +613,16 @@ def run_event_study_terciles(
             coef = float(fit.coef().get(term, np.nan))
             se = float(fit.se().get(term, np.nan))
             p_crv1 = float(fit.pvalue().get(term, np.nan))
-            p_wbt = _run_wcb(fit, term, seed=seed_base + yr + (10 if group == "high" else 0), reps=reps) if run_wcb else np.nan
+            p_wbt = (
+                _run_wcb(
+                    fit,
+                    term,
+                    seed=seed_base + yr + (10 if group == "high" else 0),
+                    reps=reps,
+                )
+                if run_wcb
+                else np.nan
+            )
             rows.append({
                 "model": "tercile_event_study",
                 "exposure_spec": exposure,
@@ -638,7 +695,8 @@ def run_placebo_terciles(
     df["post_fake_x_high"] = df["post_fake"] * df["high_exp"]
 
     terms = ["post_fake_x_medium", "post_fake_x_high"]
-    ctrl_str = (" + " + " + ".join(controls)) if controls else ""
+    control_terms = _control_terms_for_formula(controls)
+    ctrl_str = (" + " + " + ".join(control_terms)) if control_terms else ""
     formula = f"{outcome} ~ " + " + ".join(terms) + ctrl_str + " | drgn2 + year"
 
     keep_cols = [outcome, "drgn2", "year"] + terms + controls
@@ -646,6 +704,8 @@ def run_placebo_terciles(
 
     if work.empty:
         raise ValueError(f"No complete cases for tercile placebo: {outcome}, {exposure}")
+
+    work = _prepare_controls_for_formula(work)
 
     fit = pf.feols(formula, data=work, vcov={"CRV1": "drgn2"})
     tcrit = _tcrit_from_clusters(work)
