@@ -520,8 +520,7 @@ BALANCE_OUTCOMES: list[str] = [
 BALANCE_CONTROLS = [
     "hh_size",
     "n_children",
-    "head_age_group"
-    "any_high_education_hh",
+    "head_age_group",
     "head_sex",
     "head_labour_group",
 ]
