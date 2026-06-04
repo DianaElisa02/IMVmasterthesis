@@ -1,0 +1,97 @@
+year,exposure_tercile,mean_outcome,n_obs,n_regions,outcome,outcome_label,exposure_spec
+2017,low,0.025799418604651164,2752,6,matdep,Severe material deprivation,exposure_composite_hybrid
+2018,low,0.039251650770359504,2726,6,matdep,Severe material deprivation,exposure_composite_hybrid
+2019,low,0.0282574568288854,3185,6,matdep,Severe material deprivation,exposure_composite_hybrid
+2021,low,0.052487562189054725,4020,6,matdep,Severe material deprivation,exposure_composite_hybrid
+2022,low,0.0492817679558011,4525,6,matdep,Severe material deprivation,exposure_composite_hybrid
+2023,low,0.061565696302124315,5084,6,matdep,Severe material deprivation,exposure_composite_hybrid
+2024,low,0.05380780471033179,5817,6,matdep,Severe material deprivation,exposure_composite_hybrid
+2025,low,0.047004771160982506,5659,6,matdep,Severe material deprivation,exposure_composite_hybrid
+2017,medium,0.03270564915758176,4036,5,matdep,Severe material deprivation,exposure_composite_hybrid
+2018,medium,0.03293028042191922,3887,5,matdep,Severe material deprivation,exposure_composite_hybrid
+2019,medium,0.03604624801632283,4411,5,matdep,Severe material deprivation,exposure_composite_hybrid
+2021,medium,0.048529876699336075,6326,5,matdep,Severe material deprivation,exposure_composite_hybrid
+2022,medium,0.05789034233231283,7186,5,matdep,Severe material deprivation,exposure_composite_hybrid
+2023,medium,0.06226834692364715,8094,5,matdep,Severe material deprivation,exposure_composite_hybrid
+2024,medium,0.05522993688007214,8872,5,matdep,Severe material deprivation,exposure_composite_hybrid
+2025,medium,0.057303239387206176,8551,5,matdep,Severe material deprivation,exposure_composite_hybrid
+2017,high,0.061087990487514864,6728,6,matdep,Severe material deprivation,exposure_composite_hybrid
+2018,high,0.059735872235872234,6512,6,matdep,Severe material deprivation,exposure_composite_hybrid
+2019,high,0.05391912131802296,8012,6,matdep,Severe material deprivation,exposure_composite_hybrid
+2021,high,0.08775510204081632,10290,6,matdep,Severe material deprivation,exposure_composite_hybrid
+2022,high,0.08684275083817156,12229,6,matdep,Severe material deprivation,exposure_composite_hybrid
+2023,high,0.0949974364608511,13653,6,matdep,Severe material deprivation,exposure_composite_hybrid
+2024,high,0.08105714869559294,14681,6,matdep,Severe material deprivation,exposure_composite_hybrid
+2025,high,0.0770168664905507,14763,6,matdep,Severe material deprivation,exposure_composite_hybrid
+2017,low,0.11446220930232558,2752,6,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2018,low,0.13169479090242112,2726,6,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2019,low,0.1293563579277865,3185,6,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2021,low,0.15771144278606966,4020,6,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2022,low,0.14629834254143648,4525,6,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2023,low,0.1449645948072384,5084,6,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2024,low,0.13047962867457452,5817,6,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2025,low,0.12405018554514932,5659,6,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2017,medium,0.17492566897918732,4036,5,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2018,medium,0.18394648829431437,3887,5,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2019,medium,0.17184311947404216,4411,5,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2021,medium,0.17957635156496995,6326,5,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2022,medium,0.17102699693849152,7186,5,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2023,medium,0.16950827773659502,8094,5,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2024,medium,0.15734896302975654,8872,5,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2025,medium,0.15425096479943867,8551,5,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2017,high,0.21566587395957193,6728,6,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2018,high,0.2179054054054054,6512,6,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2019,high,0.21018472291562657,8012,6,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2021,high,0.22857142857142856,10290,6,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2022,high,0.21555319322920927,12229,6,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2023,high,0.2115286017725042,13653,6,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2024,high,0.19780668891764866,14681,6,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2025,high,0.1944049312470365,14763,6,poverty,At-risk-of-poverty,exposure_composite_hybrid
+2017,low,0.042365516120170886,2752,6,poverty_gap,Poverty gap,exposure_composite_hybrid
+2018,low,0.05064685255853329,2726,6,poverty_gap,Poverty gap,exposure_composite_hybrid
+2019,low,0.05068916959112119,3185,6,poverty_gap,Poverty gap,exposure_composite_hybrid
+2021,low,0.05886088725118375,4020,6,poverty_gap,Poverty gap,exposure_composite_hybrid
+2022,low,0.04999565093446646,4525,6,poverty_gap,Poverty gap,exposure_composite_hybrid
+2023,low,0.05002619212179075,5084,6,poverty_gap,Poverty gap,exposure_composite_hybrid
+2024,low,0.04546228688180398,5817,6,poverty_gap,Poverty gap,exposure_composite_hybrid
+2025,low,0.043260280157072624,5659,6,poverty_gap,Poverty gap,exposure_composite_hybrid
+2017,medium,0.06834155583471287,4036,5,poverty_gap,Poverty gap,exposure_composite_hybrid
+2018,medium,0.06560643406351464,3887,5,poverty_gap,Poverty gap,exposure_composite_hybrid
+2019,medium,0.059818884790966295,4411,5,poverty_gap,Poverty gap,exposure_composite_hybrid
+2021,medium,0.06225975048410681,6326,5,poverty_gap,Poverty gap,exposure_composite_hybrid
+2022,medium,0.0547241984008273,7186,5,poverty_gap,Poverty gap,exposure_composite_hybrid
+2023,medium,0.05599606912239103,8094,5,poverty_gap,Poverty gap,exposure_composite_hybrid
+2024,medium,0.051607299952301906,8872,5,poverty_gap,Poverty gap,exposure_composite_hybrid
+2025,medium,0.048657273030255466,8551,5,poverty_gap,Poverty gap,exposure_composite_hybrid
+2017,high,0.07992959396608464,6728,6,poverty_gap,Poverty gap,exposure_composite_hybrid
+2018,high,0.07486555380801171,6512,6,poverty_gap,Poverty gap,exposure_composite_hybrid
+2019,high,0.07524902711244728,8012,6,poverty_gap,Poverty gap,exposure_composite_hybrid
+2021,high,0.08185406467902072,10290,6,poverty_gap,Poverty gap,exposure_composite_hybrid
+2022,high,0.07189413023243131,12229,6,poverty_gap,Poverty gap,exposure_composite_hybrid
+2023,high,0.06981834589126125,13653,6,poverty_gap,Poverty gap,exposure_composite_hybrid
+2024,high,0.06499782014466073,14681,6,poverty_gap,Poverty gap,exposure_composite_hybrid
+2025,high,0.06432098960280429,14763,6,poverty_gap,Poverty gap,exposure_composite_hybrid
+2017,low,0.025457925398429344,2752,6,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2018,low,0.031361419388099936,2726,6,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2019,low,0.031736345353434905,3185,6,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2021,low,0.0367014031372872,4020,6,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2022,low,0.028235914296117746,4525,6,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2023,low,0.02855019888003504,5084,6,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2024,low,0.02598720709510747,5817,6,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2025,low,0.025266807956177795,5659,6,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2017,medium,0.04110539785606312,4036,5,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2018,medium,0.03841886757270317,3887,5,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2019,medium,0.03362469184944291,4411,5,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2021,medium,0.03590082267618425,6326,5,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2022,medium,0.029639041267035794,7186,5,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2023,medium,0.031041528453841456,8094,5,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2024,medium,0.02914072459771885,8872,5,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2025,medium,0.026033809207206743,8551,5,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2017,high,0.04601728899210612,6728,6,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2018,high,0.04211614037176853,6512,6,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2019,high,0.04254401327878502,8012,6,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2021,high,0.047660790867958124,10290,6,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2022,high,0.039579950032814705,12229,6,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2023,high,0.03852563870554841,13653,6,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2024,high,0.03558726823184493,14681,6,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid
+2025,high,0.03569705764021007,14763,6,poverty_gap_sq,Squared poverty gap,exposure_composite_hybrid

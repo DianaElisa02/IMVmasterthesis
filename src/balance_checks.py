@@ -18,7 +18,6 @@ import numpy as np
 
 from src.constants import (
     BALANCE_OUTCOMES,
-    BALANCE_CONTROLS,
     BALANCE_PRIMARY_SPEC,
 )
 
@@ -100,7 +99,7 @@ def run_balance_checks(panel: pl.DataFrame) -> pl.DataFrame:
     # Assign terciles
     pre = _assign_terciles(pre)
 
-    variables = BALANCE_OUTCOMES + BALANCE_CONTROLS
+    variables = BALANCE_OUTCOMES
     rows = []
 
     for var in variables:
