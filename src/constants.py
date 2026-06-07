@@ -1,11 +1,3 @@
-"""
-ECV → EUROMOD UDB conversion pipeline.
-
-All mappings are derived directly from the EUROMOD Input Data Codebook
-(EM_data_codebook_J2_0_.xlsm), Spain (ES) sheet, version J2.0+.
-
-"""
-
 from __future__ import annotations
 
 import logging
@@ -19,7 +11,6 @@ EUROMOD_DATASET_NAMES: dict[int, str] = {
     2018: "ES_2018_a1",
     2019: "ES_2019_b1",
 }
-
 
 ECV_FILE_PREFIXES: dict[str, str] = {
     "td": "ECV_Td",
@@ -70,7 +61,6 @@ TH_COLUMNS: list[str] = [
     "HB080",   # person ID of responsible person 1
     "HB090",   # person ID of responsible person 2
     # Note: HY052G, HY053G, HY054G, HY081G, HY140G not present in Spanish ECV.
-    # bma, bch00, tintrch, yptmp, tis will be zero in output.
 ]
 
 TR_COLUMNS: list[str] = [
@@ -128,14 +118,11 @@ TP_COLUMNS: list[str] = [
     "PY140G",  # education allowances gross → bed
     # National SILC breakdown variables (PY092G, PY093G, PY101-103G,
     # PY111-112G, PY122-123G, PY131-133G) are absent from Spanish ECV UDB.
-    # EUROMOD simulates sub-components from the aggregates above.
     "PY010N",  # employee cash income net (supplementary)
     "PY050N",  # self-employment income net (supplementary)
     "PB220A",  # nationality → dcz
 ]
 
-
-# INE NUTS-1 string code → EUROMOD drgn1 integer (1–7 Spain-specific scheme).
 DRGN1_MAP: dict[str, int] = {
     "ES11": 1, "ES12": 1, "ES13": 1,
     "ES21": 2, "ES22": 2, "ES23": 2, "ES24": 2,
@@ -146,7 +133,6 @@ DRGN1_MAP: dict[str, int] = {
     "ES70": 7,
 }
 
-# INE NUTS-1 string code → EUROMOD drgn2 integer.
 DRGN2_MAP: dict[str, int] = {
     "ES11": 11, "ES12": 12, "ES13": 13,
     "ES21": 21, "ES22": 22, "ES23": 23, "ES24": 24,
@@ -157,7 +143,6 @@ DRGN2_MAP: dict[str, int] = {
     "ES70": 70,
 }
 
-# Mapping from drgn2 to Autonomous Community name.
 REGION_NAMES: dict[int, str] = {
     11: "Galicia",
     12: "Principado de Asturias",
@@ -200,7 +185,7 @@ PL040_TO_LES: dict[int, int] = {
     4: 2,   # contributing family worker → self-employed
 }
 
-LES_DEFAULT: int = 9   # other — used when both pl031 and pl040 are missing
+LES_DEFAULT: int = 9
 
 DMS_RECODE: dict[int, int] = {
     1: 1,   # single → single
@@ -218,8 +203,7 @@ DEH_RECODE_BOUNDARIES: list[tuple[int, int, int]] = [
     (400, 499, 4),   # post-secondary non-tertiary — covers 400, 450
     (500, 800, 5),   # tertiary — covers 500
 ]
-DEH_DEFAULT: int = 0   # not completed primary
-
+DEH_DEFAULT: int = 0
 
 DDI_DISABLED: int = 1
 DDI_NOT_DISABLED: int = 0
@@ -294,22 +278,18 @@ OUTPUT_ENCODING: str = "utf-8"
 EUROMOD_OUTPUT_DIR: Path = Path("input_data/euromod_output")
 EXPOSURE_OUTPUT_DIR: Path = Path("output/exposure")
 
-# Pre-reform RMI simulation outputs (Run A)
 RMI_FILES: dict[int, Path] = {
     2017: EUROMOD_OUTPUT_DIR / "es_2017_std.txt",
     2018: EUROMOD_OUTPUT_DIR / "es_2018_std.txt",
     2019: EUROMOD_OUTPUT_DIR / "es_2019_std.txt",
 }
 
-# IMV counterfactual simulation outputs (Run B — 2022 rules)
 IMV_FILES: dict[int, Path] = {
     2017: EUROMOD_OUTPUT_DIR / "IMV_2022ruleson2017.txt",
     2018: EUROMOD_OUTPUT_DIR / "IMV_2022ruleson2018.txt",
     2019: EUROMOD_OUTPUT_DIR / "IMV_2022ruleson2019.txt",
 }
 
-# Regions excluded from exposure computation entirely.
-# La Rioja (23), Aragón (24): broken RMI parameterisation in EUROMOD.
 # Ceuta (63), Melilla (64): too small for reliable regional estimates.
 EXPOSURE_EXCLUDE_REGIONS: frozenset[int] = frozenset({63, 64})
 
@@ -441,7 +421,6 @@ REGION_POPULATION: dict[int, dict[int, int]] = {
     },
 }
 
-
 ANALYSIS_YEARS: list[int] = list(range(2017, 2026))
 
 ANALYSIS_TH_COLUMNS: list[str] = [
@@ -465,7 +444,6 @@ ANALYSIS_TR_COLUMNS: list[str] = [
     "RB280",
 ]
 
-# Columns needed from Tp for head-level controls.
 ANALYSIS_TP_COLUMNS: list[str] = [
     "PB030",   # person ID
     "PL031",   # self-defined economic status
@@ -487,7 +465,6 @@ EXPOSURE_SPECS: list[str] = [
     "exposure_admin",           
 ]
 
-
 PL031_TO_LABOUR_GROUP: dict[int, str] = {
     1:  "employed",    # full-time employee
     2:  "employed",    # part-time employee
@@ -501,7 +478,6 @@ PL031_TO_LABOUR_GROUP: dict[int, str] = {
     10: "inactive",    # domestic tasks
     11: "inactive",    # other inactive
 }
-
 
 ISCED_GROUP_BOUNDARIES: list[tuple[int, int, str]] = [
     (0,   200, "low"),      # pre-primary, primary, lower secondary
@@ -537,20 +513,18 @@ BALANCE_CONTROLS_EXTENDED: list[str] = [
     "any_employed_hh",
 ]
 
-
 EVENT_STUDY_REGION_TREND: bool = False   # set True for robustness run
 
 BALANCE_PRIMARY_SPEC: str = "exposure_composite_hybrid"
 
-EVENT_STUDY_REFERENCE_YEAR: int = 2019   # omitted category — parallel trends reference
-EVENT_STUDY_YEARS: list[int] = [2017, 2018, 2021, 2022, 2023, 2024, 2025]  # 2020 excluded
+EVENT_STUDY_REFERENCE_YEAR: int = 2019   # parallel trends reference
+EVENT_STUDY_YEARS: list[int] = [2017, 2018, 2021, 2022, 2023, 2024, 2025]
 
 PLACEBO_YEARS: list[int] = [2017, 2018, 2019]
 PLACEBO_FAKE_TREATMENT_YEAR: int = 2019   # year coded as "post" in placebo
 PLACEBO_REFERENCE_YEAR: int = 2018        # omitted category
 
 ANALYSIS_OUTCOMES: list[str] = ["poverty", "matdep", "poverty_gap", "poverty_gap_sq"]
-
 
 COVID_ROBUST_SPECS: dict[str, dict] = {
     "excl_2021": {
