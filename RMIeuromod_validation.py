@@ -31,7 +31,7 @@ EUROMOD_FILES = {
     2019: BASE_DIR / "input_data" / "euromod_output" / "es_2019_std.txt",
 }
 
-EXCLUDE_REGIONS: set[int] = {63}
+EXCLUDE_REGIONS: set[int] = {63, 64}
 
 SAVE_CSV = True
 
@@ -300,7 +300,7 @@ def plot_validation(results: dict[int, pd.DataFrame]) -> None:
     fig.suptitle(
         "EUROMOD simulated RMI vs Informe RMI — pre-reform validation 2017–2019\n"
         "Top: recipient counts  |  Bottom: annual expenditure\n"
-        "(excl. La Rioja, Aragón, Ceuta all years; Murcia omitted in 2019 only)",
+        "(excl. Melilla and Ceuta all years; Murcia omitted in 2019 only)",
         fontsize=10, y=1.02,
     )
     plt.tight_layout()
