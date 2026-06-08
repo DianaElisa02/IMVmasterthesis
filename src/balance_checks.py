@@ -23,11 +23,6 @@ from src.constants import (
 
 logger = logging.getLogger(__name__)
 
-
-# =============================================================================
-# HELPERS
-# =============================================================================
-
 def _weighted_mean(df: pl.DataFrame, col: str, weight: str = "weight_hh") -> float:
     sub = df.select([col, weight]).drop_nulls()
     sub = sub.filter(pl.col(weight).gt(0))
@@ -39,12 +34,6 @@ def _weighted_mean(df: pl.DataFrame, col: str, weight: str = "weight_hh") -> flo
 
 
 def _assign_terciles(panel: pl.DataFrame) -> pl.DataFrame:
-    """
-    Assign exposure tercile (1=low, 2=medium, 3=high) based on
-    region-level exposure_composite_hybrid values.
-    Terciles are computed at the region level (15 regions → 5 per tercile).
-    """
-    # Get one row per region with exposure value
     region_exposure = (
         panel.select(["drgn2", BALANCE_PRIMARY_SPEC])
         .unique(subset=["drgn2"])
@@ -54,7 +43,6 @@ def _assign_terciles(panel: pl.DataFrame) -> pl.DataFrame:
     n = len(region_exposure)
     tercile_size = n // 3
 
-    # Assign tercile labels
     tercile_labels = (
         [1] * tercile_size +
         [2] * tercile_size +
@@ -81,22 +69,9 @@ def _assign_terciles(panel: pl.DataFrame) -> pl.DataFrame:
 
 
 def run_balance_checks(panel: pl.DataFrame) -> pl.DataFrame:
-    """
-    Compute pre-reform balance table across exposure terciles.
-
-    Parameters
-    ----------
-    panel : analysis-ready panel from build_analysis_dataset.py
-
-    Returns
-    -------
-    Polars DataFrame with rows = variables, columns = tercile means + full sample mean
-    """
-    # Pre-reform only
     pre = panel.filter(pl.col("post").eq(0.0))
     logger.info("Pre-reform observations for balance checks: %d", len(pre))
 
-    # Assign terciles
     pre = _assign_terciles(pre)
 
     variables = BALANCE_OUTCOMES
@@ -109,17 +84,14 @@ def run_balance_checks(panel: pl.DataFrame) -> pl.DataFrame:
 
         row = {"variable": var}
 
-        # Mean by tercile
         for tercile, label in [(1, "low"), (2, "medium"), (3, "high")]:
             g = pre.filter(pl.col("exposure_tercile").eq(tercile))
             row[f"mean_{label}"] = _weighted_mean(g, var)
             row[f"n_hh_{label}"] = len(g)
 
-        # Full pre-reform sample mean
         row["mean_full"] = _weighted_mean(pre, var)
         row["n_hh_full"] = len(pre)
 
-        # Difference high − low
         row["diff_high_low"] = row["mean_high"] - row["mean_low"]
 
         rows.append(row)

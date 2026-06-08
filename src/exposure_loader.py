@@ -1,6 +1,6 @@
 """
 exposure_loader.py
-==================
+
 Loads EUROMOD output files
 """
 

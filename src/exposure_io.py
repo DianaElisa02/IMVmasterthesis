@@ -1,10 +1,6 @@
 """
 exposure_io.py
-==============
-Saving and plotting functions for the exposure variable pipeline.
 
-Responsibilities
-----------------
 save_exposure()       — writes exposure_index.csv and exposure_params.csv
 
 plot_exposure()       — two-panel figure: composite bar + component comparison
@@ -28,19 +24,6 @@ def save_exposure(
     exposure_df: pd.DataFrame,
     output_dir: Path,
 ) -> None:
-    """
-    Save exposure index and standardisation parameters to CSV.
-
-    exposure_index.csv contains:
-      - All five continuous exposure specifications
-      - Rank version of each specification
-      - Underlying delta dimensions (all variants)
-      - Raw averaged simulated and administrative components
-      - Descriptive delta_mean
-
-    exposure_params.csv contains:
-      - Standardisation mean and std for every input dimension used
-    """
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # --- exposure_index.csv ---
@@ -74,7 +57,6 @@ def save_exposure(
     exposure_df[out_cols].to_csv(exp_path, index=False)
     logger.info("Exposure index saved → %s", exp_path)
 
-    # --- exposure_params.csv ---
     std_params = exposure_df.attrs.get("std_params", {})
     if std_params:
         params_rows = [
@@ -93,20 +75,11 @@ def plot_exposure(
     exposure_df: pd.DataFrame,
     output_dir: Path,
 ) -> None:
-    """
-    Two-panel figure:
-      Left  — primary specification bar chart (exposure_composite_hybrid)
-      Right — all five specifications side by side per region
-
-    Primary spec is read from exposure_df.attrs["primary_spec"] or
-    falls back to PRIMARY_SPEC from exposure_index.py.
-    """
     output_dir.mkdir(parents=True, exist_ok=True)
 
     primary = exposure_df.attrs.get("primary_spec", PRIMARY_SPEC)
     spec_cols = [s["name"] for s in SPECS]
 
-    # Ensure sorted by primary spec descending
     df = exposure_df.sort_values(primary, ascending=False).reset_index(drop=True)
 
     fig, axes = plt.subplots(
@@ -114,7 +87,6 @@ def plot_exposure(
         gridspec_kw={"width_ratios": [2, 1.8]}
     )
 
-    # --- Panel 1: primary specification ---
     ax    = axes[0]
     vals  = df[primary].values
     regs  = df["region"].values
@@ -144,7 +116,6 @@ def plot_exposure(
     ax.grid(axis="x", alpha=0.3, linewidth=0.5)
     ax.invert_yaxis()
 
-    # --- Panel 2: all specifications ---
     ax2   = axes[1]
     y     = np.arange(len(df))
     n     = len(spec_cols)

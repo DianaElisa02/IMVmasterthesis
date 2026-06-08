@@ -126,10 +126,6 @@ def print_placebo(df: pd.DataFrame) -> None:
 def main() -> None:
     logger.info("=== IMV — run_poverty_gap.py ===")
 
-    # ── Step 1: Construct poverty gap outcomes ────────────────────────────────
-    # construct_poverty_gap also adds weight_person = weight_hh * hh_size
-    # and warns if year 2020 is present in the panel (should be excluded
-    # upstream per the identification strategy).
     logger.info("Step 1: Constructing poverty gap outcomes")
     panel = pl.read_parquet(INPUT_PATH)
     logger.info("Base panel loaded: %d obs", len(panel))
@@ -146,7 +142,6 @@ def main() -> None:
     placebo_results.to_csv(OUTPUT_DIR / "placebo_poverty_gap.csv", index=False)
     logger.info("Placebo results saved")
 
-    # Warn if any outcome failed placebo — results reported as appendix only
     failed = placebo_results[placebo_results["verdict"] == "WARNING"]["outcome"].tolist()
     if failed:
         logger.warning(
@@ -180,12 +175,10 @@ def main() -> None:
     )
     logger.info("Saved: %s", OUTPUT_DIR / "did_poverty_gap_covid_robust.csv")
 
-    # ── Step 5: Combined output ───────────────────────────────────────────────
     combined = pd.concat([results_baseline, results_covid], ignore_index=True)
     combined.to_csv(OUTPUT_DIR / "did_poverty_gap_all_specs.csv", index=False)
     logger.info("Saved combined: %s", OUTPUT_DIR / "did_poverty_gap_all_specs.csv")
 
-    # ── Primary spec summary ──────────────────────────────────────────────────
     print(f"\n{'='*60}")
     print(f"  PRIMARY SPEC SUMMARY ({PRIMARY_SPEC})")
     print(f"{'='*60}")

@@ -23,10 +23,6 @@ Regions excluded from fully simulated specs only
 La Rioja (23), Aragón (24): bsarg_s = €1 placeholder in STD files →
   delta_exp_sim / delta_cov_sim unusable.
   Hybrid and admin specs are clean (RMI side = Informe admin data).
-
-Incompatible regions (bsarg_s zeroed in IMV run)
--------------------------------------------------
-Galicia (11), Illes Balears (53), Andalucía (61)
 """
 
 from __future__ import annotations
@@ -80,15 +76,11 @@ def main() -> None:
         "Incompatible regions (bsarg_s_post=0): "
         "Galicia (11), Illes Balears (53), Andalucía (61)"
     )
-
-    # ------------------------------------------------------------------
-    # Step 1: Load EUROMOD outputs
-    # ------------------------------------------------------------------
     logger.info("Step 1: Loading EUROMOD output files")
     rmi_dfs, imv_dfs = load_all_files(RMI_FILES, IMV_FILES)
 
     # ------------------------------------------------------------------
-    # Step 2: Pool dimensions
+    # Pool dimensions
     # Average raw simulated values across 2017-2019, merge administrative
     # Informe data, then compute all delta dimensions.
     #
@@ -107,18 +99,14 @@ def main() -> None:
         region_population=REGION_POPULATION,
     )
 
-    # ------------------------------------------------------------------
-    # Step 3: Construct all exposure specifications
-    # ------------------------------------------------------------------
+    # Construct all exposure specifications
     logger.info(
         "Step 3: Constructing exposure specifications "
         "(primary: %s)", PRIMARY_SPEC
     )
     exposure_df = compute_exposure(pooled, REGION_NAMES)
 
-    # ------------------------------------------------------------------
-    # Step 5: Validate IMV simulation and exposure index
-    # ------------------------------------------------------------------
+    # Validate IMV simulation and exposure index
     logger.info("Step 5: Running validation suite")
     validation_report = run_validation(
         imv_dfs=imv_dfs,
@@ -136,9 +124,6 @@ def main() -> None:
     total  = validation_report["pass"].notna().sum()
     logger.info("Validation: %d/%d tests passed", passed, total)
 
-    # ------------------------------------------------------------------
-    # Step 6: Save and plot
-    # ------------------------------------------------------------------
     logger.info("Step 6: Saving outputs")
     save_exposure(exposure_df, EXPOSURE_OUTPUT_DIR)
     plot_exposure(exposure_df, EXPOSURE_OUTPUT_DIR)

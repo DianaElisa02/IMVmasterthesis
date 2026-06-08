@@ -1,19 +1,10 @@
 """
 make_descriptive_outputs.py
-===========================
-
-Creates the key descriptive output for the thesis data section.
 
 Saved outputs:
     output/descriptives/pre_reform_balance_by_exposure_tercile.csv
     output/descriptives/fig_balance_by_exposure_tercile.png
     output/descriptives/fig_exposure_distribution.png
-
-Terminal-only outputs:
-    sample overview
-    missingness summary
-    descriptive statistics
-    year-by-year sample counts
 """
 
 from __future__ import annotations
@@ -25,11 +16,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import polars as pl
-
-
-# =============================================================================
-# Paths and settings
-# =============================================================================
 
 BASE_DIR = Path(__file__).resolve().parent
 INPUT_PATH = BASE_DIR / "output" / "analysis_dataset_with_gap.parquet"
@@ -84,11 +70,6 @@ BALANCE_VARS = [
     "hh_size",
 ]
 
-
-# =============================================================================
-# Helpers
-# =============================================================================
-
 def weighted_mean(x: pd.Series, w: pd.Series) -> float:
     mask = x.notna() & w.notna()
     if mask.sum() == 0:
@@ -136,11 +117,6 @@ def make_exposure_terciles(df: pd.DataFrame, exposure: str = EXPOSURE) -> pd.Dat
         how="left",
         validate="many_to_one",
     )
-
-
-# =============================================================================
-# Terminal summaries
-# =============================================================================
 
 def print_sample_overview(df: pd.DataFrame) -> None:
     print("\n" + "=" * 80)
@@ -250,11 +226,6 @@ def print_descriptive_stats(df: pd.DataFrame) -> None:
     desc = pd.DataFrame(rows)
     print(desc.to_string(index=False, float_format=lambda x: f"{x:,.4f}"))
 
-
-# =============================================================================
-# Saved table and figures
-# =============================================================================
-
 def make_balance_table(df: pd.DataFrame) -> pd.DataFrame:
     pre = df[df["year"].isin(PRE_YEARS)].copy()
     pre = make_exposure_terciles(pre, exposure=EXPOSURE)
@@ -355,11 +326,6 @@ def plot_exposure_distribution(df: pd.DataFrame) -> None:
     plt.savefig(path, dpi=200, bbox_inches="tight")
     plt.close()
     logger.info("Saved figure: %s", path)
-
-
-# =============================================================================
-# Main
-# =============================================================================
 
 def main() -> None:
     logger.info("Reading dataset: %s", INPUT_PATH)

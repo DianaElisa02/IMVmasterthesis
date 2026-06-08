@@ -1,6 +1,5 @@
 """
 RMIeuromod_validation.py
-========================z
 """
 
 from __future__ import annotations
@@ -93,16 +92,12 @@ def build_comparison(year: int, regional: pd.DataFrame) -> pd.DataFrame:
         informe["gasto_anual_ejecutado"] / 1_000_000
     ).round(2)
 
-    # Descriptive reference only — NOT used in correlations
-    # See module docstring for why this is an invalid correlation benchmark
     informe["avg_monthly_admin"] = (
         informe["gasto_anual_por_titular"] / 12
     ).round(2)
 
-    # Left join: all Informe regions, NaN where EUROMOD has no recipients
     df = informe.merge(regional, on="drgn2", how="left")
 
-    # Descriptive ratios — kept for CSV transparency, not validation targets
     df["ratio_recipients"] = (
         df["euromod_recipients"] / df["titulares"]
     ).round(3)
@@ -110,7 +105,6 @@ def build_comparison(year: int, regional: pd.DataFrame) -> pd.DataFrame:
         df["euromod_expenditure_M"] / df["informe_expenditure_M"]
     ).round(3)
 
-    # Descriptive mean benefit comparison — NOT a validation target
     df["euromod_mean_monthly"] = df["euromod_mean_monthly"].round(2)
     df["ratio_avg_benefit"] = (
         df["euromod_mean_monthly"] / df["avg_monthly_admin"]
@@ -120,18 +114,6 @@ def build_comparison(year: int, regional: pd.DataFrame) -> pd.DataFrame:
 
 
 def compute_correlations(df: pd.DataFrame) -> dict:
-    """
-    Correlate administrative vs simulated values across regions.
-
-    Validation targets:
-      1. titulares vs euromod_recipients (recipient counts)
-      2. informe_expenditure_M vs euromod_expenditure_M (annual expenditure)
-
-    Mean benefit (avg_monthly_admin) is excluded as a correlation benchmark.
-    gasto_anual_por_titular / 12 is a flow measure distorted by recipient
-    turnover, supplements, and multi-scheme reporting — not comparable to
-    EUROMOD's stock measure of monthly entitlement among active recipients.
-    """
     clean = df[[
         "titulares", "euromod_recipients",
         "informe_expenditure_M", "euromod_expenditure_M",
@@ -156,10 +138,6 @@ def compute_correlations(df: pd.DataFrame) -> dict:
 
 
 def print_national_summary(year: int, euromod_df: pd.DataFrame) -> None:
-    """
-    Print national-level validation summary for recipients and expenditure.
-    Mean benefit comparison is omitted — see module docstring.
-    """
     recipients = euromod_df[
         (euromod_df["bsarg_s"] > 0) &
         (~euromod_df["drgn2"].isin(EXCLUDE_REGIONS))
@@ -195,12 +173,6 @@ def print_national_summary(year: int, euromod_df: pd.DataFrame) -> None:
 
 
 def compute_pooled_validation(results: dict[int, pd.DataFrame]) -> pd.DataFrame:
-    """
-    Pool all valid region-year observations across 2017, 2018, 2019.
-    Murcia 2019 (NaN) is automatically excluded via dropna().
-    Correlations on recipient counts and expenditure only.
-    Year-on-year rank consistency uses euromod_expenditure_M.
-    """
     frames = []
     for year, df in sorted(results.items()):
         tmp = df.copy()
@@ -236,7 +208,6 @@ def compute_pooled_validation(results: dict[int, pd.DataFrame]) -> pd.DataFrame:
                 clean["ratio_expenditure"].mean())
     logger.info("")
 
-    # Year-on-year rank consistency on expenditure
     logger.info("  Regional rank consistency (Spearman on expenditure) across years:")
     years = sorted(results.keys())
     for i in range(len(years) - 1):
@@ -259,7 +230,6 @@ def compute_pooled_validation(results: dict[int, pd.DataFrame]) -> pd.DataFrame:
             "year", "region", "drgn2",
             "titulares", "euromod_recipients", "ratio_recipients",
             "informe_expenditure_M", "euromod_expenditure_M", "ratio_expenditure",
-            # descriptive only — not validation targets
             "avg_monthly_admin", "euromod_mean_monthly", "ratio_avg_benefit",
         ]
         out_cols = [c for c in out_cols if c in clean.columns]
@@ -271,10 +241,6 @@ def compute_pooled_validation(results: dict[int, pd.DataFrame]) -> pd.DataFrame:
 
 
 def plot_validation(results: dict[int, pd.DataFrame]) -> None:
-    """
-    Two-row figure: top row = recipient counts, bottom row = expenditure.
-    One column per year (2017, 2018, 2019).
-    """
     years = sorted(results.keys())
     fig, axes = plt.subplots(2, 3, figsize=(16, 10))
 
@@ -382,7 +348,6 @@ def main() -> None:
             "region", "drgn2",
             "titulares", "euromod_recipients", "ratio_recipients",
             "informe_expenditure_M", "euromod_expenditure_M", "ratio_expenditure",
-            # descriptive only
             "avg_monthly_admin", "euromod_mean_monthly", "ratio_avg_benefit",
         ]
         out_cols = [c for c in out_cols if c in comparison.columns]

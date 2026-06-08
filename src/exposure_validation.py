@@ -46,15 +46,6 @@ B — EXPOSURE INDEX VALIDITY (Tests 4, 5, 7, 8)
         Exposure should correlate negatively with pre-reform RMI expenditure
         per capita. Regions with lower pre-reform spending should show larger
         simulated IMV gains.
-
-REMOVED TESTS (with rationale):
-    test_monotonicity: The IMV formula does not predict that larger households
-        receive more in absolute terms — means-testing against higher
-        multi-earner incomes can reverse monotonicity. Negative rho is
-        theoretically consistent with the formula; the test was uninformative.
-    test_cross_year_consistency (KS): KS on person-level distributions was
-        confounded by household-level replication. Replaced by Tests 4 and 5
-        which operate at the correct regional/household level.
 """
 
 from __future__ import annotations
@@ -67,11 +58,6 @@ import pandas as pd
 from scipy.stats import mannwhitneyu, spearmanr
 
 logger = logging.getLogger(__name__)
-
-
-# =============================================================================
-# A — IMV SIMULATION QUALITY TESTS
-# =============================================================================
 
 def test_benefit_bounds(
     df: pd.DataFrame,
@@ -216,11 +202,6 @@ def test_formula_plausibility(
         status, year, wmean, statutory_single, 100 * pct_diff,
     )
     return result
-
-
-# =============================================================================
-# B — EXPOSURE INDEX VALIDITY TESTS
-# =============================================================================
 
 def test_exposure_dimension_stability(
     all_dims: pd.DataFrame,
@@ -381,7 +362,6 @@ def test_institutional_consistency(
 
     results = []
 
-    # Build pooled pre-reform admin measures (average across 2017-2019)
     records = []
     for year, rows in sorted(informe_rmi.items()):
         pop_year = region_population.get(year, {})
@@ -473,11 +453,6 @@ def test_institutional_consistency(
 
     return results
 
-
-# =============================================================================
-# ORCHESTRATOR
-# =============================================================================
-
 def run_validation(
     imv_dfs: dict[int, pd.DataFrame],
     all_dims: pd.DataFrame,
@@ -524,7 +499,6 @@ def run_validation(
             test_formula_plausibility(df, year, statutory_single)
         )
 
-    # --- B: Exposure index validity ---
     logger.info("=" * 50)
     logger.info("Validating exposure index")
 
@@ -540,7 +514,6 @@ def run_validation(
         )
     )
 
-    # Flatten and save
     flat_results = []
     for r in all_results:
         flat = {k: v for k, v in r.items() if not isinstance(v, (list, dict))}

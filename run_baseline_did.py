@@ -1,14 +1,12 @@
 """
 run_baseline_did.py
-===================
+
 Runner for the baseline DiD estimation.
 
 Runs two post-period windows separately:
   1. Baseline    : post = 2021–2025 (full post-reform period)
   2. COVID robust: post = 2022–2025 (excludes 2021, peak COVID + low take-up)
 
-For each window, estimates all ANALYSIS_OUTCOMES × EXPOSURE_SPECS.
-Results saved as CSV. Primary spec summary printed to console.
 """
 
 from __future__ import annotations
@@ -38,11 +36,6 @@ OUTPUT_DIR = BASE_DIR / "output" / "baseline_did"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 PRIMARY_SPEC = EXPOSURE_SPECS[0]   # exposure_composite_hybrid
-
-
-# =============================================================================
-# PRINT HELPERS
-# =============================================================================
 
 def _stars(p: float) -> str:
     if pd.isna(p):
@@ -101,18 +94,12 @@ def print_primary_summary(df: pd.DataFrame) -> None:
             f"p_WCB={p_wbt_str}"
         )
 
-
-# =============================================================================
-# MAIN
-# =============================================================================
-
 def main() -> None:
     logger.info("=== IMV DiD — run_baseline_did.py ===")
 
     panel = pl.read_parquet(INPUT_PATH)
     logger.info("Panel loaded: %d observations", len(panel))
 
-    # ── 1. Baseline DiD: full post-reform period (2021–2025) ─────────────────
     logger.info("--- Baseline DiD: post = 2021–2025 ---")
     did_baseline = build_did_data(panel, post_years=DID_POST_YEARS_BASELINE)
     results_baseline = run_baseline_did(did_baseline, label="baseline_2021_2025")

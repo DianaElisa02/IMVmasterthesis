@@ -1,10 +1,6 @@
 """
 binned_did.py
 =============
-Binned DiD specification — relaxes the linear dose-response assumption
-of the continuous TWFE by estimating separate ATTs for medium and high
-exposure terciles relative to the low tercile (reference group).
-
 Structure
 ---------
   - _compute_dynamic_terciles() : assigns regions to terciles for a given spec
@@ -69,9 +65,6 @@ _PRE_YEARS: list[int] = YEARS          # [2017, 2018, 2019]
 _N_LOW: int = 6                        # regions in low exposure group
 _N_MEDIUM: int = 5                     # regions in medium exposure group
 
-# These controls are substantively categorical. They are cast to pandas
-# category before estimation. Do not wrap them in i(...), because PyFixest's
-# wildboottest may fail when re-evaluating formulas containing i().
 CATEGORICAL_CONTROLS = {
     "head_age_group",
     "head_sex",
@@ -91,12 +84,6 @@ def _control_terms_for_formula(controls: list[str]) -> list[str]:
 
 
 def _prepare_controls_for_formula(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Ensure categorical controls are treated as factors by the formula parser.
-
-    This avoids using i(control), which can break wild cluster bootstrap
-    re-evaluation in PyFixest.
-    """
     out = df.copy()
 
     for col in CATEGORICAL_CONTROLS:
@@ -107,7 +94,6 @@ def _prepare_controls_for_formula(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _extract_boot_pvalue(boot) -> float:
-    """Extract p-value from PyFixest wildboottest output across versions."""
     for key in ["Pr(>|t|)", "p-value", "pvalue", "p_value"]:
         try:
             if key in boot:
@@ -121,7 +107,6 @@ def _extract_boot_pvalue(boot) -> float:
 
 
 def _run_wcb(fit, param: str, seed: int, reps: int = 9999) -> float:
-    """Run wild cluster bootstrap and return p-value."""
     try:
         boot = fit.wildboottest(param=param, reps=reps, seed=seed)
         return _extract_boot_pvalue(boot)
@@ -136,12 +121,6 @@ def _compute_dynamic_terciles(
     n_low: int = _N_LOW,
     n_medium: int = _N_MEDIUM,
 ) -> dict[str, list[int]]:
-    """
-    Assign regions to exposure groups by ranking them on exposure_spec.
-
-    The bottom n_low regions form the low reference group, the next n_medium
-    regions form the medium group, and the remainder form the high group.
-    """
     if exposure_spec not in panel.columns:
         raise ValueError(
             f"Exposure spec '{exposure_spec}' not found in panel. "
@@ -171,10 +150,6 @@ def _compute_dynamic_terciles(
         "high": regions[n_low + n_medium:],
     }
 
-
-# =============================================================================
-# BUILD BINNED DiD DATA
-# =============================================================================
 def build_binned_did_data(
     panel: pl.DataFrame,
     post_years: list[int] | None = None,
@@ -277,10 +252,6 @@ def build_binned_did_data(
 
     return did
 
-
-# =============================================================================
-# ESTIMATE BINNED DiD
-# =============================================================================
 def run_binned_did_spec(
     df: pd.DataFrame,
     outcome: str,
@@ -288,9 +259,6 @@ def run_binned_did_spec(
     seed_M: int = 42,
     seed_H: int = 43,
 ) -> dict:
-    """
-    Estimate binned DiD for one outcome using PyFixest.
-    """
     required = [outcome, "post_x_medium", "post_x_high", "drgn2", "year"] + controls
     df_clean = (
         df[[c for c in required if c in df.columns]]
@@ -391,13 +359,6 @@ def run_binned_did(
     label: str = "baseline",
     outcomes: list[str] | None = None,
 ) -> pd.DataFrame:
-    """
-    Estimate binned DiD for all exposure specs x all outcomes.
-
-    For each exposure specification, exposure groups are recomputed dynamically
-    so that the low / medium / high assignment reflects that specification's
-    regional ranking.
-    """
     if outcomes is None:
         outcomes = ANALYSIS_OUTCOMES
 

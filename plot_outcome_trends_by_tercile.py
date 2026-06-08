@@ -47,9 +47,6 @@ TERCILE_ORDER = ["low", "medium", "high"]
 
 
 def build_trend_data(panel: pl.DataFrame, exposure: str, outcomes: list[str]) -> pd.DataFrame:
-    """
-    Attach exposure terciles and compute unweighted mean outcomes by year and tercile.
-    """
     terciles = make_region_terciles(panel, exposure=exposure)
 
     df = panel.to_pandas()
@@ -93,9 +90,6 @@ def build_trend_data(panel: pl.DataFrame, exposure: str, outcomes: list[str]) ->
 
 
 def plot_combined_trends(trend_df: pd.DataFrame, output_path: Path) -> None:
-    """
-    Plot all outcomes in one 2x2 figure.
-    """
     outcomes = [o for o in ["poverty", "matdep", "poverty_gap", "poverty_gap_sq"] if o in trend_df["outcome"].unique()]
 
     fig, axes = plt.subplots(2, 2, figsize=(12, 8.5))

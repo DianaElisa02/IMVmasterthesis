@@ -21,13 +21,6 @@ where:
 Estimated by unweighted OLS with region and year fixed effects.
 Standard errors are clustered at the region level.
 Inference uses wild cluster bootstrap with 9,999 replications.
-
-Important implementation note
------------------------------
-Categorical controls are cast to pandas 'category' before estimation and are
-included in the formula as plain column names. Do not wrap them in i(...),
-because PyFixest's wildboottest may fail when re-evaluating formulas
-containing i().
 """
 
 from __future__ import annotations
@@ -54,9 +47,6 @@ logger = logging.getLogger(__name__)
 
 _PRE_YEARS: list[int] = YEARS  # [2017, 2018, 2019]
 
-# These controls are substantively categorical. They are cast to pandas
-# category before estimation. Do not wrap them in i(...), because WCB can fail
-# when re-evaluating formulas containing i().
 CATEGORICAL_CONTROLS = {
     "head_age_group",
     "head_sex",
@@ -75,9 +65,6 @@ def _control_terms_for_formula(controls: list[str]) -> list[str]:
 
 
 def _prepare_controls_for_formula(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Ensure categorical controls are treated as factors by the formula parser.
-    """
     out = df.copy()
 
     for col in CATEGORICAL_CONTROLS:
@@ -88,7 +75,6 @@ def _prepare_controls_for_formula(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _extract_boot_pvalue(boot) -> float:
-    """Extract p-value from PyFixest wildboottest output across versions."""
     for key in ["Pr(>|t|)", "p-value", "pvalue", "p_value"]:
         try:
             if key in boot:
@@ -102,7 +88,6 @@ def _extract_boot_pvalue(boot) -> float:
 
 
 def _run_wcb(fit, param: str, seed: int, reps: int = 9999) -> float:
-    """Run wild cluster bootstrap and return p-value."""
     try:
         boot = fit.wildboottest(param=param, reps=reps, seed=seed)
         return _extract_boot_pvalue(boot)
@@ -110,21 +95,10 @@ def _run_wcb(fit, param: str, seed: int, reps: int = 9999) -> float:
         logger.warning("WCB failed for %s: %s", param, exc)
         return np.nan
 
-
-# =============================================================================
-# BUILD DiD DATA
-# =============================================================================
 def build_did_data(
     panel: pl.DataFrame,
     post_years: list[int] | None = None,
 ) -> pl.DataFrame:
-    """
-    Prepare the analysis panel for continuous DiD estimation.
-
-    Constructs:
-      - post          : binary, 0 in pre-reform years and 1 in post-reform years
-      - post_x_{spec} : post x exposure interaction for each exposure spec
-    """
     if post_years is None:
         post_years = DID_POST_YEARS_BASELINE
 
@@ -165,10 +139,6 @@ def build_did_data(
 
     return did
 
-
-# =============================================================================
-# ESTIMATE ONE SPEC
-# =============================================================================
 def run_did_spec(
     df: pd.DataFrame,
     outcome: str,
@@ -176,9 +146,6 @@ def run_did_spec(
     controls: list[str],
     seed: int = 42,
 ) -> dict:
-    """
-    Estimate one continuous DiD specification.
-    """
     interaction_col = f"post_x_{exposure_spec}"
 
     required = [outcome, interaction_col, "drgn2", "year"] + controls
@@ -259,9 +226,6 @@ def run_baseline_did(
     label: str = "baseline",
     outcomes: list[str] | None = None,
 ) -> pd.DataFrame:
-    """
-    Estimate continuous DiD for all outcomes x all exposure specs.
-    """
     if outcomes is None:
         outcomes = ANALYSIS_OUTCOMES
 
@@ -312,22 +276,12 @@ def run_baseline_did(
 
     return results
 
-
-# =============================================================================
-# PLACEBO TEST
-# =============================================================================
 def run_placebo_test(
     panel: pl.DataFrame,
     outcomes: list[str],
     exposure_spec: str | None = None,
     controls: list[str] | None = None,
 ) -> pd.DataFrame:
-    """
-    Pre-reform falsification test using PyFixest.
-
-    Uses only pre-reform years, 2017--2019.
-    Fake treatment: 2019.
-    """
     if exposure_spec is None:
         exposure_spec = EXPOSURE_SPECS[0]
 

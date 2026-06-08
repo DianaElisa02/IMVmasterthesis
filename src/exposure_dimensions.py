@@ -148,7 +148,6 @@ def pool_dimensions(
         )
     all_dims = pd.concat(frames, ignore_index=True)
 
-    # --- Step 1: average raw simulated values across years ---
     pooled = (
         all_dims.groupby("drgn2")
         .agg(
@@ -164,7 +163,6 @@ def pool_dimensions(
         .round(4)
     )
 
-    # --- Step 2: merge administrative Informe data ---
     admin_records = []
     years = sorted(informe_rmi.keys())
     for year in years:
@@ -236,7 +234,6 @@ def pool_dimensions(
        - pooled["avg_titulares_admin"] / pooled["avg_pop_admin"] * 100
     ).round(4)
 
-    # Descriptive only
     pooled["delta_mean"] = (
         pooled["imv_mean_sim"] - pooled["rmi_mean_sim"]
     ).round(2)

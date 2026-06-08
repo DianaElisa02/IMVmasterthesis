@@ -5,9 +5,6 @@ Diagnostic checks for EUROMOD IMV counterfactual simulation outputs.
 
 Simulation logic (from EUROMOD Spain country report)
 -----------------------------------------------------
-In the IMV_2022ruleson{YYYY}.txt files BOTH policy modules run simultaneously
-under 2022 rules applied to pre-reform ECV households:
-
   bsa00_s  — national IMV (Ingreso Mínimo Vital), simulated FIRST
   bsarg_s  — regional RMI (Rentas Mínimas de Inserción), simulated SECOND,
               with bsa00_s already counted in the household income test so the
@@ -16,7 +13,6 @@ under 2022 rules applied to pre-reform ECV households:
 Total post-reform protection = bsa00_s + bsarg_s
 Exposure gain per household  = (bsa00_s + bsarg_s) - bsarg_s_prereform
 
-Key regional notes
 ------------------
 La Rioja  (drgn2=23): Renta de Ciudadanía — coded in 2022 EUROMOD with
   plausible amounts (€463–723/month). The €1 bug was only in the pre-reform
@@ -36,14 +32,6 @@ Structure
 3. La Rioja / Aragón deep-dive — bsa00_s AND bsarg_s separately, checks
                               whether the €1 bug persists in these files
 4. Benefit distribution — regional table for both variables and their sum
-
-Run
----
-    python check_IMVsimulation.py
-
-Output
-------
-    Printed to stdout.  One block per year, one cross-year summary at the end.
 """
 
 from __future__ import annotations
@@ -51,13 +39,6 @@ from __future__ import annotations
 import pandas as pd
 import numpy as np
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
-
-# IMV 2022 statutory monthly guarantee — single adult, basic amount only
-# Source: Law 19/2021 (491.60 Jan–Mar 2022, 565.37 Apr–Dec 2022)
-# We use the full-year weighted average ≈ 547 as a plausibility reference
 IMV_STATUTORY_SINGLE_2022 = 547.0   # €/month (weighted avg Jan–Dec 2022)
 
 # Plausible range for mean monthly bsa00_s (IMV national, €/month)
@@ -74,11 +55,8 @@ RMI_MAX_PLAUSIBLE  = 1400.0
 # Threshold below which a mean monthly benefit is flagged as a placeholder
 PLACEHOLDER_THRESHOLD = 5.0   # €/month
 
-# Exclude Ceuta from national summaries (small population, different dynamic)
-EXCLUDE_FROM_NATIONAL = {63}
-
-# La Rioja and Aragón: under scrutiny — NOT pre-excluded here because the
-# question is precisely whether they work correctly in the IMV counterfactual
+# Exclude Ceuta  and Melillafrom national summaries (small population, different dynamic)
+EXCLUDE_FROM_NATIONAL = {63, 64}
 
 FILES = {
     2017: "/workspaces/IMVmasterthesis/input_data/euromod_output/IMV_2022ruleson2017.txt",
@@ -96,11 +74,6 @@ REGION_NAMES = {
     70: "Canarias",
 }
 
-
-# ---------------------------------------------------------------------------
-# IO
-# ---------------------------------------------------------------------------
-
 def load_euromod_output(path: str) -> pd.DataFrame:
     df = pd.read_csv(path, sep="\t", low_memory=False, dtype=str)
     for col in df.columns:
@@ -109,11 +82,6 @@ def load_euromod_output(path: str) -> pd.DataFrame:
             errors="coerce",
         )
     return df
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def sep(title: str = "") -> None:
     if title:
@@ -129,11 +97,6 @@ def flag(condition: bool, msg_ok: str, msg_fail: str) -> str:
 
 
 def regional_summary(df: pd.DataFrame, exclude: set[int] | None = None) -> pd.DataFrame:
-    """
-    For each region: weighted recipients and mean monthly benefit for
-    bsa00_s (IMV), bsarg_s (regional RMI), and their sum (total protection).
-    A household is counted if it receives either benefit.
-    """
     mask = (df["bsa00_s"] > 0) | (df["bsarg_s"] > 0)
     if exclude:
         mask &= ~df["drgn2"].isin(exclude)
@@ -163,11 +126,6 @@ def regional_summary(df: pd.DataFrame, exclude: set[int] | None = None) -> pd.Da
             "exp_total_M":     round(wexp("total_s"), 3),
         })
     return pd.DataFrame(rows).sort_values("drgn2").reset_index(drop=True)
-
-
-# ---------------------------------------------------------------------------
-# Section 1 — National summary
-# ---------------------------------------------------------------------------
 
 def print_national_summary(year: int, df: pd.DataFrame) -> None:
     sep("SECTION 1 — National summary  (excl. Ceuta)")
@@ -201,17 +159,11 @@ def print_national_summary(year: int, df: pd.DataFrame) -> None:
     print(f"  Mean bsa00_s / statutory:        {ratio:.3f}  "
           f"({'plausible' if 0.3 <= ratio <= 2.5 else '← CHECK'})")
 
-
-# ---------------------------------------------------------------------------
-# Section 2 — Implausible value checks
-# ---------------------------------------------------------------------------
-
 def print_implausible_checks(df: pd.DataFrame) -> None:
     sep("SECTION 2 — Implausible value checks")
 
     rec = df[df["bsa00_s"] > 0].copy()
 
-    # Negative benefits
     neg = (rec["bsa00_s"] < 0).sum()
     print(flag(neg == 0,
                "No negative bsa00_s values",
@@ -266,11 +218,6 @@ def print_implausible_checks(df: pd.DataFrame) -> None:
                "No missing drgn2 values",
                f"{miss_region} records with missing drgn2"))
 
-
-# ---------------------------------------------------------------------------
-# Section 3 — La Rioja & Aragón deep-dive
-# ---------------------------------------------------------------------------
-
 def print_broken_region_diagnostics(year: int, df: pd.DataFrame) -> None:
     sep("SECTION 3 — La Rioja (23) & Aragón (24) deep-dive")
     print("  Checking bsa00_s (national IMV) AND bsarg_s (regional RMI) separately.")
@@ -319,7 +266,6 @@ def print_broken_region_diagnostics(year: int, df: pd.DataFrame) -> None:
             exp_M  = (rec[var] * rec["dwt"]).sum() * 12 / 1_000_000
             print(f"      Weighted mean: {w_mean:.2f} €/mo  |  Simulated exp: {exp_M:.3f} M€/yr")
 
-        # Combined total for this region
         reg["total_s"] = reg["bsa00_s"].fillna(0) + reg["bsarg_s"].fillna(0)
         any_rec = reg[reg["total_s"] > 0]
         w_any   = any_rec["dwt"].sum()
@@ -328,17 +274,11 @@ def print_broken_region_diagnostics(year: int, df: pd.DataFrame) -> None:
         print(f"      Recipients receiving either benefit: {w_any:,.0f}")
         print(f"      Combined simulated expenditure:     {exp_tot:.3f} M€/yr")
 
-
-# ---------------------------------------------------------------------------
-# Section 4 — Benefit distribution checks across all regions
-# ---------------------------------------------------------------------------
-
 def print_benefit_distribution(year: int, df: pd.DataFrame) -> None:
     sep("SECTION 4 — Regional benefit distribution (all regions)")
 
     reg = regional_summary(df)
 
-    # Placeholder flags
     imv_placeholders = reg[reg["mean_imv"].between(0.01, PLACEHOLDER_THRESHOLD)]
     rmi_placeholders = reg[reg["mean_rmi"].between(0.01, PLACEHOLDER_THRESHOLD)]
 
@@ -356,7 +296,6 @@ def print_benefit_distribution(year: int, df: pd.DataFrame) -> None:
         for _, r in rmi_placeholders.iterrows():
             print(f"       {r['region']:<22} mean={r['mean_rmi']:.2f} €/mo")
 
-    # Implausibly high flags
     imv_high = reg[reg["mean_imv"] > IMV_MAX_PLAUSIBLE]
     rmi_high = reg[reg["mean_rmi"] > RMI_MAX_PLAUSIBLE]
     if not imv_high.empty:
@@ -375,11 +314,6 @@ def print_benefit_distribution(year: int, df: pd.DataFrame) -> None:
         "w_rec_rmi", "mean_rmi", "exp_rmi_M",
         "exp_total_M",
     ]].to_string(index=False))
-
-
-# ---------------------------------------------------------------------------
-# Cross-year summary
-# ---------------------------------------------------------------------------
 
 def print_cross_year_summary(yearly_data: dict[int, pd.DataFrame]) -> None:
     print("\n")
@@ -414,11 +348,6 @@ def print_cross_year_summary(yearly_data: dict[int, pd.DataFrame]) -> None:
     print("  If both are plausible → regions can be included via total_s = bsa00_s + bsarg_s.")
     print("  If either is €1 → total_s is unreliable → exclusion from DiD remains justified.")
 
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
 def main() -> None:
     yearly_data: dict[int, pd.DataFrame] = {}
 
@@ -434,7 +363,6 @@ def main() -> None:
             print(f"  ERROR: file not found — {path}")
             continue
 
-        # Column presence check
         required_cols = ["dwt", "bsa00_s", "bsarg_s", "drgn2"]
         missing_cols  = [c for c in required_cols if c not in df.columns]
         if missing_cols:

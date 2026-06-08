@@ -1,12 +1,5 @@
 """
 exposure_index.py
-=================
-Constructs all exposure specifications from pooled dimensions.
-
-Specification selector
-----------------------
-Change PRIMARY_SPEC to switch the primary DiD regressor.
-All specifications are always computed and saved to exposure_index.csv.
 
 Valid values for PRIMARY_SPEC:
     "exposure_composite_hybrid" — hybrid composite (DEFAULT)
