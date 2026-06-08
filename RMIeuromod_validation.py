@@ -154,7 +154,7 @@ def print_national_summary(year: int, euromod_df: pd.DataFrame) -> None:
         informe_excl["gasto_anual_ejecutado"] / 1_000_000
     ).sum()
 
-    logger.info("--- National summary (excl. La Rioja, Aragón, Ceuta) ---")
+    logger.info("--- National summary ---")
     logger.info(
         "  Target 1 — Recipients:  EUROMOD %10.0f | Informe %10.0f | ratio %.3f",
         weighted_recipients, informe_titulares,
@@ -309,6 +309,46 @@ def plot_validation(results: dict[int, pd.DataFrame]) -> None:
     logger.info("Saved validation plot → %s", out_path)
     plt.close()
 
+def diagnose_bsarg_unit(df: pd.DataFrame, year: int) -> None:
+    pos = df[df["bsarg_s"] > 0].copy()
+
+    logger.info("Year %s: positive bsarg_s person rows: %d", year, len(pos))
+    logger.info("Year %s: positive bsarg_s households: %d", year, pos["idhh"].nunique())
+
+    per_hh = (
+        df.groupby("idhh")
+        .agg(
+            n_persons=("idperson", "size"),
+            n_pos_bsarg=("bsarg_s", lambda s: (s > 0).sum()),
+            n_unique_pos_bsarg=("bsarg_s", lambda s: s[s > 0].nunique()),
+            max_bsarg=("bsarg_s", "max"),
+            sum_bsarg=("bsarg_s", "sum"),
+            dwt_nunique=("dwt", "nunique"),
+            drgn2_nunique=("drgn2", "nunique"),
+        )
+        .reset_index()
+    )
+
+    recipient_hh = per_hh[per_hh["max_bsarg"] > 0]
+
+    logger.info(
+        "Year %s: among recipient households, mean positive rows per household = %.2f",
+        year,
+        recipient_hh["n_pos_bsarg"].mean()
+    )
+
+    logger.info(
+        "Year %s: recipient households with >1 positive bsarg_s row: %d",
+        year,
+        (recipient_hh["n_pos_bsarg"] > 1).sum()
+    )
+
+    logger.info(
+        "Year %s: recipient households with multiple positive bsarg_s amounts: %d",
+        year,
+        (recipient_hh["n_unique_pos_bsarg"] > 1).sum()
+    )
+
 
 def main() -> None:
     logger.info(
@@ -336,6 +376,7 @@ def main() -> None:
             continue
 
         euromod_df = load_euromod_output(path)
+        diagnose_bsarg_unit(euromod_df, year)
         regional   = compute_regional_rmi(euromod_df)
         comparison = build_comparison(year, regional)
         corr       = compute_correlations(comparison)
