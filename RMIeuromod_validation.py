@@ -31,7 +31,7 @@ EUROMOD_FILES = {
     2019: BASE_DIR / "input_data" / "euromod_output" / "es_2019_std.txt",
 }
 
-EXCLUDE_REGIONS: set[int] = {63, 64}
+EXCLUDE_REGIONS: set[int] = {23, 24, 63, 64}
 
 SAVE_CSV = True
 
@@ -53,24 +53,22 @@ def load_euromod_output(path: Path) -> pd.DataFrame:
         )
     return df
 
-
-def compute_regional_rmi(df: pd.DataFrame) -> pd.DataFrame:
+def compute_regional_rmi(df: pd.DataFrame, year: int) -> pd.DataFrame:
     """
     Compute weighted recipient count, mean monthly benefit, and annual
     expenditure by region from EUROMOD output.
-    euromod_mean_monthly is retained for descriptive CSV output only —
-    it is not used as a correlation benchmark.
+
+    bsarg_s is normally assigned to one person per recipient household, so
+    positive person rows are treated as simulated claimant units. Rare duplicate
+    positive rows within the same household are collapsed to avoid double-counting.
     """
-    recipients = df[
-        (df["bsarg_s"] > 0) &
-        (~df["drgn2"].isin(EXCLUDE_REGIONS))
-    ].copy()
+    recipients = recipient_units_from_person_output(df, year)
 
     regional = (
         recipients.groupby("drgn2")
         .apply(lambda x: pd.Series({
-            "euromod_recipients":    x["dwt"].sum(),
-            "euromod_mean_monthly":  (
+            "euromod_recipients": x["dwt"].sum(),
+            "euromod_mean_monthly": (
                 (x["bsarg_s"] * x["dwt"]).sum() / x["dwt"].sum()
             ),
             "euromod_expenditure_M": (
@@ -80,6 +78,7 @@ def compute_regional_rmi(df: pd.DataFrame) -> pd.DataFrame:
         .reset_index()
         .round(2)
     )
+
     return regional
 
 
@@ -138,23 +137,21 @@ def compute_correlations(df: pd.DataFrame) -> dict:
 
 
 def print_national_summary(year: int, euromod_df: pd.DataFrame) -> None:
-    recipients = euromod_df[
-        (euromod_df["bsarg_s"] > 0) &
-        (~euromod_df["drgn2"].isin(EXCLUDE_REGIONS))
-    ]
-    weighted_recipients    = recipients["dwt"].sum()
+    recipients = recipient_units_from_person_output(euromod_df, year)
+
+    weighted_recipients = recipients["dwt"].sum()
     weighted_expenditure_M = (
         recipients["bsarg_s"] * recipients["dwt"]
     ).sum() * 12 / 1_000_000
 
     informe = pd.DataFrame(INFORME_RMI[year])
-    informe_excl          = informe[~informe["drgn2"].isin(EXCLUDE_REGIONS)]
-    informe_titulares     = informe_excl["titulares"].sum()
+    informe_excl = informe[~informe["drgn2"].isin(EXCLUDE_REGIONS)]
+    informe_titulares = informe_excl["titulares"].sum()
     informe_expenditure_M = (
         informe_excl["gasto_anual_ejecutado"] / 1_000_000
     ).sum()
 
-    logger.info("--- National summary ---")
+    logger.info("--- National summary (excl. Ceuta and Melilla) ---")
     logger.info(
         "  Target 1 — Recipients:  EUROMOD %10.0f | Informe %10.0f | ratio %.3f",
         weighted_recipients, informe_titulares,
@@ -309,45 +306,83 @@ def plot_validation(results: dict[int, pd.DataFrame]) -> None:
     logger.info("Saved validation plot → %s", out_path)
     plt.close()
 
-def diagnose_bsarg_unit(df: pd.DataFrame, year: int) -> None:
-    pos = df[df["bsarg_s"] > 0].copy()
+def recipient_units_from_person_output(df: pd.DataFrame, year: int) -> pd.DataFrame:
+    """
+    EUROMOD output is person-level. For bsarg_s, diagnostics show that the
+    simulated RMI is normally assigned to one person per recipient household.
+    Therefore, validation against administrative titulares uses positive
+    bsarg_s person rows as simulated claimant units.
 
-    logger.info("Year %s: positive bsarg_s person rows: %d", year, len(pos))
-    logger.info("Year %s: positive bsarg_s households: %d", year, pos["idhh"].nunique())
+    Rare households with multiple positive bsarg_s rows are collapsed to one
+    unit to avoid double-counting.
+    """
+    required = {"idhh", "idperson", "drgn2", "dwt", "bsarg_s"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Year {year}: missing required columns: {sorted(missing)}")
 
-    per_hh = (
-        df.groupby("idhh")
+    pos = df[
+        (df["bsarg_s"] > 0) &
+        (~df["drgn2"].isin(EXCLUDE_REGIONS))
+    ].copy()
+
+    diagnostic = (
+        pos.groupby("idhh")
         .agg(
-            n_persons=("idperson", "size"),
-            n_pos_bsarg=("bsarg_s", lambda s: (s > 0).sum()),
-            n_unique_pos_bsarg=("bsarg_s", lambda s: s[s > 0].nunique()),
-            max_bsarg=("bsarg_s", "max"),
-            sum_bsarg=("bsarg_s", "sum"),
-            dwt_nunique=("dwt", "nunique"),
+            n_pos_rows=("idperson", "size"),
+            n_unique_amounts=("bsarg_s", "nunique"),
             drgn2_nunique=("drgn2", "nunique"),
+            dwt_nunique=("dwt", "nunique"),
         )
         .reset_index()
     )
 
-    recipient_hh = per_hh[per_hh["max_bsarg"] > 0]
+    logger.info("Year %s: positive bsarg_s person rows: %d", year, len(pos))
+    logger.info("Year %s: positive bsarg_s households: %d", year, pos["idhh"].nunique())
 
-    logger.info(
-        "Year %s: among recipient households, mean positive rows per household = %.2f",
-        year,
-        recipient_hh["n_pos_bsarg"].mean()
+    if not diagnostic.empty:
+        logger.info(
+            "Year %s: mean positive rows per recipient household: %.3f",
+            year,
+            diagnostic["n_pos_rows"].mean()
+        )
+        logger.info(
+            "Year %s: households with >1 positive bsarg_s row: %d",
+            year,
+            int((diagnostic["n_pos_rows"] > 1).sum())
+        )
+        logger.info(
+            "Year %s: households with multiple positive bsarg_s amounts: %d",
+            year,
+            int((diagnostic["n_unique_amounts"] > 1).sum())
+        )
+
+    if (diagnostic["drgn2_nunique"] > 1).any():
+        raise ValueError(f"Year {year}: drgn2 varies within recipient household")
+
+    if (diagnostic["dwt_nunique"] > 1).any():
+        logger.warning("Year %s: dwt varies within some recipient households", year)
+
+    units = (
+        pos.groupby("idhh", as_index=False)
+        .agg(
+            drgn2=("drgn2", "first"),
+            dwt=("dwt", "first"),
+            bsarg_s=("bsarg_s", "max"),
+            n_pos_rows=("idperson", "size"),
+            n_unique_amounts=("bsarg_s", "nunique"),
+        )
     )
 
-    logger.info(
-        "Year %s: recipient households with >1 positive bsarg_s row: %d",
-        year,
-        (recipient_hh["n_pos_bsarg"] > 1).sum()
-    )
+    duplicated = units[units["n_pos_rows"] > 1]
+    if len(duplicated) > 0:
+        logger.warning(
+            "Year %s: collapsed %d households with multiple positive bsarg_s rows "
+            "using max(bsarg_s). Inspect these cases.",
+            year, len(duplicated)
+        )
 
-    logger.info(
-        "Year %s: recipient households with multiple positive bsarg_s amounts: %d",
-        year,
-        (recipient_hh["n_unique_pos_bsarg"] > 1).sum()
-    )
+    return units
 
 
 def main() -> None:
@@ -376,8 +411,7 @@ def main() -> None:
             continue
 
         euromod_df = load_euromod_output(path)
-        diagnose_bsarg_unit(euromod_df, year)
-        regional   = compute_regional_rmi(euromod_df)
+        regional = compute_regional_rmi(euromod_df, year)
         comparison = build_comparison(year, regional)
         corr       = compute_correlations(comparison)
 
