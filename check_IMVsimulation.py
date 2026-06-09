@@ -95,66 +95,171 @@ def sep(title: str = "") -> None:
 def flag(condition: bool, msg_ok: str, msg_fail: str) -> str:
     return f"  {'✓' if condition else '✗'}  {msg_ok if condition else msg_fail}"
 
-
 def regional_summary(df: pd.DataFrame, exclude: set[int] | None = None) -> pd.DataFrame:
-    mask = (df["bsa00_s"] > 0) | (df["bsarg_s"] > 0)
-    if exclude:
-        mask &= ~df["drgn2"].isin(exclude)
-    hh = df[mask].copy()
-    hh["total_s"] = hh["bsa00_s"].fillna(0) + hh["bsarg_s"].fillna(0)
+    imv = transfer_units(df, "bsa00_s", exclude)
+    rmi = transfer_units(df, "bsarg_s", exclude)
+    total = total_protection_units(df, exclude)
 
+    regions = sorted(set(total["drgn2"]).union(imv["drgn2"]).union(rmi["drgn2"]))
     rows = []
-    for drgn2, grp in hh.groupby("drgn2"):
-        w = grp["dwt"].sum()
 
-        def wmean(col):
-            rec = grp[grp[col] > 0]
-            return (rec[col] * rec["dwt"]).sum() / rec["dwt"].sum() if rec["dwt"].sum() > 0 else 0.0
+    for drgn2 in regions:
+        imv_g = imv[imv["drgn2"] == drgn2]
+        rmi_g = rmi[rmi["drgn2"] == drgn2]
+        tot_g = total[total["drgn2"] == drgn2]
 
-        def wexp(col):
-            return (grp[col].fillna(0) * grp["dwt"]).sum() * 12 / 1_000_000
+        def wmean(g, col):
+            return (g[col] * g["dwt"]).sum() / g["dwt"].sum() if g["dwt"].sum() > 0 else 0.0
+
+        def wexp(g, col):
+            return (g[col].fillna(0) * g["dwt"]).sum() * 12 / 1_000_000 if len(g) else 0.0
 
         rows.append({
-            "drgn2":           int(drgn2),
-            "region":          REGION_NAMES.get(int(drgn2), f"Region {int(drgn2)}"),
-            "w_rec_imv":       round(grp[grp["bsa00_s"] > 0]["dwt"].sum(), 0),
-            "mean_imv":        round(wmean("bsa00_s"), 2),
-            "exp_imv_M":       round(wexp("bsa00_s"), 3),
-            "w_rec_rmi":       round(grp[grp["bsarg_s"] > 0]["dwt"].sum(), 0),
-            "mean_rmi":        round(wmean("bsarg_s"), 2),
-            "exp_rmi_M":       round(wexp("bsarg_s"), 3),
-            "exp_total_M":     round(wexp("total_s"), 3),
+            "drgn2": int(drgn2),
+            "region": REGION_NAMES.get(int(drgn2), f"Region {int(drgn2)}"),
+            "w_rec_imv": round(imv_g["dwt"].sum(), 0),
+            "mean_imv": round(wmean(imv_g, "bsa00_s"), 2),
+            "exp_imv_M": round(wexp(imv_g, "bsa00_s"), 3),
+            "w_rec_rmi": round(rmi_g["dwt"].sum(), 0),
+            "mean_rmi": round(wmean(rmi_g, "bsarg_s"), 2),
+            "exp_rmi_M": round(wexp(rmi_g, "bsarg_s"), 3),
+            "w_rec_total": round(tot_g["dwt"].sum(), 0),
+            "mean_total": round(wmean(tot_g, "total_s"), 2),
+            "exp_total_M": round(wexp(tot_g, "total_s"), 3),
         })
+
     return pd.DataFrame(rows).sort_values("drgn2").reset_index(drop=True)
 
+def transfer_units(df: pd.DataFrame, var: str, exclude: set[int] | None = None) -> pd.DataFrame:
+    pos = df[df[var] > 0].copy()
+
+    if exclude:
+        pos = pos[~pos["drgn2"].isin(exclude)].copy()
+
+    if pos.empty:
+        return pd.DataFrame(columns=["idhh", "drgn2", "dwt", var])
+
+    units = (
+        pos.groupby("idhh", as_index=False)
+        .agg(
+            drgn2=("drgn2", "first"),
+            dwt=("dwt", "first"),
+            **{var: (var, "max")},
+        )
+    )
+
+    return units
+
+def diagnose_transfer_unit(df: pd.DataFrame, year: int, var: str) -> None:
+    pos = df[df[var] > 0].copy()
+
+    print(f"\n  UNIT DIAGNOSTIC — {var}")
+    print(f"    Positive {var} person rows: {len(pos):,}")
+    print(f"    Positive {var} households:  {pos['idhh'].nunique():,}")
+
+    if pos.empty:
+        return
+
+    per_hh = (
+        pos.groupby("idhh")
+        .agg(
+            n_pos_rows=("idperson", "size"),
+            n_unique_amounts=(var, "nunique"),
+            drgn2_nunique=("drgn2", "nunique"),
+            dwt_nunique=("dwt", "nunique"),
+        )
+        .reset_index()
+    )
+
+    print(
+        f"    Mean positive rows per recipient household: "
+        f"{per_hh['n_pos_rows'].mean():.3f}"
+    )
+    print(
+        f"    Households with >1 positive {var} row: "
+        f"{(per_hh['n_pos_rows'] > 1).sum():,}"
+    )
+    print(
+        f"    Households with multiple positive {var} amounts: "
+        f"{(per_hh['n_unique_amounts'] > 1).sum():,}"
+    )
+
+    if (per_hh["drgn2_nunique"] > 1).any():
+        print(f"    ✗ ERROR: drgn2 varies within household for {var}")
+
+    if (per_hh["dwt_nunique"] > 1).any():
+        print(f"    ~ WARNING: dwt varies within household for {var}")
+
+def transfer_stats(df: pd.DataFrame, var: str, exclude: set[int] | None = None) -> pd.DataFrame:
+    units = transfer_units(df, var, exclude)
+
+    rows = []
+    for drgn2, grp in units.groupby("drgn2"):
+        w_rec = grp["dwt"].sum()
+        mean = (grp[var] * grp["dwt"]).sum() / w_rec if w_rec > 0 else 0
+        exp = (grp[var] * grp["dwt"]).sum() * 12 / 1_000_000
+
+        rows.append({
+            "drgn2": int(drgn2),
+            f"w_rec_{var}": round(w_rec, 0),
+            f"mean_{var}": round(mean, 2),
+            f"exp_{var}_M": round(exp, 3),
+        })
+
+    return pd.DataFrame(rows)
+
+def total_protection_units(df: pd.DataFrame, exclude: set[int] | None = None) -> pd.DataFrame:
+    d = df.copy()
+    if exclude:
+        d = d[~d["drgn2"].isin(exclude)].copy()
+
+    # Max is safe whether the benefit is assigned to one claimant row or repeated.
+    units = (
+        d.groupby("idhh", as_index=False)
+        .agg(
+            drgn2=("drgn2", "first"),
+            dwt=("dwt", "first"),
+            bsa00_s=("bsa00_s", "max"),
+            bsarg_s=("bsarg_s", "max"),
+        )
+    )
+
+    units["total_s"] = units["bsa00_s"].fillna(0) + units["bsarg_s"].fillna(0)
+    return units[units["total_s"] > 0].copy()
+
 def print_national_summary(year: int, df: pd.DataFrame) -> None:
-    sep("SECTION 1 — National summary  (excl. Ceuta)")
+    sep("SECTION 1 — National summary  (excl. Ceuta and Melilla)")
 
-    d = df[~df["drgn2"].isin(EXCLUDE_FROM_NATIONAL)].copy()
-    d["total_s"] = d["bsa00_s"].fillna(0) + d["bsarg_s"].fillna(0)
+    imv = transfer_units(df, "bsa00_s", EXCLUDE_FROM_NATIONAL)
+    rmi = transfer_units(df, "bsarg_s", EXCLUDE_FROM_NATIONAL)
+    total = total_protection_units(df, EXCLUDE_FROM_NATIONAL)
 
-    def wsum(col): return (d[col].fillna(0) * d["dwt"]).sum()
-    def wmean(col):
-        rec = d[d[col] > 0]
-        return (rec[col] * rec["dwt"]).sum() / rec["dwt"].sum() if rec["dwt"].sum() > 0 else 0.0
+    def wmean(g, col):
+        return (g[col] * g["dwt"]).sum() / g["dwt"].sum() if g["dwt"].sum() > 0 else 0.0
 
-    w_imv  = d[d["bsa00_s"] > 0]["dwt"].sum()
-    w_rmi  = d[d["bsarg_s"] > 0]["dwt"].sum()
-    exp_imv  = wsum("bsa00_s") * 12 / 1_000_000
-    exp_rmi  = wsum("bsarg_s") * 12 / 1_000_000
-    exp_tot  = wsum("total_s") * 12 / 1_000_000
+    def wexp(g, col):
+        return (g[col].fillna(0) * g["dwt"]).sum() * 12 / 1_000_000 if len(g) else 0.0
+
+    w_imv = imv["dwt"].sum()
+    w_rmi = rmi["dwt"].sum()
+    w_tot = total["dwt"].sum()
+
+    exp_imv = wexp(imv, "bsa00_s")
+    exp_rmi = wexp(rmi, "bsarg_s")
+    exp_tot = wexp(total, "total_s")
 
     print(f"  NOTE: 2022 rules applied to {year} ECV households — no Informe benchmark.")
-    print(f"  bsa00_s = national IMV  |  bsarg_s = regional RMI  |  total = sum")
+    print(f"  bsa00_s = national IMV  |  bsarg_s = regional top-up/RMI  |  total = sum")
     print()
     print(f"  {'Variable':<12} {'W.recipients':>14} {'Mean €/mo':>10} {'Ann.exp M€':>12}")
     print(f"  {'─'*12} {'─'*14} {'─'*10} {'─'*12}")
-    print(f"  {'bsa00_s':<12} {w_imv:>14,.0f} {wmean('bsa00_s'):>10.2f} {exp_imv:>12.2f}")
-    print(f"  {'bsarg_s':<12} {w_rmi:>14,.0f} {wmean('bsarg_s'):>10.2f} {exp_rmi:>12.2f}")
-    print(f"  {'total':<12} {'':>14} {'':>10} {exp_tot:>12.2f}")
+    print(f"  {'bsa00_s':<12} {w_imv:>14,.0f} {wmean(imv, 'bsa00_s'):>10.2f} {exp_imv:>12.2f}")
+    print(f"  {'bsarg_s':<12} {w_rmi:>14,.0f} {wmean(rmi, 'bsarg_s'):>10.2f} {exp_rmi:>12.2f}")
+    print(f"  {'total':<12} {w_tot:>14,.0f} {wmean(total, 'total_s'):>10.2f} {exp_tot:>12.2f}")
     print()
 
-    ratio = wmean("bsa00_s") / IMV_STATUTORY_SINGLE_2022 if wmean("bsa00_s") > 0 else 0
+    mean_imv = wmean(imv, "bsa00_s")
+    ratio = mean_imv / IMV_STATUTORY_SINGLE_2022 if mean_imv > 0 else 0
     print(f"  IMV statutory single-adult 2022: €{IMV_STATUTORY_SINGLE_2022:.0f}/mo")
     print(f"  Mean bsa00_s / statutory:        {ratio:.3f}  "
           f"({'plausible' if 0.3 <= ratio <= 2.5 else '← CHECK'})")
@@ -237,7 +342,7 @@ def print_broken_region_diagnostics(year: int, df: pd.DataFrame) -> None:
         print(f"    Weighted population: {total_pop:,.0f}")
 
         for var, label in [("bsa00_s", "national IMV"), ("bsarg_s", "regional RMI")]:
-            rec   = reg[reg[var] > 0]
+            rec = transfer_units(reg, var)
             w_rec = rec["dwt"].sum()
             pct   = 100 * w_rec / total_pop if total_pop > 0 else 0
             print(f"\n    [{var} — {label}]")
@@ -267,7 +372,7 @@ def print_broken_region_diagnostics(year: int, df: pd.DataFrame) -> None:
             print(f"      Weighted mean: {w_mean:.2f} €/mo  |  Simulated exp: {exp_M:.3f} M€/yr")
 
         reg["total_s"] = reg["bsa00_s"].fillna(0) + reg["bsarg_s"].fillna(0)
-        any_rec = reg[reg["total_s"] > 0]
+        any_rec = total_protection_units(reg)
         w_any   = any_rec["dwt"].sum()
         exp_tot = (reg["total_s"] * reg["dwt"]).sum() * 12 / 1_000_000
         print(f"\n    [TOTAL bsa00_s + bsarg_s]")
@@ -375,6 +480,8 @@ def main() -> None:
         print_implausible_checks(df)
         print_broken_region_diagnostics(year, df)
         print_benefit_distribution(year, df)
+        diagnose_transfer_unit(df, year, "bsa00_s")
+        diagnose_transfer_unit(df, year, "bsarg_s")
 
     if len(yearly_data) > 1:
         print_cross_year_summary(yearly_data)
