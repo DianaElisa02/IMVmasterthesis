@@ -304,6 +304,28 @@ def plot_balance_by_exposure(balance: pd.DataFrame) -> None:
     logger.info("Saved figure: %s", path)
 
 
+REGION_LABELS = {
+    11: "Galicia",
+    12: "Principado de Asturias",
+    13: "Cantabria",
+    21: "País Vasco",
+    22: "Comunidad Foral de Navarra",
+    23: "La Rioja",
+    24: "Aragón",
+    30: "Comunidad de Madrid",
+    41: "Castilla y León",
+    42: "Castilla-La Mancha",
+    43: "Extremadura",
+    51: "Cataluña",
+    52: "Comunitat Valenciana",
+    53: "Illes Balears",
+    61: "Andalucía",
+    62: "Región de Murcia",
+    63: "Ciudad de Ceuta",
+    64: "Ciudad de Melilla",
+    70: "Canarias",
+}
+
 def plot_exposure_distribution(df: pd.DataFrame) -> None:
     region_exp = (
         df[["drgn2", EXPOSURE]]
@@ -313,18 +335,97 @@ def plot_exposure_distribution(df: pd.DataFrame) -> None:
         .sort_values(EXPOSURE)
     )
 
-    fig, ax = plt.subplots(figsize=(9, 5.5))
+    region_exp["region_name"] = (
+        region_exp["drgn2"]
+        .astype(int)
+        .map(REGION_LABELS)
+    )
 
-    ax.barh(region_exp["drgn2"].astype(str), region_exp[EXPOSURE])
-    ax.set_xlabel("Composite hybrid exposure")
-    ax.set_ylabel("Region code")
-    ax.set_title("Regional distribution of preferred exposure measure")
-    ax.grid(axis="x", alpha=0.3)
+    missing = region_exp.loc[region_exp["region_name"].isna(), "drgn2"].tolist()
+    if missing:
+        raise ValueError(f"Missing region labels for drgn2 codes: {missing}")
 
-    plt.tight_layout()
+    fig, ax = plt.subplots(figsize=(9.5, 6.4))
+
+    bars = ax.barh(
+        region_exp["region_name"],
+        region_exp[EXPOSURE],
+        height=0.68,
+        color="#5B8DB8",
+        edgecolor="white",
+        linewidth=0.8,
+    )
+
+    ax.axvline(
+        0,
+        color="#2F2F2F",
+        linewidth=1,
+        alpha=0.9,
+    )
+
+    ax.set_xlabel("Composite hybrid exposure index", fontsize=10.5)
+    ax.set_ylabel("")
+    ax.set_title(
+        "Regional distribution of the preferred exposure measure",
+        fontsize=13,
+        fontweight="bold",
+        pad=14,
+    )
+
+    ax.grid(axis="x", linestyle="-", alpha=0.18)
+    ax.set_axisbelow(True)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_visible(False)
+
+    ax.tick_params(axis="y", length=0, labelsize=9.5)
+    ax.tick_params(axis="x", labelsize=9)
+
+    # Add value labels at the end of each bar
+    x_range = region_exp[EXPOSURE].max() - region_exp[EXPOSURE].min()
+    offset = 0.025 * x_range
+
+    for bar, value in zip(bars, region_exp[EXPOSURE]):
+        if value >= 0:
+            x_pos = value + offset
+            ha = "left"
+        else:
+            x_pos = value - offset
+            ha = "right"
+
+        ax.text(
+            x_pos,
+            bar.get_y() + bar.get_height() / 2,
+            f"{value:.2f}",
+            va="center",
+            ha=ha,
+            fontsize=8.5,
+            color="#333333",
+        )
+
+    # Add some horizontal padding so value labels are not cut off
+    xmin = region_exp[EXPOSURE].min()
+    xmax = region_exp[EXPOSURE].max()
+    pad = 0.15 * (xmax - xmin)
+    ax.set_xlim(xmin - pad, xmax + pad)
+
+    fig.text(
+        0.01,
+        0.01,
+        "Notes: Higher values indicate larger simulated exposure to the IMV reform relative to the pre-reform RMI system. "
+        "The vertical line marks zero exposure.",
+        ha="left",
+        fontsize=8.3,
+        color="#444444",
+    )
+
+    plt.tight_layout(rect=[0, 0.05, 1, 1])
+
     path = OUTPUT_DIR / "fig_exposure_distribution.png"
-    plt.savefig(path, dpi=200, bbox_inches="tight")
+    plt.savefig(path, dpi=300, bbox_inches="tight")
     plt.close()
+
     logger.info("Saved figure: %s", path)
 
 def main() -> None:
