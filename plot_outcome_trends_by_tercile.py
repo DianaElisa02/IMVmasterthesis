@@ -88,11 +88,26 @@ def build_trend_data(panel: pl.DataFrame, exposure: str, outcomes: list[str]) ->
 
     return out.sort_values(["outcome", "exposure_tercile", "year"]).reset_index(drop=True)
 
-
 def plot_combined_trends(trend_df: pd.DataFrame, output_path: Path) -> None:
-    outcomes = [o for o in ["poverty", "matdep", "poverty_gap", "poverty_gap_sq"] if o in trend_df["outcome"].unique()]
+    outcomes = [
+        o for o in ["poverty", "matdep", "poverty_gap", "poverty_gap_sq"]
+        if o in trend_df["outcome"].unique()
+    ]
 
-    fig, axes = plt.subplots(2, 2, figsize=(12, 8.5))
+    tercile_labels = {
+        "low": "Low exposure",
+        "medium": "Medium exposure",
+        "high": "High exposure",
+    }
+
+    y_axis_labels = {
+        "poverty": "Share of households",
+        "matdep": "Share of households",
+        "poverty_gap": "Mean poverty gap",
+        "poverty_gap_sq": "Mean squared poverty gap",
+    }
+
+    fig, axes = plt.subplots(2, 2, figsize=(12.5, 8.5), sharex=True)
     axes_flat = axes.flatten()
 
     for idx, outcome in enumerate(outcomes):
@@ -108,35 +123,64 @@ def plot_combined_trends(trend_df: pd.DataFrame, output_path: Path) -> None:
                 sub["year"],
                 sub["mean_outcome"],
                 marker="o",
-                linewidth=1.6,
-                label=tercile.capitalize(),
+                markersize=4.5,
+                linewidth=1.9,
+                label=tercile_labels.get(tercile, tercile.capitalize()),
             )
 
-        ax.axvline(2020, linestyle="--", linewidth=1)
-        ax.set_title(OUTCOME_LABELS.get(outcome, outcome), fontweight="bold")
-        ax.set_xlabel("Year")
-        ax.set_ylabel("Mean outcome")
-        ax.grid(True, alpha=0.3)
+        ax.axvline(2020, linestyle="--", linewidth=1.1, alpha=0.8)
+
+        ax.set_title(
+            OUTCOME_LABELS.get(outcome, outcome),
+            fontsize=11,
+            fontweight="bold",
+        )
+        ax.set_ylabel(y_axis_labels.get(outcome, "Mean outcome"))
+
+        ax.grid(True, axis="y", alpha=0.25)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
 
         years = sorted(d["year"].dropna().unique().tolist())
         ax.set_xticks(years)
+
+    for ax in axes_flat[-2:]:
+        ax.set_xlabel("Survey year")
 
     for j in range(len(outcomes), len(axes_flat)):
         axes_flat[j].set_visible(False)
 
     handles, labels = axes_flat[0].get_legend_handles_labels()
     if handles:
-        fig.legend(handles, labels, title="Exposure tercile", loc="lower center", ncol=3)
+        fig.legend(
+            handles,
+            labels,
+            title="Exposure group",
+            loc="lower center",
+            ncol=3,
+            frameon=False,
+            bbox_to_anchor=(0.5, -0.015),
+        )
 
     fig.suptitle(
-        "Descriptive outcome trends by exposure tercile",
-        fontsize=13,
+        "Descriptive outcome trends by regional exposure group",
+        fontsize=14,
         fontweight="bold",
-        y=1.02,
+        y=0.995,
     )
 
-    plt.tight_layout(rect=[0, 0.06, 1, 1])
-    plt.savefig(output_path, dpi=200, bbox_inches="tight")
+    fig.text(
+        0.5,
+        0.035,
+        "Notes: Points report unweighted household-level means by survey year and exposure tercile. "
+        "Exposure terciles are based on the preferred hybrid reform-exposure index. "
+        "The dashed vertical line marks 2020, the year of IMV introduction.",
+        ha="center",
+        fontsize=8.5,
+    )
+
+    plt.tight_layout(rect=[0, 0.08, 1, 0.96])
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close()
 
     logger.info("Saved figure: %s", output_path)
