@@ -42,9 +42,7 @@ PRE_YEARS = YEARS
 EVENT_YEARS = EVENT_STUDY_YEARS
 ALL_EVENT_SAMPLE_YEARS = sorted(set(PRE_YEARS + EVENT_YEARS + [REF_YEAR]))
 
-# These controls are substantively categorical. They are cast to pandas
-# category before estimation. Do not wrap them in i(...), because PyFixest's
-# wildboottest may fail when re-evaluating formulas containing i().
+
 CATEGORICAL_CONTROLS = {
     "head_age_group",
     "head_sex",
@@ -64,12 +62,7 @@ def _control_terms_for_formula(controls: list[str]) -> list[str]:
 
 
 def _prepare_controls_for_formula(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Ensure categorical controls are treated as factors by the formula parser.
 
-    This avoids using i(control), which can break wild cluster bootstrap
-    re-evaluation in PyFixest.
-    """
     out = df.copy()
 
     for col in CATEGORICAL_CONTROLS:
@@ -78,10 +71,6 @@ def _prepare_controls_for_formula(df: pd.DataFrame) -> pd.DataFrame:
 
     return out
 
-
-# =============================================================================
-# Utilities
-# =============================================================================
 def _safe_float(value) -> float:
     try:
         if hasattr(value, "iloc"):
@@ -156,10 +145,6 @@ def _wald_joint_test(fit, terms: list[str]) -> tuple[float, float]:
         logger.warning("Joint Wald diagnostic failed for terms %s: %s", present_terms, exc)
         return np.nan, np.nan
 
-
-# =============================================================================
-# Tercile utilities retained for appendix checks
-# =============================================================================
 def make_region_terciles(
     panel: pl.DataFrame,
     exposure: str,
