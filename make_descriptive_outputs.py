@@ -34,6 +34,15 @@ EXPOSURE = "exposure_composite_hybrid"
 PRE_YEARS = [2017, 2018, 2019]
 ESTIMATION_YEARS = [2017, 2018, 2019, 2021, 2022, 2023, 2024, 2025]
 
+TREND_YEARS = [2017, 2018, 2019, 2021, 2022, 2023, 2024, 2025]
+
+TREND_OUTCOMES = {
+    "poverty": "At-risk-of-poverty",
+    "matdep": "Severe material deprivation",
+    "poverty_gap": "Poverty gap",
+    "poverty_gap_sq": "Squared poverty gap",
+}
+
 CORE_VARS = [
     "poverty",
     "matdep",
@@ -428,6 +437,325 @@ def plot_exposure_distribution(df: pd.DataFrame) -> None:
 
     logger.info("Saved figure: %s", path)
 
+def make_national_outcome_trend_table(
+    df: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Calculate weighted annual national means for the four research outcomes
+    over the complete 2017-2025 period, including 2020.
+    """
+    required = [
+        "year",
+        "weight_hh",
+        *TREND_OUTCOMES.keys(),
+    ]
+
+    missing = [column for column in required if column not in df.columns]
+
+    if missing:
+        raise ValueError(
+            f"Missing variables required for national trend figure: {missing}"
+        )
+
+    trend_sample = df[
+        df["year"].isin(TREND_YEARS)
+    ].copy()
+
+    available_years = sorted(
+        trend_sample["year"].dropna().astype(int).unique().tolist()
+    )
+
+    rows = []
+
+    for year in TREND_YEARS:
+        yearly = trend_sample[
+            trend_sample["year"].eq(year)
+        ]
+
+        row = {"year": year}
+
+        for outcome in TREND_OUTCOMES:
+            valid = (
+                yearly[outcome].notna()
+                & yearly["weight_hh"].notna()
+                & np.isfinite(yearly[outcome])
+                & np.isfinite(yearly["weight_hh"])
+                & yearly["weight_hh"].gt(0)
+            )
+
+            if valid.any():
+                row[outcome] = weighted_mean(
+                    yearly.loc[valid, outcome],
+                    yearly.loc[valid, "weight_hh"],
+                )
+                row[f"n_{outcome}"] = int(valid.sum())
+            else:
+                row[outcome] = np.nan
+                row[f"n_{outcome}"] = 0
+
+        rows.append(row)
+
+    trend_table = pd.DataFrame(rows)
+
+    output_path = (
+        OUTPUT_DIR
+        / "national_outcome_trends_2017_2025.csv"
+    )
+
+    trend_table.to_csv(output_path, index=False)
+
+    logger.info(
+        "Saved national outcome trend table: %s",
+        output_path,
+    )
+
+    print("\n" + "=" * 80)
+    print("NATIONAL OUTCOME TRENDS, 2017-2025")
+    print("=" * 80)
+
+    print(
+        trend_table[
+            ["year", *TREND_OUTCOMES.keys()]
+        ].to_string(
+            index=False,
+            float_format=lambda x: f"{x:.4f}",
+        )
+    )
+
+    return trend_table
+
+def plot_national_outcome_trends(
+    trend_table: pd.DataFrame,
+) -> None:
+    """
+    Plot continuous national trends for the four outcomes.
+
+    The analytical sample excludes 2020, but the lines connect the 2019 and
+    2021 observations. A vertical dotted line identifies the year in which
+    the IMV was introduced.
+    """
+
+    from matplotlib.ticker import PercentFormatter
+
+    plot_data = (
+        trend_table[
+            trend_table["year"].isin(
+                [2017, 2018, 2019, 2021, 2022, 2023, 2024, 2025]
+            )
+        ]
+        .sort_values("year")
+        .copy()
+    )
+
+    styles = {
+        "poverty": {
+            "label": "At-risk-of-poverty",
+            "color": "#264653",
+            "linewidth": 2.8,
+        },
+        "matdep": {
+            "label": "Severe material deprivation",
+            "color": "#457B9D",
+            "linewidth": 2.5,
+        },
+        "poverty_gap": {
+            "label": "Poverty gap",
+            "color": "#E76F51",
+            "linewidth": 2.5,
+        },
+        "poverty_gap_sq": {
+            "label": "Squared poverty gap",
+            "color": "#2A9D8F",
+            "linewidth": 2.5,
+        },
+    }
+
+    fig, ax = plt.subplots(figsize=(10.8, 6.3))
+
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("white")
+
+    # Draw continuous outcome lines.
+    for outcome, style in styles.items():
+        ax.plot(
+            plot_data["year"],
+            plot_data[outcome],
+            color=style["color"],
+            linewidth=style["linewidth"],
+            solid_capstyle="round",
+            solid_joinstyle="round",
+            zorder=3,
+        )
+
+        # Show only a small point at the final observation.
+        final_value = plot_data.loc[
+            plot_data["year"].eq(2025),
+            outcome,
+        ].iloc[0]
+
+        ax.scatter(
+            2025,
+            final_value,
+            s=24,
+            color=style["color"],
+            zorder=4,
+        )
+
+    # IMV introduction marker.
+    ax.axvline(
+        x=2020,
+        color="#8C8C8C",
+        linestyle=(0, (2, 3)),
+        linewidth=1.2,
+        zorder=1,
+    )
+
+    ax.text(
+        2020.06,
+        0.224,
+        "IMV introduced",
+        fontsize=9,
+        color="#737373",
+        ha="left",
+        va="top",
+    )
+
+    # Direct labels at the right-hand side.
+    label_offsets = {
+        "poverty": 0.0035,
+        "matdep": 0.0025,
+        "poverty_gap": -0.0015,
+        "poverty_gap_sq": -0.002,
+    }
+
+    for outcome, style in styles.items():
+        final_value = plot_data.loc[
+            plot_data["year"].eq(2025),
+            outcome,
+        ].iloc[0]
+
+        ax.text(
+            2025.15,
+            final_value + label_offsets[outcome],
+            style["label"],
+            color=style["color"],
+            fontsize=10,
+            fontweight="semibold",
+            ha="left",
+            va="center",
+            clip_on=False,
+        )
+
+    # Title and subtitle.
+    ax.set_title(
+        "National trends in poverty and material deprivation",
+        loc="left",
+        fontsize=16,
+        fontweight="bold",
+        pad=28,
+    )
+
+    ax.text(
+        0,
+        1.025,
+        "Weighted annual household means, 2017–2025",
+        transform=ax.transAxes,
+        fontsize=10,
+        color="#666666",
+        ha="left",
+        va="bottom",
+    )
+
+    # Axes.
+    ax.set_xlim(2016.8, 2026.6)
+    ax.set_ylim(0.025, 0.225)
+
+    ax.set_xticks(
+        [2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
+    )
+
+    ax.set_xlabel(
+        "Survey year",
+        fontsize=10.5,
+        labelpad=10,
+    )
+
+    ax.set_ylabel(
+        "Weighted household mean",
+        fontsize=10.5,
+        labelpad=10,
+    )
+
+    # All outcomes are proportions, so percentages are easier to interpret.
+    ax.yaxis.set_major_formatter(
+        PercentFormatter(
+            xmax=1,
+            decimals=0,
+        )
+    )
+
+    # Light horizontal grid only.
+    ax.grid(
+        axis="y",
+        color="#D9D9D9",
+        linewidth=0.8,
+        alpha=0.65,
+        zorder=0,
+    )
+
+    ax.grid(
+        axis="x",
+        visible=False,
+    )
+
+    # Minimal borders.
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    ax.spines["left"].set_color("#B5B5B5")
+    ax.spines["bottom"].set_color("#B5B5B5")
+
+    ax.tick_params(
+        axis="both",
+        colors="#4D4D4D",
+        labelsize=9.5,
+    )
+
+    # Short methodological note.
+    fig.text(
+        0.08,
+        0.025,
+        "Notes: Weighted annual means using ECV household weights. "
+        "The analytical sample excludes 2020; the dotted line marks the "
+        "introduction of the IMV.",
+        fontsize=8.3,
+        color="#666666",
+        ha="left",
+    )
+
+    plt.tight_layout(
+        rect=[0.04, 0.07, 0.90, 0.95]
+    )
+
+    output_path = (
+        OUTPUT_DIR
+        / "fig_national_outcome_trends_2017_2025.png"
+    )
+
+    plt.savefig(
+        output_path,
+        dpi=300,
+        bbox_inches="tight",
+        facecolor="white",
+    )
+
+    plt.close(fig)
+
+    logger.info(
+        "Saved national outcome trend figure: %s",
+        output_path,
+    )
+
 def main() -> None:
     logger.info("Reading dataset: %s", INPUT_PATH)
 
@@ -447,12 +775,16 @@ def main() -> None:
     balance = make_balance_table(df)
     plot_balance_by_exposure(balance)
     plot_exposure_distribution(df)
+    national_trends = make_national_outcome_trend_table(df)
+    plot_national_outcome_trends(national_trends)
 
     print("\nSaved outputs:")
     print(f"  {OUTPUT_DIR / 'pre_reform_balance_by_exposure_tercile.csv'}")
     print(f"  {OUTPUT_DIR / 'fig_balance_by_exposure_tercile.png'}")
     print(f"  {OUTPUT_DIR / 'fig_exposure_distribution.png'}")
+    print(f"  {OUTPUT_DIR / 'fig_national_outcome_trends_2017_2025.png'}")
 
 
 if __name__ == "__main__":
     main()
+
