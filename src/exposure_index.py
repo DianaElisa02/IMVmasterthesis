@@ -3,10 +3,17 @@ exposure_index.py
 
 Valid values for PRIMARY_SPEC:
     "exposure_composite_hybrid" — hybrid composite (DEFAULT)
-    "exposure_exp_hybrid"       — hybrid expenditure only
-    "exposure_cov_hybrid"       — hybrid coverage only
+    "exposure_exp_hybrid"       — hybrid average-benefit margin
+    "exposure_cov_hybrid"       — hybrid coverage margin
     "exposure_composite_sim"    — fully simulation-based composite
-    "exposure_admin"            — purely administrative (no simulation)
+    "exposure_admin"            — purely administrative pre-reform intensity
+
+Note
+----
+The exposure_* names are kept for backward compatibility with the rest of the
+analysis pipeline. After the denominator revision, exposure_exp_hybrid is no
+longer expenditure per resident. It is the standardized average-benefit margin:
+annual expenditure divided by recipient households.
 """
 
 from __future__ import annotations
@@ -24,42 +31,45 @@ PRIMARY_SPEC: str = "exposure_composite_hybrid"
 SPECS: list[dict] = [
     {
         "name":        "exposure_composite_hybrid",
-        "dims":        ["delta_exp_hybrid", "delta_cov_hybrid"],
+        "dims":        ["delta_benefit_hybrid", "delta_cov_hybrid"],
         "weights":     [0.5, 0.5],
-        "description": "Hybrid composite — simulated IMV vs administrative RMI "
-                       "(expenditure + coverage, equally weighted)",
+        "description": "Hybrid composite — simulated post-reform vs administrative RMI "
+                       "(average annual benefit + coverage among poor households, "
+                       "equally weighted)",
         "primary":     True,
     },
     {
         "name":        "exposure_exp_hybrid",
-        "dims":        ["delta_exp_hybrid"],
+        "dims":        ["delta_benefit_hybrid"],
         "weights":     [1.0],
-        "description": "Hybrid expenditure only — simulated IMV exp vs "
-                       "administrative RMI exp",
+        "description": "Hybrid average-benefit margin — simulated post-reform average "
+                       "annual benefit vs administrative RMI average annual benefit",
         "primary":     False,
     },
     {
         "name":        "exposure_cov_hybrid",
         "dims":        ["delta_cov_hybrid"],
         "weights":     [1.0],
-        "description": "Hybrid coverage only — simulated IMV recipients vs "
-                       "administrative RMI titulares",
+        "description": "Hybrid coverage margin — simulated post-reform recipient "
+                       "households vs administrative RMI titulares, divided by "
+                       "pre-reform poor households",
         "primary":     False,
     },
     {
         "name":        "exposure_composite_sim",
-        "dims":        ["delta_exp_sim", "delta_cov_sim"],
+        "dims":        ["delta_benefit_sim", "delta_cov_sim"],
         "weights":     [0.5, 0.5],
         "description": "Fully simulated composite — both sides from EUROMOD "
-                       "(expenditure + coverage, equally weighted)",
+                       "(average annual benefit + coverage among poor households, "
+                       "equally weighted)",
         "primary":     False,
     },
     {
         "name":        "exposure_admin",
-        "dims":        ["delta_exp_admin", "delta_cov_admin"],
+        "dims":        ["level_benefit_admin", "level_cov_admin"],
         "weights":     [0.5, 0.5],
-        "description": "Purely administrative — negative pre-reform RMI "
-                       "expenditure + coverage intensity (no simulation)",
+        "description": "Purely administrative — negative pre-reform RMI average "
+                       "benefit + coverage among poor households",
         "primary":     False,
     },
 ]
@@ -98,16 +108,6 @@ def compute_exposure(
       3. Add rank version (1=lowest exposure, N=highest).
 
     Scaling parameters stored in df.attrs for reproducibility.
-
-    Parameters
-    ----------
-    pooled        : output of pool_dimensions — one row per region.
-    region_names  : mapping from drgn2 to region name string.
-
-    Returns
-    -------
-    pd.DataFrame sorted by PRIMARY_SPEC descending.
-    df.attrs contains scaling parameters for all dimensions.
     """
     result = pooled.copy()
     result["region"] = result["drgn2"].map(region_names)
