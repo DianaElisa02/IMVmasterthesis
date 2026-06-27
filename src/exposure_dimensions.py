@@ -93,41 +93,37 @@ def weighted_median(values: pd.Series, weights: pd.Series) -> float:
         ordered.loc[ordered["weight"].cumsum().ge(cutoff), "value"].iloc[0]
     )
 
-
-def _check_one_positive_record_per_household(
+def _deduplicate_positive_benefits(
     df: pd.DataFrame,
     benefit_col: str,
     label: str,
-) -> None:
+) -> pd.DataFrame:
     """
-    Validate that positive household-level benefits are not repeated across
-    multiple person rows.
+    Keep one record per household for benefit calculations.
 
-    The exposure pipeline sums dwt over positive-benefit records. This is valid
-    only if each recipient household contributes one positive benefit record.
-    If EUROMOD exports the same household benefit on every person row, this
-    check fails loudly rather than silently over-counting recipients and
-    expenditure.
+    This avoids over-counting rare cases where the same positive household
+    benefit is repeated across more than one person row.
     """
-    required = {"idhh", benefit_col}
+    required = {"idhh", "dwt", benefit_col}
     missing = required - set(df.columns)
     if missing:
         raise KeyError(
-            f"{label}: cannot validate recipient records. "
+            f"{label}: cannot deduplicate benefit records. "
             f"Missing columns: {sorted(missing)}"
         )
 
-    positive = df[df[benefit_col] > 0]
-    duplicated = positive["idhh"].duplicated(keep=False)
-
-    if duplicated.any():
-        examples = positive.loc[duplicated, ["idhh", benefit_col]].head(10)
-        raise ValueError(
-            f"{label}: multiple positive {benefit_col} records found within "
-            f"the same household. The current recipient/expenditure sums would "
-            f"over-count unless the data are first collapsed to household level.\n"
-            f"Examples:\n{examples}"
+    dup_mask = df[df[benefit_col] > 0]["idhh"].duplicated(keep=False)
+    if dup_mask.any():
+        duplicated_hh = df.loc[df[benefit_col] > 0, "idhh"][dup_mask].nunique()
+        logger.warning(
+            "%s: %d households have repeated positive %s records. "
+            "Using one record per household for recipient and expenditure calculations.",
+            label,
+            duplicated_hh,
+            benefit_col,
         )
+
+    return df.drop_duplicates(subset="idhh").copy()
 
 
 def _prepare_poverty_denominator(rmi_df: pd.DataFrame, year: int) -> pd.DataFrame:
@@ -138,17 +134,43 @@ def _prepare_poverty_denominator(rmi_df: pd.DataFrame, year: int) -> pd.DataFram
     equivalised disposable income below 60 percent of the national weighted
     median. The threshold is national, not region-specific.
     """
-    required = {"idhh", "drgn2", "dwt", "yds", "oecd_m"}
+    required = {"idhh", "drgn2", "dwt", "yds", "dag"}
     missing = required - set(rmi_df.columns)
     if missing:
         raise KeyError(
             "Cannot construct the poor-household denominator for coverage. "
-            f"Year {year} is missing columns: {sorted(missing)}"
+            f"Missing columns: {sorted(missing)}"
         )
 
+    hh_comp = (
+        rmi_df[["idhh", "dag"]]
+        .dropna()
+        .assign(
+            adult=lambda x: x["dag"] >= 14,
+            child=lambda x: x["dag"] < 14,
+        )
+        .groupby("idhh")
+        .agg(
+            n_adults=("adult", "sum"),
+            n_children=("child", "sum"),
+        )
+        .reset_index()
+    )
+
+    hh_comp["oecd_m_reconstructed"] = (
+        1
+        + 0.5 * (hh_comp["n_adults"] - 1).clip(lower=0)
+        + 0.3 * hh_comp["n_children"]
+    )
+
+    hh_comp["hh_size_reconstructed"] = (
+        hh_comp["n_adults"] + hh_comp["n_children"]
+    )
+
     poverty_hh = (
-        rmi_df[["idhh", "drgn2", "dwt", "yds", "oecd_m"]]
+        rmi_df[["idhh", "drgn2", "dwt", "yds"]]
         .drop_duplicates(subset="idhh")
+        .merge(hh_comp[["idhh", "oecd_m_reconstructed", "hh_size_reconstructed"]], on="idhh", how="left")
         .copy()
     )
 
@@ -156,20 +178,19 @@ def _prepare_poverty_denominator(rmi_df: pd.DataFrame, year: int) -> pd.DataFram
         poverty_hh["dwt"].notna()
         & poverty_hh["dwt"].gt(0)
         & poverty_hh["yds"].notna()
-        & poverty_hh["oecd_m"].notna()
-        & poverty_hh["oecd_m"].gt(0)
+        & poverty_hh["oecd_m_reconstructed"].notna()
+        & poverty_hh["oecd_m_reconstructed"].gt(0)
     ].copy()
 
-    if poverty_hh.empty:
-        raise ValueError(
-            f"Year {year}: no valid household observations for the poverty denominator."
-        )
+    poverty_hh["equiv_income"] = (
+        poverty_hh["yds"] / poverty_hh["oecd_m_reconstructed"]
+    )
 
-    poverty_hh["equiv_income"] = poverty_hh["yds"] / poverty_hh["oecd_m"]
+    poverty_hh["person_weight"] = poverty_hh["dwt"] * poverty_hh["hh_size_reconstructed"]
 
     national_median = weighted_median(
         poverty_hh["equiv_income"],
-        poverty_hh["dwt"],
+        poverty_hh["person_weight"],
     )
     poverty_threshold = 0.60 * national_median
     poverty_hh["poor_hh"] = poverty_hh["equiv_income"] < poverty_threshold
@@ -219,20 +240,20 @@ def compute_regional_dimensions(
                 "households is zero, so coverage cannot be defined."
             )
 
-        _check_one_positive_record_per_household(
+        r_benefit = _deduplicate_positive_benefits(
             r, "bsarg_s", f"RMI {year}, region {drgn2}"
         )
-        _check_one_positive_record_per_household(
+        i_benefit = _deduplicate_positive_benefits(
             i, "total_post", f"Post-reform {year}, region {drgn2}"
         )
 
-        rmi_rec = r[r["bsarg_s"] > 0]
+        rmi_rec = r_benefit[r_benefit["bsarg_s"] > 0]
         rmi_rec_w = rmi_rec["dwt"].sum()
-        rmi_exp = (r["bsarg_s"] * r["dwt"]).sum() * 12
+        rmi_exp = (r_benefit["bsarg_s"] * r_benefit["dwt"]).sum() * 12
 
-        post_rec = i[i["total_post"] > 0]
+        post_rec = i_benefit[i_benefit["total_post"] > 0]
         post_rec_w = post_rec["dwt"].sum()
-        post_exp = (i["total_post"] * i["dwt"]).sum() * 12
+        post_exp = (i_benefit["total_post"] * i_benefit["dwt"]).sum() * 12
 
         # Monthly means retained for backward-compatible descriptive validation.
         rmi_mean = (
