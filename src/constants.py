@@ -499,9 +499,6 @@ BALANCE_CONTROLS = [
     "n_children",
     "head_age_group",
     "head_sex",
-    "head_labour_group",
-    "single_parent_hh",
-    "homeowner",
 ]
 
 BALANCE_CONTROLS_EXTENDED: list[str] = [
@@ -512,6 +509,7 @@ BALANCE_CONTROLS_EXTENDED: list[str] = [
     "single_parent_hh",
     "any_unemployed_hh",
     "any_employed_hh",
+    "head_labour_group",
 ]
 
 EVENT_STUDY_REGION_TREND: bool = False   # set True for robustness run

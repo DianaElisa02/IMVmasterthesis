@@ -1,25 +1,25 @@
-model,exposure_spec,outcome,group,pretrend_wald_stat,pretrend_wald_p,n_obs,n_clusters,exposure_label,interpretation
-continuous,exposure_cov_admin,matdep,,3.3270315155292036,0.18947167124138706,171933,17,Administrative coverage exposure,No evidence of differential pre-trends at the 10% level
-continuous,exposure_cov_admin,poverty,,9.76402805163149,0.007581728842748645,171933,17,Administrative coverage exposure,Evidence inconsistent with parallel pre-trends at the 10% level
-continuous,exposure_cov_admin,poverty_gap,,9.635814451199918,0.00808368678211709,171933,17,Administrative coverage exposure,Evidence inconsistent with parallel pre-trends at the 10% level
-continuous,exposure_cov_admin,poverty_gap_sq,,5.800538535674555,0.055008406067497476,171933,17,Administrative coverage exposure,Evidence inconsistent with parallel pre-trends at the 10% level
-continuous,exposure_cov_hybrid,matdep,,6.30665995195254,0.04270966763858613,171933,17,Hybrid coverage exposure,Evidence inconsistent with parallel pre-trends at the 10% level
-continuous,exposure_cov_hybrid,poverty,,0.16857377697345402,0.9191675196866924,171933,17,Hybrid coverage exposure,No evidence of differential pre-trends at the 10% level
-continuous,exposure_cov_hybrid,poverty_gap,,7.1257222481482,0.02835757399777275,171933,17,Hybrid coverage exposure,Evidence inconsistent with parallel pre-trends at the 10% level
-continuous,exposure_cov_hybrid,poverty_gap_sq,,3.906000752040567,0.14184783562764935,171933,17,Hybrid coverage exposure,No evidence of differential pre-trends at the 10% level
-continuous,exposure_cov_sim,matdep,,5.110680038688531,0.07766581969611334,160509,15,Simulated coverage exposure,Evidence inconsistent with parallel pre-trends at the 10% level
-continuous,exposure_cov_sim,poverty,,0.4416339278448464,0.8018634367971413,160509,15,Simulated coverage exposure,No evidence of differential pre-trends at the 10% level
-continuous,exposure_cov_sim,poverty_gap,,8.745491075223855,0.012616553749959132,160509,15,Simulated coverage exposure,Evidence inconsistent with parallel pre-trends at the 10% level
-continuous,exposure_cov_sim,poverty_gap_sq,,2.966787425488617,0.226866460862198,160509,15,Simulated coverage exposure,No evidence of differential pre-trends at the 10% level
-continuous,exposure_exp_admin,matdep,,2.884820377936206,0.23635740561734,171933,17,Administrative average-benefit exposure,No evidence of differential pre-trends at the 10% level
-continuous,exposure_exp_admin,poverty,,5.024733129796092,0.08107614007580503,171933,17,Administrative average-benefit exposure,Evidence inconsistent with parallel pre-trends at the 10% level
-continuous,exposure_exp_admin,poverty_gap,,3.6200138532587722,0.16365300323507687,171933,17,Administrative average-benefit exposure,No evidence of differential pre-trends at the 10% level
-continuous,exposure_exp_admin,poverty_gap_sq,,0.5699661791636653,0.7520269713024155,171933,17,Administrative average-benefit exposure,No evidence of differential pre-trends at the 10% level
-continuous,exposure_exp_hybrid,matdep,,0.8002762528084156,0.6702274635322034,171933,17,Hybrid average-benefit exposure,No evidence of differential pre-trends at the 10% level
-continuous,exposure_exp_hybrid,poverty,,0.3281020917186769,0.8486986982200994,171933,17,Hybrid average-benefit exposure,No evidence of differential pre-trends at the 10% level
-continuous,exposure_exp_hybrid,poverty_gap,,0.7494282430777148,0.687485788079901,171933,17,Hybrid average-benefit exposure,No evidence of differential pre-trends at the 10% level
-continuous,exposure_exp_hybrid,poverty_gap_sq,,0.8256758700649738,0.6617695237939867,171933,17,Hybrid average-benefit exposure,No evidence of differential pre-trends at the 10% level
-continuous,exposure_exp_sim,matdep,,1.4306262757690669,0.48903895119475815,160509,15,Simulated average-benefit exposure,No evidence of differential pre-trends at the 10% level
-continuous,exposure_exp_sim,poverty,,1.3215624324547577,0.5164477195178627,160509,15,Simulated average-benefit exposure,No evidence of differential pre-trends at the 10% level
-continuous,exposure_exp_sim,poverty_gap,,0.4393299157942404,0.802787720595835,160509,15,Simulated average-benefit exposure,No evidence of differential pre-trends at the 10% level
-continuous,exposure_exp_sim,poverty_gap_sq,,0.10747528595639697,0.9476807045769186,160509,15,Simulated average-benefit exposure,No evidence of differential pre-trends at the 10% level
+model,exposure_spec,outcome,group,pretrend_chi2_stat,pretrend_chi2_p,pretrend_inference,n_obs,n_clusters,exposure_label,interpretation
+continuous,exposure_cov_admin,matdep,,3.3270315202582954,0.18947167079337257,CRV1 asymptotic chi-square Wald diagnostic,171933,17,Administrative coverage exposure,No evidence of differential pre-trends at the 10% level
+continuous,exposure_cov_admin,poverty,,9.764028076790105,0.00758172874737575,CRV1 asymptotic chi-square Wald diagnostic,171933,17,Administrative coverage exposure,Evidence inconsistent with parallel pre-trends at the 10% level
+continuous,exposure_cov_admin,poverty_gap,,9.635813803096706,0.008083689401649196,CRV1 asymptotic chi-square Wald diagnostic,171933,17,Administrative coverage exposure,Evidence inconsistent with parallel pre-trends at the 10% level
+continuous,exposure_cov_admin,poverty_gap_sq,,5.800538282979166,0.05500841301768321,CRV1 asymptotic chi-square Wald diagnostic,171933,17,Administrative coverage exposure,Evidence inconsistent with parallel pre-trends at the 10% level
+continuous,exposure_cov_hybrid,matdep,,6.306660046795442,0.042709665613231744,CRV1 asymptotic chi-square Wald diagnostic,171933,17,Hybrid coverage exposure,Evidence inconsistent with parallel pre-trends at the 10% level
+continuous,exposure_cov_hybrid,poverty,,0.16857376401943241,0.9191675256401504,CRV1 asymptotic chi-square Wald diagnostic,171933,17,Hybrid coverage exposure,No evidence of differential pre-trends at the 10% level
+continuous,exposure_cov_hybrid,poverty_gap,,7.125722191269303,0.028357574804246524,CRV1 asymptotic chi-square Wald diagnostic,171933,17,Hybrid coverage exposure,Evidence inconsistent with parallel pre-trends at the 10% level
+continuous,exposure_cov_hybrid,poverty_gap_sq,,3.906000736564377,0.14184783672528137,CRV1 asymptotic chi-square Wald diagnostic,171933,17,Hybrid coverage exposure,No evidence of differential pre-trends at the 10% level
+continuous,exposure_cov_sim,matdep,,5.110680125549564,0.07766581632304677,CRV1 asymptotic chi-square Wald diagnostic,160509,15,Simulated coverage exposure,Evidence inconsistent with parallel pre-trends at the 10% level
+continuous,exposure_cov_sim,poverty,,0.44163393032549875,0.8018634358025694,CRV1 asymptotic chi-square Wald diagnostic,160509,15,Simulated coverage exposure,No evidence of differential pre-trends at the 10% level
+continuous,exposure_cov_sim,poverty_gap,,8.745490447657144,0.012616557708824321,CRV1 asymptotic chi-square Wald diagnostic,160509,15,Simulated coverage exposure,Evidence inconsistent with parallel pre-trends at the 10% level
+continuous,exposure_cov_sim,poverty_gap_sq,,2.966787238811163,0.2268664820376256,CRV1 asymptotic chi-square Wald diagnostic,160509,15,Simulated coverage exposure,No evidence of differential pre-trends at the 10% level
+continuous,exposure_exp_admin,matdep,,2.884820376914165,0.2363574057381235,CRV1 asymptotic chi-square Wald diagnostic,171933,17,Administrative average-benefit exposure,No evidence of differential pre-trends at the 10% level
+continuous,exposure_exp_admin,poverty,,5.024733366477305,0.08107613048120602,CRV1 asymptotic chi-square Wald diagnostic,171933,17,Administrative average-benefit exposure,Evidence inconsistent with parallel pre-trends at the 10% level
+continuous,exposure_exp_admin,poverty_gap,,3.6200139638474926,0.163652994185989,CRV1 asymptotic chi-square Wald diagnostic,171933,17,Administrative average-benefit exposure,No evidence of differential pre-trends at the 10% level
+continuous,exposure_exp_admin,poverty_gap_sq,,0.5699661751144659,0.752026972824969,CRV1 asymptotic chi-square Wald diagnostic,171933,17,Administrative average-benefit exposure,No evidence of differential pre-trends at the 10% level
+continuous,exposure_exp_hybrid,matdep,,0.8002762626883106,0.6702274602213149,CRV1 asymptotic chi-square Wald diagnostic,171933,17,Hybrid average-benefit exposure,No evidence of differential pre-trends at the 10% level
+continuous,exposure_exp_hybrid,poverty,,0.3281020926121816,0.8486986978409412,CRV1 asymptotic chi-square Wald diagnostic,171933,17,Hybrid average-benefit exposure,No evidence of differential pre-trends at the 10% level
+continuous,exposure_exp_hybrid,poverty_gap,,0.7494283097927066,0.6874857651470969,CRV1 asymptotic chi-square Wald diagnostic,171933,17,Hybrid average-benefit exposure,No evidence of differential pre-trends at the 10% level
+continuous,exposure_exp_hybrid,poverty_gap_sq,,0.8256758757447102,0.6617695219146484,CRV1 asymptotic chi-square Wald diagnostic,171933,17,Hybrid average-benefit exposure,No evidence of differential pre-trends at the 10% level
+continuous,exposure_exp_sim,matdep,,1.4306262763227502,0.4890389510593718,CRV1 asymptotic chi-square Wald diagnostic,160509,15,Simulated average-benefit exposure,No evidence of differential pre-trends at the 10% level
+continuous,exposure_exp_sim,poverty,,1.321562439862288,0.5164477176050616,CRV1 asymptotic chi-square Wald diagnostic,160509,15,Simulated average-benefit exposure,No evidence of differential pre-trends at the 10% level
+continuous,exposure_exp_sim,poverty_gap,,0.4393299433682535,0.8027877095277955,CRV1 asymptotic chi-square Wald diagnostic,160509,15,Simulated average-benefit exposure,No evidence of differential pre-trends at the 10% level
+continuous,exposure_exp_sim,poverty_gap_sq,,0.1074752904812684,0.947680702432852,CRV1 asymptotic chi-square Wald diagnostic,160509,15,Simulated average-benefit exposure,No evidence of differential pre-trends at the 10% level
