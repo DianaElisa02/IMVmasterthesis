@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 import numpy as np
 import pandas as pd
 import polars as pl
@@ -13,6 +14,7 @@ from src.constants import ANALYSIS_OUTCOMES, BALANCE_CONTROLS, EVENT_STUDY_REFER
 
 logger = logging.getLogger(__name__)
 _CATEGORICAL_CONTROLS = {"head_age_group", "head_sex", "head_labour_group"}
+_PRETREND_INFERENCE = "CRV1 asymptotic chi-square Wald diagnostic"
 
 
 def _prepare(df: pd.DataFrame) -> pd.DataFrame:
@@ -32,7 +34,13 @@ def _wald_joint(fit, terms: list[str]) -> tuple[float, float]:
     for i, term in enumerate(selected):
         restriction[i, names.index(term)] = 1.0
     try:
-        test = fit.wald_test(R=restriction)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="Distribution changed to chi2.*",
+                category=UserWarning,
+            )
+            test = fit.wald_test(R=restriction)
         return float(test["statistic"]), float(test["pvalue"])
     except Exception as exc:
         logger.warning("Joint Wald test failed: %s", exc)
@@ -92,8 +100,9 @@ def run_continuous_event_study(panel: pl.DataFrame, exposure_spec: str, outcomes
         result = _tidy(fit, terms, outcome, exposure_spec, "continuous", reference_year)
         pre_terms = [term for term in terms if int(term.rsplit('_', 1)[-1]) < reference_year]
         stat, pvalue = _wald_joint(fit, pre_terms)
-        result["pretrend_wald_stat"] = stat
-        result["pretrend_wald_p"] = pvalue
+        result["pretrend_chi2_stat"] = stat
+        result["pretrend_chi2_p"] = pvalue
+        result["pretrend_inference"] = _PRETREND_INFERENCE
         frames.append(result)
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
@@ -129,13 +138,14 @@ def run_tercile_event_study(panel: pl.DataFrame, exposure_spec: str, outcomes: l
             pre_terms = [term for term in terms if int(term.rsplit('_', 1)[-1]) < reference_year]
             all_pre_terms.extend(pre_terms)
             stat, pvalue = _wald_joint(fit, pre_terms)
-            result["pretrend_group_wald_stat"] = stat
-            result["pretrend_group_wald_p"] = pvalue
+            result["pretrend_group_chi2_stat"] = stat
+            result["pretrend_group_chi2_p"] = pvalue
+            result["pretrend_inference"] = _PRETREND_INFERENCE
             outcome_frames.append(result)
         stat, pvalue = _wald_joint(fit, all_pre_terms)
         for result in outcome_frames:
-            result["pretrend_wald_stat"] = stat
-            result["pretrend_wald_p"] = pvalue
+            result["pretrend_chi2_stat"] = stat
+            result["pretrend_chi2_p"] = pvalue
             frames.append(result)
     assignments["exposure_spec"] = exposure_spec
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(), assignments
