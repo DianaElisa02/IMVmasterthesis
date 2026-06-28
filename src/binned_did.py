@@ -16,7 +16,14 @@ from src.constants import ANALYSIS_OUTCOMES, BALANCE_CONTROLS, DID_POST_YEARS_BA
 
 logger = logging.getLogger(__name__)
 _PRE_YEARS = YEARS
-_CATEGORICAL_CONTROLS = {"head_age_group", "head_sex", "head_labour_group"}
+_CATEGORICAL_CONTROLS = {
+    "head_age_group",
+    "head_sex",
+    "head_labour_group",
+    "head_education_group",
+    "n_adults_group",
+    "n_children_group",
+}
 
 
 def _balanced_group_sizes(n: int) -> tuple[int, int, int]:
