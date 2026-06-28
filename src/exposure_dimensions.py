@@ -203,7 +203,118 @@ def _prepare_poverty_denominator(rmi_df: pd.DataFrame, year: int) -> pd.DataFram
     )
     return poverty_hh
 
+def _collapse_benefit_to_household(
+    df: pd.DataFrame,
+    benefit_col: str,
+    label: str,
+    aggregation: str,
+) -> pd.DataFrame:
+    """
+    Collapse person-level benefit records to one household record.
 
+    aggregation="unique_positive"
+        Retains the single distinct positive amount within a household.
+        Appropriate for bsa00_s, which is a household-level IMV amount.
+
+    aggregation="sum_unique_positive"
+        Sums distinct positive values within a household.
+        Appropriate for bsarg_s, which can contain separate payments to
+        different household members.
+
+    Identical positive values repeated across members are counted only once.
+    """
+    required = {
+        "idhh",
+        "dwt",
+        benefit_col,
+    }
+    missing = required - set(df.columns)
+
+    if missing:
+        raise KeyError(
+            f"{label}: missing columns {sorted(missing)}"
+        )
+
+    work = df[
+        ["idhh", "dwt", benefit_col]
+    ].copy()
+
+    work[benefit_col] = pd.to_numeric(
+        work[benefit_col],
+        errors="coerce",
+    ).fillna(0.0)
+
+    weight_counts = (
+        work.groupby("idhh")["dwt"]
+        .nunique(dropna=False)
+    )
+
+    inconsistent_weights = weight_counts[
+        weight_counts.gt(1)
+    ]
+
+    if not inconsistent_weights.empty:
+        raise ValueError(
+            f"{label}: dwt differs within "
+            f"{len(inconsistent_weights)} households. "
+            f"Examples: {inconsistent_weights.index.tolist()[:10]}"
+        )
+
+    def aggregate_household(values: pd.Series) -> float:
+        positive = (
+            pd.to_numeric(values, errors="coerce")
+            .dropna()
+        )
+
+        positive = positive[
+            positive.gt(0)
+        ].drop_duplicates()
+
+        if positive.empty:
+            return 0.0
+
+        if aggregation == "unique_positive":
+            if len(positive) > 1:
+                raise ValueError(
+                    f"{label}: household contains multiple distinct "
+                    f"positive {benefit_col} values: "
+                    f"{sorted(positive.tolist())}"
+                )
+
+            return float(positive.iloc[0])
+
+        if aggregation == "sum_unique_positive":
+            return float(positive.sum())
+
+        raise ValueError(
+            f"Unknown aggregation rule: {aggregation}"
+        )
+
+    benefits = (
+        work.groupby("idhh")[benefit_col]
+        .apply(aggregate_household)
+        .rename(benefit_col)
+        .reset_index()
+    )
+
+    weights = (
+        work.groupby("idhh", as_index=False)
+        .agg(dwt=("dwt", "first"))
+    )
+
+    household = weights.merge(
+        benefits,
+        on="idhh",
+        how="left",
+        validate="one_to_one",
+    )
+
+    household[benefit_col] = (
+        household[benefit_col]
+        .fillna(0.0)
+    )
+
+    return household
 
 def compute_regional_dimensions(
     rmi_df: pd.DataFrame,
@@ -212,103 +323,217 @@ def compute_regional_dimensions(
     exclude_regions: frozenset[int],
     incompatible_regions: frozenset[int],
 ) -> pd.DataFrame:
+    """
+    Compute annual regional coverage and average-benefit dimensions.
+
+    Benefit variables are first collapsed from person rows to household level:
+
+    - bsa00_s uses one unique positive household amount;
+    - bsarg_s sums distinct positive amounts within the household.
+
+    The post-reform benefit is constructed only after the two components have
+    been aggregated separately to household level.
+    """
     imv = imv_df.copy()
 
     # Remove the regional RMI component where it is structurally incompatible
     # or contains the known €1 placeholder. In these regions, post-reform
     # protection is represented by the national IMV component only.
-    post_bsarg_exclude_regions = set(incompatible_regions) | {23, 24}
+    post_bsarg_exclude_regions = (
+        set(incompatible_regions)
+        | {23, 24}
+    )
 
     imv.loc[
         imv["drgn2"].isin(post_bsarg_exclude_regions),
         "bsarg_s",
     ] = 0.0
 
-    imv["total_post"] = (
-        imv["bsa00_s"].fillna(0.0)
-        + imv["bsarg_s"].fillna(0.0)
+    # Do not construct total_post at person level. The two components may be
+    # recorded on different household-member rows and must first be collapsed
+    # separately to household level.
+    poverty_hh = _prepare_poverty_denominator(
+        rmi_df,
+        year,
     )
 
-    poverty_hh = _prepare_poverty_denominator(rmi_df, year)
+    results: list[dict] = []
 
-    results = []
+    regions = sorted(
+        rmi_df["drgn2"]
+        .dropna()
+        .unique()
+    )
 
-    for drgn2 in sorted(rmi_df["drgn2"].dropna().unique()):
+    for drgn2 in regions:
+        drgn2 = int(drgn2)
+
         if drgn2 in exclude_regions:
             continue
 
-        r = rmi_df[rmi_df["drgn2"] == drgn2].copy()
-        i = imv[imv["drgn2"] == drgn2].copy()
+        r = rmi_df[
+            rmi_df["drgn2"].eq(drgn2)
+        ].copy()
 
+        i = imv[
+            imv["drgn2"].eq(drgn2)
+        ].copy()
+
+        # Retained as the legacy resident denominator. This is a person-level
+        # population total because dwt is summed across person records.
         pop = r["dwt"].sum()
 
-        if pop <= 0:
+        if pd.isna(pop) or pop <= 0:
+            logger.warning(
+                "Year %d, region %d: non-positive population weight; skipping.",
+                year,
+                drgn2,
+            )
             continue
 
         poor_r = poverty_hh[
-            (poverty_hh["drgn2"] == drgn2)
+            poverty_hh["drgn2"].eq(drgn2)
             & poverty_hh["poor_hh"]
         ]
+
         poor_hh_w = poor_r["dwt"].sum()
 
-        if poor_hh_w <= 0:
+        if pd.isna(poor_hh_w) or poor_hh_w <= 0:
             raise ValueError(
                 f"Year {year}, region {drgn2}: weighted number of poor "
                 "households is zero, so coverage cannot be defined."
             )
 
-        # Collapse repeated household-level benefit values to one record per
-        # household before calculating recipients and expenditure.
-        r_benefit = _deduplicate_positive_benefits(
+        # ------------------------------------------------------------------
+        # Pre-reform simulated RMI
+        # ------------------------------------------------------------------
+        # bsarg_s can contain distinct positive payments assigned to different
+        # household members. Sum distinct positive values within each household
+        # while avoiding duplication of identical repeated amounts.
+        r_benefit = _collapse_benefit_to_household(
             r,
             "bsarg_s",
             f"RMI {year}, region {drgn2}",
+            aggregation="sum_unique_positive",
         )
 
-        i_benefit = _deduplicate_positive_benefits(
+        # ------------------------------------------------------------------
+        # Post-reform simulated protection
+        # ------------------------------------------------------------------
+        # bsa00_s is the national IMV household amount. The audit found no
+        # households with multiple distinct positive bsa00_s values, so retain
+        # the single unique positive amount.
+        post_imv = _collapse_benefit_to_household(
             i,
-            "total_post",
-            f"Post-reform {year}, region {drgn2}",
+            "bsa00_s",
+            f"IMV component {year}, region {drgn2}",
+            aggregation="unique_positive",
+        ).rename(
+            columns={
+                "bsa00_s": "bsa00_hh",
+            }
         )
 
-        # A household is treated as a recipient only when its monthly benefit
-        # reaches the minimum relevant payment threshold.
+        # bsarg_s may contain separate regional payments assigned to different
+        # members, so distinct positive amounts are summed within household.
+        post_rmi = _collapse_benefit_to_household(
+            i,
+            "bsarg_s",
+            f"Regional component {year}, region {drgn2}",
+            aggregation="sum_unique_positive",
+        )
+
+        # Retain the weight from post_imv and only the regional benefit from
+        # post_rmi, avoiding duplicate dwt columns in the merge.
+        post_rmi = post_rmi[
+            ["idhh", "bsarg_s"]
+        ].rename(
+            columns={
+                "bsarg_s": "bsarg_hh",
+            }
+        )
+
+        i_benefit = post_imv.merge(
+            post_rmi,
+            on="idhh",
+            how="outer",
+            validate="one_to_one",
+        )
+
+        i_benefit["bsa00_hh"] = (
+            i_benefit["bsa00_hh"]
+            .fillna(0.0)
+        )
+
+        i_benefit["bsarg_hh"] = (
+            i_benefit["bsarg_hh"]
+            .fillna(0.0)
+        )
+
+        i_benefit["total_post"] = (
+            i_benefit["bsa00_hh"]
+            + i_benefit["bsarg_hh"]
+        )
+
+        # ------------------------------------------------------------------
+        # Recipient classification
+        # ------------------------------------------------------------------
         rmi_rec = r_benefit[
-            r_benefit["bsarg_s"] >= RECIPIENT_FLOOR
+            r_benefit["bsarg_s"].ge(
+                RECIPIENT_FLOOR
+            )
         ].copy()
 
         post_rec = i_benefit[
-            i_benefit["total_post"] >= RECIPIENT_FLOOR
+            i_benefit["total_post"].ge(
+                RECIPIENT_FLOOR
+            )
         ].copy()
 
         rmi_rec_w = rmi_rec["dwt"].sum()
         post_rec_w = post_rec["dwt"].sum()
 
-        # Expenditure and recipient counts use exactly the same eligible rows.
+        # ------------------------------------------------------------------
+        # Expenditure
+        # ------------------------------------------------------------------
+        # Numerators and recipient denominators are calculated from the same
+        # eligible household records.
         rmi_exp = (
-            rmi_rec["bsarg_s"] * rmi_rec["dwt"]
+            rmi_rec["bsarg_s"]
+            * rmi_rec["dwt"]
         ).sum() * 12
 
         post_exp = (
-            post_rec["total_post"] * post_rec["dwt"]
+            post_rec["total_post"]
+            * post_rec["dwt"]
         ).sum() * 12
 
-        # Monthly weighted mean benefit among eligible recipient households.
+        # ------------------------------------------------------------------
+        # Monthly weighted mean among recipient households
+        # ------------------------------------------------------------------
         rmi_mean = (
-            (rmi_rec["bsarg_s"] * rmi_rec["dwt"]).sum()
+            (
+                rmi_rec["bsarg_s"]
+                * rmi_rec["dwt"]
+            ).sum()
             / rmi_rec_w
             if rmi_rec_w > 0
             else np.nan
         )
 
         post_mean = (
-            (post_rec["total_post"] * post_rec["dwt"]).sum()
+            (
+                post_rec["total_post"]
+                * post_rec["dwt"]
+            ).sum()
             / post_rec_w
             if post_rec_w > 0
             else np.nan
         )
 
-        # Annual average benefit among recipient households.
+        # ------------------------------------------------------------------
+        # Annual average benefit among recipient households
+        # ------------------------------------------------------------------
         rmi_avg_benefit = (
             rmi_exp / rmi_rec_w
             if rmi_rec_w > 0
@@ -321,23 +546,51 @@ def compute_regional_dimensions(
             else np.nan
         )
 
-        # Coverage among pre-reform poor households.
-        rmi_coverage = rmi_rec_w / poor_hh_w
-        post_coverage = post_rec_w / poor_hh_w
+        # ------------------------------------------------------------------
+        # Coverage among pre-reform poor households
+        # ------------------------------------------------------------------
+        rmi_coverage = (
+            rmi_rec_w / poor_hh_w
+        )
+
+        post_coverage = (
+            post_rec_w / poor_hh_w
+        )
 
         results.append({
-            "drgn2": int(drgn2),
+            "drgn2": drgn2,
             "year": year,
             "pop": pop,
-            "poor_hh_sim": round(poor_hh_w, 0),
+            "poor_hh_sim": round(
+                poor_hh_w,
+                0,
+            ),
 
-            "rmi_exp_sim": round(rmi_exp, 0),
-            "imv_exp_sim": round(post_exp, 0),
-            "post_exp_sim": round(post_exp, 0),
+            "rmi_exp_sim": round(
+                rmi_exp,
+                0,
+            ),
+            "imv_exp_sim": round(
+                post_exp,
+                0,
+            ),
+            "post_exp_sim": round(
+                post_exp,
+                0,
+            ),
 
-            "rmi_rec_sim": round(rmi_rec_w, 0),
-            "imv_rec_sim": round(post_rec_w, 0),
-            "post_rec_sim": round(post_rec_w, 0),
+            "rmi_rec_sim": round(
+                rmi_rec_w,
+                0,
+            ),
+            "imv_rec_sim": round(
+                post_rec_w,
+                0,
+            ),
+            "post_rec_sim": round(
+                post_rec_w,
+                0,
+            ),
 
             "rmi_mean_sim": (
                 round(rmi_mean, 2)
@@ -349,6 +602,7 @@ def compute_regional_dimensions(
                 if pd.notna(post_mean)
                 else np.nan
             ),
+
             "rmi_avg_benefit_sim": (
                 round(rmi_avg_benefit, 2)
                 if pd.notna(rmi_avg_benefit)
@@ -360,12 +614,19 @@ def compute_regional_dimensions(
                 else np.nan
             ),
 
-            "rmi_coverage_sim": round(rmi_coverage, 6),
-            "post_coverage_sim": round(post_coverage, 6),
+            "rmi_coverage_sim": round(
+                rmi_coverage,
+                6,
+            ),
+            "post_coverage_sim": round(
+                post_coverage,
+                6,
+            ),
 
             "delta_benefit_sim_yr": (
                 round(
-                    post_avg_benefit - rmi_avg_benefit,
+                    post_avg_benefit
+                    - rmi_avg_benefit,
                     4,
                 )
                 if (
@@ -376,14 +637,19 @@ def compute_regional_dimensions(
             ),
 
             "delta_cov_sim_yr": round(
-                post_coverage - rmi_coverage,
+                post_coverage
+                - rmi_coverage,
                 6,
             ),
 
-            # Retained only for the existing legacy stability validation.
+            # Retained for legacy descriptive or validation use.
             "delta_exp_sim_yr": (
                 round(
-                    (post_exp - rmi_exp) / pop,
+                    (
+                        post_exp
+                        - rmi_exp
+                    )
+                    / pop,
                     4,
                 )
                 if pop > 0
@@ -400,7 +666,6 @@ def compute_regional_dimensions(
     )
 
     return df
-
 
 def pool_dimensions(
     rmi_dfs: dict[int, pd.DataFrame],

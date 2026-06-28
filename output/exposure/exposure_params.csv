@@ -1,7 +1,7 @@
 dimension,raw_mean,std
-delta_cov_hybrid,-0.014084,0.117261
-delta_benefit_hybrid,972.499612,1282.013145
-delta_cov_sim,0.042898,0.058086
-delta_benefit_sim,394.86512,901.876892
+delta_cov_hybrid,0.038089,0.098943
+delta_benefit_hybrid,855.598635,1301.586369
+delta_cov_sim,0.072257,0.067567
+delta_benefit_sim,132.693107,1021.921654
 level_cov_admin,-0.17979,0.251375
 level_benefit_admin,-4701.200771,1552.487007
