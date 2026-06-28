@@ -12,18 +12,11 @@ import polars as pl
 import pyfixest as pf
 from scipy.stats import t as t_dist
 
-from src.constants import ANALYSIS_OUTCOMES, BALANCE_CONTROLS, DID_POST_YEARS_BASELINE, EXPOSURE_SPECS, REGION_NAMES, YEARS
+from src.constants import ANALYSIS_OUTCOMES, DID_POST_YEARS_BASELINE, EXPOSURE_SPECS, REGION_NAMES, YEARS
+from src.control_specs import PREFERRED_CONTROLS, add_preferred_control_groups, cast_categorical_controls
 
 logger = logging.getLogger(__name__)
 _PRE_YEARS = YEARS
-_CATEGORICAL_CONTROLS = {
-    "head_age_group",
-    "head_sex",
-    "head_labour_group",
-    "head_education_group",
-    "n_adults_group",
-    "n_children_group",
-}
 
 
 def _balanced_group_sizes(n: int) -> tuple[int, int, int]:
@@ -71,6 +64,7 @@ def compute_tercile_assignments(panel: pl.DataFrame, exposure_spec: str) -> pd.D
 
 def build_binned_did_data(panel: pl.DataFrame, post_years: list[int] | None = None, exposure_spec: str = EXPOSURE_SPECS[0]) -> tuple[pl.DataFrame, pd.DataFrame]:
     post_years = post_years or DID_POST_YEARS_BASELINE
+    panel = add_preferred_control_groups(panel)
     did = panel.filter(pl.col("year").is_in(_PRE_YEARS + post_years)).with_columns(
         pl.col("year").is_in(post_years).cast(pl.Float64).alias("post")
     )
@@ -99,10 +93,7 @@ def _boot_pvalue(boot) -> float:
 
 def run_binned_did_spec(df: pd.DataFrame, outcome: str, controls: list[str], seed_medium: int, seed_high: int) -> dict:
     required = [outcome, "post_x_medium", "post_x_high", "drgn2", "year"] + controls
-    clean = df[required].dropna().reset_index(drop=True)
-    for col in _CATEGORICAL_CONTROLS:
-        if col in clean.columns:
-            clean[col] = clean[col].astype("category")
+    clean = cast_categorical_controls(df[required].dropna().reset_index(drop=True))
     ctrl = (" + " + " + ".join(controls)) if controls else ""
     fit = pf.feols(f"{outcome} ~ post_x_medium + post_x_high{ctrl} | drgn2 + year", data=clean, vcov={"CRV1": "drgn2"})
     g = int(clean["drgn2"].nunique())
@@ -140,12 +131,15 @@ def run_binned_did(panel: pl.DataFrame, post_years: list[int], label: str = "bas
         assignments["label"] = label
         assignment_frames.append(assignments)
         df = did.to_pandas()
-        controls = [c for c in BALANCE_CONTROLS if c in df.columns]
-        logger.info("Controls [%s]: %s", spec, controls)
+        controls = [c for c in PREFERRED_CONTROLS if c in df.columns]
+        missing_controls = [c for c in PREFERRED_CONTROLS if c not in df.columns]
+        if missing_controls:
+            raise ValueError(f"Preferred controls missing from analysis data: {missing_controls}")
+        logger.info("Preferred adjusted controls [%s]: %s", spec, controls)
         for j, outcome in enumerate(outcomes):
             if outcome not in df.columns:
                 continue
             row = run_binned_did_spec(df, outcome, controls, 42 + i * 100 + j * 2, 43 + i * 100 + j * 2)
-            row.update({"label": label, "exposure_spec": spec})
+            row.update({"label": label, "exposure_spec": spec, "control_spec": "preferred_demographic"})
             rows.append(row)
     return pd.DataFrame(rows), pd.concat(assignment_frames, ignore_index=True) if assignment_frames else pd.DataFrame()
