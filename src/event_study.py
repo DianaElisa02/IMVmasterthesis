@@ -10,19 +10,15 @@ import pyfixest as pf
 from scipy.stats import t as t_dist
 
 from src.binned_did import compute_tercile_assignments
-from src.constants import ANALYSIS_OUTCOMES, BALANCE_CONTROLS, EVENT_STUDY_REFERENCE_YEAR, EVENT_STUDY_YEARS
+from src.constants import ANALYSIS_OUTCOMES, EVENT_STUDY_REFERENCE_YEAR, EVENT_STUDY_YEARS
+from src.control_specs import PREFERRED_CONTROLS, add_preferred_control_groups, cast_categorical_controls
 
 logger = logging.getLogger(__name__)
-_CATEGORICAL_CONTROLS = {"head_age_group", "head_sex", "head_labour_group"}
 _PRETREND_INFERENCE = "CRV1 asymptotic chi-square Wald diagnostic"
 
 
 def _prepare(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
-    for col in _CATEGORICAL_CONTROLS:
-        if col in out.columns:
-            out[col] = out[col].astype("category")
-    return out
+    return cast_categorical_controls(df)
 
 
 def _wald_joint(fit, terms: list[str]) -> tuple[float, float]:
@@ -73,6 +69,7 @@ def _tidy(fit, terms: list[str], outcome: str, exposure_spec: str, model: str, r
             "pre_period": year < reference_year,
             "n_obs": int(fit._N) if hasattr(fit, "_N") else np.nan,
             "n_clusters": n_clusters,
+            "control_spec": "preferred_demographic",
         })
     return pd.DataFrame(rows)
 
@@ -81,6 +78,7 @@ def run_continuous_event_study(panel: pl.DataFrame, exposure_spec: str, outcomes
     if exposure_spec not in panel.columns:
         raise ValueError(f"Exposure '{exposure_spec}' not found")
     outcomes = outcomes or ANALYSIS_OUTCOMES
+    panel = add_preferred_control_groups(panel)
     years = [year for year in EVENT_STUDY_YEARS if year != reference_year]
     did = panel.filter(pl.col("year").is_in(EVENT_STUDY_YEARS + [reference_year]))
     terms = []
@@ -89,8 +87,11 @@ def run_continuous_event_study(panel: pl.DataFrame, exposure_spec: str, outcomes
         did = did.with_columns((pl.col("year").eq(year).cast(pl.Float64) * pl.col(exposure_spec)).alias(term))
         terms.append(term)
     df = did.to_pandas()
-    controls = [col for col in BALANCE_CONTROLS if col in df.columns]
-    logger.info("Continuous event-study controls [%s]: %s", exposure_spec, controls)
+    controls = [col for col in PREFERRED_CONTROLS if col in df.columns]
+    missing_controls = [col for col in PREFERRED_CONTROLS if col not in df.columns]
+    if missing_controls:
+        raise ValueError(f"Preferred controls missing from analysis data: {missing_controls}")
+    logger.info("Continuous event-study preferred controls [%s]: %s", exposure_spec, controls)
     frames = []
     for outcome in outcomes:
         required = [outcome, "drgn2", "year"] + terms + controls
@@ -109,6 +110,7 @@ def run_continuous_event_study(panel: pl.DataFrame, exposure_spec: str, outcomes
 
 def run_tercile_event_study(panel: pl.DataFrame, exposure_spec: str, outcomes: list[str] | None = None, reference_year: int = EVENT_STUDY_REFERENCE_YEAR) -> tuple[pd.DataFrame, pd.DataFrame]:
     outcomes = outcomes or ANALYSIS_OUTCOMES
+    panel = add_preferred_control_groups(panel)
     assignments = compute_tercile_assignments(panel, exposure_spec)
     did = panel.join(pl.from_pandas(assignments[["drgn2", "exposure_tercile"]]), on="drgn2", how="inner")
     did = did.filter(pl.col("year").is_in(EVENT_STUDY_YEARS + [reference_year]))
@@ -123,8 +125,11 @@ def run_tercile_event_study(panel: pl.DataFrame, exposure_spec: str, outcomes: l
             terms_by_group[group].append(term)
     all_terms = terms_by_group["medium"] + terms_by_group["high"]
     df = did.to_pandas()
-    controls = [col for col in BALANCE_CONTROLS if col in df.columns]
-    logger.info("Tercile event-study controls [%s]: %s", exposure_spec, controls)
+    controls = [col for col in PREFERRED_CONTROLS if col in df.columns]
+    missing_controls = [col for col in PREFERRED_CONTROLS if col not in df.columns]
+    if missing_controls:
+        raise ValueError(f"Preferred controls missing from analysis data: {missing_controls}")
+    logger.info("Tercile event-study preferred controls [%s]: %s", exposure_spec, controls)
     frames = []
     for outcome in outcomes:
         required = [outcome, "drgn2", "year"] + all_terms + controls
