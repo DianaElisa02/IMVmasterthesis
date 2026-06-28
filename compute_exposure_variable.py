@@ -108,8 +108,10 @@ def main() -> None:
         statutory_single=IMV_STATUTORY_2022["basic_monthly"],
         statutory_max=IMV_STATUTORY_2022["max_monthly"],
         floor_monthly=IMV_STATUTORY_2022["floor_monthly"],
-        exclude_regions=EXPOSURE_EXCLUDE_REGIONS,
-        sim_exclude_regions=EXPOSURE_SIM_EXCLUDE_REGIONS,
+        exclude_regions=(
+            EXPOSURE_EXCLUDE_REGIONS
+            | EXPOSURE_SIM_EXCLUDE_REGIONS
+        ),
         output_dir=EXPOSURE_OUTPUT_DIR,
     )
 
