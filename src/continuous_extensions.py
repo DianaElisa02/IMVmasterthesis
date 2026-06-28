@@ -10,11 +10,11 @@ import polars as pl
 import pyfixest as pf
 from scipy.stats import t as t_dist
 
-from src.constants import ANALYSIS_OUTCOMES, BALANCE_CONTROLS, YEARS
+from src.constants import ANALYSIS_OUTCOMES, YEARS
+from src.control_specs import PREFERRED_CONTROLS, add_preferred_control_groups, cast_categorical_controls
 from src.exposure_specs import PRIMARY_EXPOSURE_SPECS, RAW_EXPOSURE_MAP
 
 logger = logging.getLogger(__name__)
-_CATEGORICAL_CONTROLS = {"head_age_group", "head_sex", "head_labour_group"}
 
 
 def attach_raw_exposures(panel: pl.DataFrame, exposure_csv: Path) -> pl.DataFrame:
@@ -33,11 +33,7 @@ def attach_raw_exposures(panel: pl.DataFrame, exposure_csv: Path) -> pl.DataFram
 
 
 def _prepare(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
-    for col in _CATEGORICAL_CONTROLS:
-        if col in out.columns:
-            out[col] = out[col].astype("category")
-    return out
+    return cast_categorical_controls(df)
 
 
 def _boot_pvalue(boot) -> float:
@@ -50,8 +46,16 @@ def _boot_pvalue(boot) -> float:
     return np.nan
 
 
+def _preferred_controls(df: pd.DataFrame) -> list[str]:
+    missing = [control for control in PREFERRED_CONTROLS if control not in df.columns]
+    if missing:
+        raise ValueError(f"Preferred controls missing from analysis data: {missing}")
+    return PREFERRED_CONTROLS
+
+
 def run_raw_continuous_models(panel: pl.DataFrame, post_years: list[int], label: str, outcomes: list[str] | None = None) -> pd.DataFrame:
     outcomes = outcomes or ANALYSIS_OUTCOMES
+    panel = add_preferred_control_groups(panel)
     raw_specs = [RAW_EXPOSURE_MAP[spec] for spec in PRIMARY_EXPOSURE_SPECS]
     did = panel.filter(pl.col("year").is_in(YEARS + post_years)).with_columns(
         pl.col("year").is_in(post_years).cast(pl.Float64).alias("post")
@@ -61,7 +65,7 @@ def run_raw_continuous_models(panel: pl.DataFrame, post_years: list[int], label:
             raise ValueError(f"Raw exposure '{raw}' missing")
         did = did.with_columns((pl.col("post") * pl.col(raw)).alias(f"post_x_{raw}"))
     df = did.to_pandas()
-    controls = [col for col in BALANCE_CONTROLS if col in df.columns]
+    controls = _preferred_controls(df)
     rows = []
     for outcome_idx, outcome in enumerate(outcomes):
         for spec_idx, raw in enumerate(raw_specs):
@@ -91,12 +95,14 @@ def run_raw_continuous_models(panel: pl.DataFrame, post_years: list[int], label:
                 "n_obs": len(clean),
                 "n_clusters": g,
                 "controls": ";".join(controls),
+                "control_spec": "preferred_demographic",
             })
     return pd.DataFrame(rows)
 
 
 def run_joint_standardised_model(panel: pl.DataFrame, post_years: list[int], label: str, outcomes: list[str] | None = None) -> pd.DataFrame:
     outcomes = outcomes or ANALYSIS_OUTCOMES
+    panel = add_preferred_control_groups(panel)
     did = panel.filter(pl.col("year").is_in(YEARS + post_years)).with_columns(
         pl.col("year").is_in(post_years).cast(pl.Float64).alias("post")
     )
@@ -106,7 +112,7 @@ def run_joint_standardised_model(panel: pl.DataFrame, post_years: list[int], lab
         did = did.with_columns((pl.col("post") * pl.col(spec)).alias(term))
         terms.append(term)
     df = did.to_pandas()
-    controls = [col for col in BALANCE_CONTROLS if col in df.columns]
+    controls = _preferred_controls(df)
     rows = []
     for outcome_idx, outcome in enumerate(outcomes):
         required = [outcome, "drgn2", "year"] + terms + controls
@@ -135,5 +141,6 @@ def run_joint_standardised_model(panel: pl.DataFrame, post_years: list[int], lab
                 "n_obs": len(clean),
                 "n_clusters": g,
                 "controls": ";".join(controls),
+                "control_spec": "preferred_demographic",
             })
     return pd.DataFrame(rows)
