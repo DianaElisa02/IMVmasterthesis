@@ -1,0 +1,7 @@
+exposure_spec,column_present,n_regions,n_regions_nonmissing,n_regions_missing,n_regions_with_multiple_values
+exposure_cov_hybrid,true,17,17,0,0
+exposure_exp_hybrid,true,17,17,0,0
+exposure_cov_sim,true,17,15,2,0
+exposure_exp_sim,true,17,15,2,0
+exposure_cov_admin,true,17,17,0,0
+exposure_exp_admin,true,17,17,0,0
