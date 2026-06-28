@@ -55,7 +55,7 @@ from src.constants import (
 )
 from src.exposure_loader import load_all_files
 from src.exposure_dimensions import pool_dimensions
-from src.exposure_index import PRIMARY_SPEC, compute_exposure
+from src.exposure_index import PRIMARY_SPECS, compute_exposure
 from src.exposure_io import save_exposure, plot_exposure
 from src.exposure_validation import run_validation
 
@@ -63,7 +63,7 @@ from src.exposure_validation import run_validation
 def main() -> None:
     logger.info("=" * 60)
     logger.info("Starting exposure variable pipeline")
-    logger.info("Primary specification: %s", PRIMARY_SPEC)
+    logger.info("Primary specifications: %s", PRIMARY_SPECS)
     logger.info("=" * 60)
     logger.info(
         "Excluded from ALL specs: Ceuta (63), Melilla (64)"
@@ -102,7 +102,7 @@ def main() -> None:
     # Construct all exposure specifications
     logger.info(
         "Step 3: Constructing exposure specifications "
-        "(primary: %s)", PRIMARY_SPEC
+        "(primary: %s)", PRIMARY_SPECS
     )
     exposure_df = compute_exposure(pooled, REGION_NAMES)
 
@@ -130,7 +130,7 @@ def main() -> None:
 
     logger.info("=" * 60)
     logger.info("Exposure pipeline complete.")
-    logger.info("Primary spec:  %s", PRIMARY_SPEC)
+    logger.info("Primary spec:  %s", PRIMARY_SPECS)
     logger.info("Outputs:       %s", EXPOSURE_OUTPUT_DIR.resolve())
     logger.info("=" * 60)
 

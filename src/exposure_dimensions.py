@@ -72,6 +72,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+RECIPIENT_FLOOR: float = 10.0
 
 def weighted_median(values: pd.Series, weights: pd.Series) -> float:
     """Return the weighted median after dropping missing/non-positive weights."""
@@ -203,6 +204,7 @@ def _prepare_poverty_denominator(rmi_df: pd.DataFrame, year: int) -> pd.DataFram
     return poverty_hh
 
 
+
 def compute_regional_dimensions(
     rmi_df: pd.DataFrame,
     imv_df: pd.DataFrame,
@@ -211,8 +213,21 @@ def compute_regional_dimensions(
     incompatible_regions: frozenset[int],
 ) -> pd.DataFrame:
     imv = imv_df.copy()
-    imv.loc[imv["drgn2"].isin(incompatible_regions), "bsarg_s"] = 0.0
-    imv["total_post"] = imv["bsa00_s"] + imv["bsarg_s"]
+
+    # Remove the regional RMI component where it is structurally incompatible
+    # or contains the known €1 placeholder. In these regions, post-reform
+    # protection is represented by the national IMV component only.
+    post_bsarg_exclude_regions = set(incompatible_regions) | {23, 24}
+
+    imv.loc[
+        imv["drgn2"].isin(post_bsarg_exclude_regions),
+        "bsarg_s",
+    ] = 0.0
+
+    imv["total_post"] = (
+        imv["bsa00_s"].fillna(0.0)
+        + imv["bsarg_s"].fillna(0.0)
+    )
 
     poverty_hh = _prepare_poverty_denominator(rmi_df, year)
 
@@ -222,15 +237,17 @@ def compute_regional_dimensions(
         if drgn2 in exclude_regions:
             continue
 
-        r = rmi_df[rmi_df["drgn2"] == drgn2]
-        i = imv[imv["drgn2"] == drgn2]
+        r = rmi_df[rmi_df["drgn2"] == drgn2].copy()
+        i = imv[imv["drgn2"] == drgn2].copy()
+
         pop = r["dwt"].sum()
 
         if pop <= 0:
             continue
 
         poor_r = poverty_hh[
-            (poverty_hh["drgn2"] == drgn2) & poverty_hh["poor_hh"]
+            (poverty_hh["drgn2"] == drgn2)
+            & poverty_hh["poor_hh"]
         ]
         poor_hh_w = poor_r["dwt"].sum()
 
@@ -240,75 +257,148 @@ def compute_regional_dimensions(
                 "households is zero, so coverage cannot be defined."
             )
 
+        # Collapse repeated household-level benefit values to one record per
+        # household before calculating recipients and expenditure.
         r_benefit = _deduplicate_positive_benefits(
-            r, "bsarg_s", f"RMI {year}, region {drgn2}"
+            r,
+            "bsarg_s",
+            f"RMI {year}, region {drgn2}",
         )
+
         i_benefit = _deduplicate_positive_benefits(
-            i, "total_post", f"Post-reform {year}, region {drgn2}"
+            i,
+            "total_post",
+            f"Post-reform {year}, region {drgn2}",
         )
 
-        rmi_rec = r_benefit[r_benefit["bsarg_s"] > 0]
+        # A household is treated as a recipient only when its monthly benefit
+        # reaches the minimum relevant payment threshold.
+        rmi_rec = r_benefit[
+            r_benefit["bsarg_s"] >= RECIPIENT_FLOOR
+        ].copy()
+
+        post_rec = i_benefit[
+            i_benefit["total_post"] >= RECIPIENT_FLOOR
+        ].copy()
+
         rmi_rec_w = rmi_rec["dwt"].sum()
-        rmi_exp = (r_benefit["bsarg_s"] * r_benefit["dwt"]).sum() * 12
-
-        post_rec = i_benefit[i_benefit["total_post"] > 0]
         post_rec_w = post_rec["dwt"].sum()
-        post_exp = (i_benefit["total_post"] * i_benefit["dwt"]).sum() * 12
 
-        # Monthly means retained for backward-compatible descriptive validation.
+        # Expenditure and recipient counts use exactly the same eligible rows.
+        rmi_exp = (
+            rmi_rec["bsarg_s"] * rmi_rec["dwt"]
+        ).sum() * 12
+
+        post_exp = (
+            post_rec["total_post"] * post_rec["dwt"]
+        ).sum() * 12
+
+        # Monthly weighted mean benefit among eligible recipient households.
         rmi_mean = (
-            (rmi_rec["bsarg_s"] * rmi_rec["dwt"]).sum() / rmi_rec_w
-            if rmi_rec_w > 0 else np.nan
+            (rmi_rec["bsarg_s"] * rmi_rec["dwt"]).sum()
+            / rmi_rec_w
+            if rmi_rec_w > 0
+            else np.nan
         )
+
         post_mean = (
-            (post_rec["total_post"] * post_rec["dwt"]).sum() / post_rec_w
-            if post_rec_w > 0 else np.nan
+            (post_rec["total_post"] * post_rec["dwt"]).sum()
+            / post_rec_w
+            if post_rec_w > 0
+            else np.nan
         )
 
-        # Preferred economic object: annual expenditure per recipient household.
-        rmi_avg_benefit = rmi_exp / rmi_rec_w if rmi_rec_w > 0 else np.nan
-        post_avg_benefit = post_exp / post_rec_w if post_rec_w > 0 else np.nan
+        # Annual average benefit among recipient households.
+        rmi_avg_benefit = (
+            rmi_exp / rmi_rec_w
+            if rmi_rec_w > 0
+            else np.nan
+        )
 
+        post_avg_benefit = (
+            post_exp / post_rec_w
+            if post_rec_w > 0
+            else np.nan
+        )
+
+        # Coverage among pre-reform poor households.
         rmi_coverage = rmi_rec_w / poor_hh_w
         post_coverage = post_rec_w / poor_hh_w
 
         results.append({
-            "drgn2":                  int(drgn2),
-            "year":                   year,
-            "pop":                    pop,
-            "poor_hh_sim":            round(poor_hh_w, 0),
+            "drgn2": int(drgn2),
+            "year": year,
+            "pop": pop,
+            "poor_hh_sim": round(poor_hh_w, 0),
 
-            "rmi_exp_sim":            round(rmi_exp, 0),
-            "imv_exp_sim":            round(post_exp, 0),
-            "post_exp_sim":           round(post_exp, 0),
+            "rmi_exp_sim": round(rmi_exp, 0),
+            "imv_exp_sim": round(post_exp, 0),
+            "post_exp_sim": round(post_exp, 0),
 
-            "rmi_rec_sim":            round(rmi_rec_w, 0),
-            "imv_rec_sim":            round(post_rec_w, 0),
-            "post_rec_sim":           round(post_rec_w, 0),
+            "rmi_rec_sim": round(rmi_rec_w, 0),
+            "imv_rec_sim": round(post_rec_w, 0),
+            "post_rec_sim": round(post_rec_w, 0),
 
-            "rmi_mean_sim":           round(rmi_mean, 2),
-            "imv_mean_sim":           round(post_mean, 2),
-            "rmi_avg_benefit_sim":    round(rmi_avg_benefit, 2),
-            "post_avg_benefit_sim":   round(post_avg_benefit, 2),
+            "rmi_mean_sim": (
+                round(rmi_mean, 2)
+                if pd.notna(rmi_mean)
+                else np.nan
+            ),
+            "imv_mean_sim": (
+                round(post_mean, 2)
+                if pd.notna(post_mean)
+                else np.nan
+            ),
+            "rmi_avg_benefit_sim": (
+                round(rmi_avg_benefit, 2)
+                if pd.notna(rmi_avg_benefit)
+                else np.nan
+            ),
+            "post_avg_benefit_sim": (
+                round(post_avg_benefit, 2)
+                if pd.notna(post_avg_benefit)
+                else np.nan
+            ),
 
-            "rmi_coverage_sim":       round(rmi_coverage, 6),
-            "post_coverage_sim":      round(post_coverage, 6),
+            "rmi_coverage_sim": round(rmi_coverage, 6),
+            "post_coverage_sim": round(post_coverage, 6),
 
-            "delta_benefit_sim_yr":   round(
-                post_avg_benefit - rmi_avg_benefit, 4
-            ) if pd.notna(post_avg_benefit) and pd.notna(rmi_avg_benefit) else np.nan,
-            "delta_cov_sim_yr":       round(post_coverage - rmi_coverage, 6),
+            "delta_benefit_sim_yr": (
+                round(
+                    post_avg_benefit - rmi_avg_benefit,
+                    4,
+                )
+                if (
+                    pd.notna(post_avg_benefit)
+                    and pd.notna(rmi_avg_benefit)
+                )
+                else np.nan
+            ),
 
-            # Legacy validation measure: annual simulated expenditure gap per resident.
-            "delta_exp_sim_yr":       round(
-                (post_exp - rmi_exp) / pop, 4
-            ) if pop > 0 else np.nan,
+            "delta_cov_sim_yr": round(
+                post_coverage - rmi_coverage,
+                6,
+            ),
+
+            # Retained only for the existing legacy stability validation.
+            "delta_exp_sim_yr": (
+                round(
+                    (post_exp - rmi_exp) / pop,
+                    4,
+                )
+                if pop > 0
+                else np.nan
+            ),
         })
 
     df = pd.DataFrame(results)
+
     logger.info(
-        "Year %d: computed raw dimensions for %d regions", year, len(df)
+        "Year %d: computed raw dimensions for %d regions",
+        year,
+        len(df),
     )
+
     return df
 
 

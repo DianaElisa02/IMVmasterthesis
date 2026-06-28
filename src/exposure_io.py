@@ -1,9 +1,6 @@
 """
 exposure_io.py
 
-save_exposure()       — writes exposure_index.csv and exposure_params.csv
-
-plot_exposure()       — two-panel figure: composite bar + component comparison
 """
 
 from __future__ import annotations
@@ -15,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from src.exposure_index import PRIMARY_SPEC, SPECS
+from src.exposure_index import PRIMARY_SPECS, SPECS
 
 logger = logging.getLogger(__name__)
 
@@ -31,16 +28,37 @@ def save_exposure(
     spec_rank_cols = [f"{s['name']}_rank" for s in SPECS]
 
     delta_cols = [
-        "delta_exp_hybrid", "delta_cov_hybrid",
-        "delta_exp_sim",    "delta_cov_sim",
-        "delta_exp_admin",  "delta_cov_admin",
+        "delta_benefit_hybrid",
+        "delta_cov_hybrid",
+        "delta_benefit_sim",
+        "delta_cov_sim",
+        "level_benefit_admin",
+        "level_cov_admin",
         "delta_mean",
     ]
     raw_cols = [
-        "rmi_exp_sim", "imv_exp_sim",
-        "rmi_rec_sim", "imv_rec_sim",
-        "rmi_mean_sim", "imv_mean_sim",
-        "avg_rmi_exp_admin", "avg_titulares_admin",
+        "poor_hh_sim",
+
+        "rmi_exp_sim",
+        "post_exp_sim",
+
+        "rmi_rec_sim",
+        "post_rec_sim",
+
+        "rmi_mean_sim",
+        "imv_mean_sim",
+
+        "rmi_avg_benefit_sim",
+        "post_avg_benefit_sim",
+
+        "rmi_coverage_sim",
+        "post_coverage_sim",
+
+        "avg_rmi_exp_admin",
+        "avg_titulares_admin",
+        "rmi_avg_benefit_admin",
+        "rmi_coverage_admin",
+
         "pop",
     ]
 
@@ -70,85 +88,174 @@ def save_exposure(
             "Standardisation parameters saved → %s",
             output_dir / "exposure_params.csv",
         )
-
 def plot_exposure(
     exposure_df: pd.DataFrame,
     output_dir: Path,
 ) -> None:
+    """
+    Plot the two co-primary hybrid exposure measures separately.
+
+    Panel A: change in coverage among poor households.
+    Panel B: change in average annual benefit among recipient households.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    primary = exposure_df.attrs.get("primary_spec", PRIMARY_SPEC)
-    spec_cols = [s["name"] for s in SPECS]
+    primary_specs = exposure_df.attrs.get(
+        "primary_specs",
+        PRIMARY_SPECS,
+    )
 
-    df = exposure_df.sort_values(primary, ascending=False).reset_index(drop=True)
+    if not isinstance(primary_specs, (list, tuple)):
+        primary_specs = [primary_specs]
+
+    missing = [
+        spec for spec in primary_specs
+        if spec not in exposure_df.columns
+    ]
+    if missing:
+        raise KeyError(
+            "Cannot plot co-primary exposure measures. "
+            f"Missing columns: {missing}"
+        )
+
+    if len(primary_specs) != 2:
+        raise ValueError(
+            "plot_exposure expects exactly two co-primary specifications. "
+            f"Received: {primary_specs}"
+        )
+
+    coverage_spec = "exposure_cov_hybrid"
+    benefit_spec = "exposure_exp_hybrid"
+
+    required = {coverage_spec, benefit_spec, "region"}
+    missing_required = required - set(exposure_df.columns)
+    if missing_required:
+        raise KeyError(
+            "Cannot construct exposure plot. "
+            f"Missing columns: {sorted(missing_required)}"
+        )
 
     fig, axes = plt.subplots(
-        1, 2, figsize=(20, 8),
-        gridspec_kw={"width_ratios": [2, 1.8]}
+        1,
+        2,
+        figsize=(18, 9),
     )
 
-    ax    = axes[0]
-    vals  = df[primary].values
-    regs  = df["region"].values
-    colors = ["#378ADD" if v >= 0 else "#E05C5C" for v in vals]
-
-    bars = ax.barh(regs, vals, color=colors, edgecolor="white",
-                   linewidth=0.5, height=0.72)
-    for bar, val in zip(bars, vals):
-        x_pos = bar.get_width() + (0.03 if val >= 0 else -0.03)
-        ha    = "left" if val >= 0 else "right"
-        ax.text(
-            x_pos, bar.get_y() + bar.get_height() / 2,
-            f"{val:.2f}", va="center", ha=ha, fontsize=8, color="#3A3A3A",
-        )
-    ax.axvline(0, color="#B4B2A9", linewidth=0.8, linestyle="--")
-    ax.set_xlabel(
-        f"Exposure score — {primary}\n"
-        "(standardised; positive = IMV more generous than pre-reform RMI)",
-        fontsize=9,
-    )
-    ax.set_title(
-        f"Primary exposure: {primary}\n"
-        "Pooled 2017–2019, 2022 IMV rules (average before differencing)\n"
-        "excl. La Rioja, Aragón, Ceuta, Melilla",
-        fontsize=9, pad=10,
-    )
-    ax.grid(axis="x", alpha=0.3, linewidth=0.5)
-    ax.invert_yaxis()
-
-    ax2   = axes[1]
-    y     = np.arange(len(df))
-    n     = len(spec_cols)
-    width = 0.72 / n
-
-    colors_spec = [
-        "#378ADD", "#F4A261", "#2A9D8F", "#E76F51", "#264653"
-    ]
-    short_labels = [
-        "hybrid", "exp_hyb", "cov_hyb", "sim", "admin"
+    plot_settings = [
+        {
+            "column": coverage_spec,
+            "title": "Hybrid coverage exposure",
+            "xlabel": (
+                "Standardised change in coverage among poor households\n"
+                "(positive = higher post-reform coverage)"
+            ),
+        },
+        {
+            "column": benefit_spec,
+            "title": "Hybrid average-benefit exposure",
+            "xlabel": (
+                "Standardised change in average annual benefit\n"
+                "(positive = higher post-reform benefit)"
+            ),
+        },
     ]
 
-    for idx, (col, color, label) in enumerate(
-        zip(spec_cols, colors_spec, short_labels)
-    ):
-        offset = (idx - n / 2 + 0.5) * width
-        ax2.barh(
-            y + offset, df[col].values,
-            height=width, color=color, alpha=0.85,
-            label=label, edgecolor="white",
+    for ax, settings in zip(axes, plot_settings):
+        column = settings["column"]
+
+        df_plot = (
+            exposure_df[
+                ["region", column]
+            ]
+            .dropna(subset=[column])
+            .sort_values(column, ascending=False)
+            .reset_index(drop=True)
         )
 
-    ax2.set_yticks(y)
-    ax2.set_yticklabels(df["region"].values, fontsize=7)
-    ax2.axvline(0, color="#B4B2A9", linewidth=0.8, linestyle="--")
-    ax2.set_xlabel("Standardised exposure", fontsize=9)
-    ax2.set_title("All specifications\n(for comparison)", fontsize=9, pad=10)
-    ax2.legend(fontsize=7, loc="lower right")
-    ax2.grid(axis="x", alpha=0.3, linewidth=0.5)
-    ax2.invert_yaxis()
+        values = df_plot[column].to_numpy(dtype=float)
+        regions = df_plot["region"].to_numpy()
+
+        colors = [
+            "#378ADD" if value >= 0 else "#E05C5C"
+            for value in values
+        ]
+
+        bars = ax.barh(
+            regions,
+            values,
+            color=colors,
+            edgecolor="white",
+            linewidth=0.5,
+            height=0.72,
+        )
+
+        value_range = (
+            np.nanmax(values) - np.nanmin(values)
+            if len(values) > 0
+            else 0
+        )
+        label_offset = (
+            0.02 * value_range
+            if value_range > 0
+            else 0.03
+        )
+
+        for bar, value in zip(bars, values):
+            if value >= 0:
+                x_position = bar.get_width() + label_offset
+                horizontal_alignment = "left"
+            else:
+                x_position = bar.get_width() - label_offset
+                horizontal_alignment = "right"
+
+            ax.text(
+                x_position,
+                bar.get_y() + bar.get_height() / 2,
+                f"{value:.2f}",
+                va="center",
+                ha=horizontal_alignment,
+                fontsize=8,
+            )
+
+        ax.axvline(
+            0,
+            linewidth=0.8,
+            linestyle="--",
+        )
+        ax.set_xlabel(
+            settings["xlabel"],
+            fontsize=9,
+        )
+        ax.set_title(
+            settings["title"] + "\n"
+            "Pooled 2017–2019, 2022 IMV rules",
+            fontsize=10,
+            pad=10,
+        )
+        ax.grid(
+            axis="x",
+            alpha=0.3,
+            linewidth=0.5,
+        )
+        ax.invert_yaxis()
+
+    fig.suptitle(
+        "Regional exposure to the IMV reform: co-primary margins",
+        fontsize=13,
+        y=1.01,
+    )
 
     plt.tight_layout()
-    out_path = output_dir / "exposure_index.png"
-    plt.savefig(out_path, dpi=150, bbox_inches="tight")
-    logger.info("Exposure plot saved → %s", out_path)
+
+    output_path = output_dir / "exposure_primary_measures.png"
+    plt.savefig(
+        output_path,
+        dpi=150,
+        bbox_inches="tight",
+    )
     plt.close()
+
+    logger.info(
+        "Exposure plot saved → %s",
+        output_path,
+    )

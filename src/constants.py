@@ -458,11 +458,12 @@ EXPOSURE_SIM_EXCLUDE_REGIONS: frozenset[int] = frozenset({23, 24})
 ANALYSIS_N_CLUSTERS: int = 17
 
 EXPOSURE_SPECS: list[str] = [
-    "exposure_composite_hybrid",   
-    "exposure_exp_hybrid",  
-    "exposure_cov_hybrid",         
-    "exposure_composite_sim",
-    "exposure_admin",           
+    "exposure_cov_hybrid",
+    "exposure_exp_hybrid",
+    "exposure_cov_sim",
+    "exposure_exp_sim",
+    "exposure_cov_admin",
+    "exposure_exp_admin",
 ]
 
 PL031_TO_LABOUR_GROUP: dict[int, str] = {
@@ -515,7 +516,10 @@ BALANCE_CONTROLS_EXTENDED: list[str] = [
 
 EVENT_STUDY_REGION_TREND: bool = False   # set True for robustness run
 
-BALANCE_PRIMARY_SPEC: str = "exposure_composite_hybrid"
+BALANCE_PRIMARY_SPECS: list[str] = [
+    "exposure_cov_hybrid",
+    "exposure_exp_hybrid",
+]
 
 EVENT_STUDY_REFERENCE_YEAR: int = 2019   # parallel trends reference
 EVENT_STUDY_YEARS: list[int] = [2017, 2018, 2021, 2022, 2023, 2024, 2025]

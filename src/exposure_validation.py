@@ -1,51 +1,58 @@
 """
 exposure_validation.py
 ======================
-Statistical validation of the IMV counterfactual simulation and the
-regional exposure index.
 
-Two distinct validation tasks:
+Statistical validation of:
 
-A — IMV SIMULATION QUALITY (Tests 1, 3, 6)
-    Checks that EUROMOD produces plausible IMV benefit outputs given the
-    2022 statutory formula. Benchmarks are the IMV formula parameters
-    from Law 19/2021 (updated 2022), not administrative outcomes.
+A. The EUROMOD IMV simulation.
+B. The separate regional exposure measures:
+   - coverage among pre-reform poor households;
+   - average annual benefit among recipient households.
 
-    Test 1 — Benefit bounds:
-        bsa00_s must be above the payment floor and below 110% of the
-        statutory maximum (10% tolerance for supplement combinations).
-    Test 3 — Income means test:
-        IMV recipients must have lower household income than non-recipients,
-        confirming the means-testing mechanic is operative.
-    Test 6 — Formula plausibility:
-        Single-person recipient households should receive approximately the
-        statutory single-adult GMI (within 20% tolerance; recipients have
-        nonzero disposable income so the top-up is always below the full
-        threshold).
+The former composite exposure index is no longer constructed or validated.
 
-B — EXPOSURE INDEX VALIDITY (Tests 4, 5, 7, 8)
-    Checks that the computed regional exposure index credibly captures the
-    cross-regional change in minimum income protection induced by the IMV.
+Validation tasks
+----------------
 
-    Test 4 — Regional expenditure rank consistency across simulation years:
-        delta_expenditure_pc should rank regions consistently across 2017,
-        2018, and 2019. High stability confirms the pooled exposure index
-        is not driven by a single anomalous ECV wave.
-    Test 5 — Regional rank consistency of IMV simulation across years:
-        Weighted mean bsa00_s per region should be broadly consistent across
-        years. For a nationally uniform programme this tests ECV sampling
-        stability rather than simulation quality — low consistency is
-        expected and informative.
-    Test 7 — Institutional consistency (coverage):
-        Exposure should correlate negatively with pre-reform RMI coverage
-        (titulares / population). Regions where the RMI reached fewer
-        households should gain more from the IMV — a negative Spearman
-        confirms the exposure index captures the intended institutional
-        variation.
-    Test 8 — Institutional consistency (expenditure):
-        Exposure should correlate negatively with pre-reform RMI expenditure
-        per capita. Regions with lower pre-reform spending should show larger
-        simulated IMV gains.
+A — IMV simulation quality
+
+Test 1 — Benefit bounds
+    Checks monthly bsa00_s among household-level recipients. A recipient is
+    defined consistently with exposure construction as receiving at least the
+    statutory minimum monthly payment floor.
+
+Test 3 — Income means test
+    Checks that recipient households have lower disposable household income
+    than non-recipient households.
+
+Test 6 — Formula plausibility
+    Checks whether single-person recipient households receive benefits broadly
+    consistent with the statutory single-adult guaranteed-income amount.
+
+B — Exposure-measure diagnostics
+
+Test 4 — Annual dimension stability
+    Checks the cross-regional rank stability of:
+      - delta_benefit_sim_yr;
+      - delta_cov_sim_yr.
+
+Test 5 — IMV regional rank stability
+    Checks the stability of regional average IMV benefits across ECV waves.
+    This is treated as an informative diagnostic rather than a pass/fail test
+    because the IMV rules are national and regional variation reflects sampled
+    household composition.
+
+Test 7 — Coverage-margin institutional consistency
+    Checks whether hybrid coverage exposure is negatively associated with
+    administrative pre-reform RMI coverage among poor households.
+
+Test 8 — Average-benefit-margin institutional consistency
+    Checks whether hybrid average-benefit exposure is negatively associated
+    with administrative pre-reform average annual RMI benefits.
+
+The institutional-consistency tests are directional diagnostics. Because the
+administrative baseline enters the hybrid difference directly, they should not
+be interpreted as independent external validation.
 """
 
 from __future__ import annotations
@@ -59,6 +66,64 @@ from scipy.stats import mannwhitneyu, spearmanr
 
 logger = logging.getLogger(__name__)
 
+
+# =============================================================================
+# Helpers
+# =============================================================================
+
+def _household_level(
+    df: pd.DataFrame,
+    required_columns: list[str],
+) -> pd.DataFrame:
+    """
+    Return one row per household after checking that required columns exist.
+
+    EUROMOD household-level variables are repeated across person rows. Keeping
+    one record per idhh prevents recipient counts, expenditure, and test sample
+    sizes from being multiplied by household size.
+    """
+    required = {"idhh", *required_columns}
+    missing = required - set(df.columns)
+
+    if missing:
+        raise KeyError(
+            "Cannot construct household-level validation data. "
+            f"Missing columns: {sorted(missing)}"
+        )
+
+    return (
+        df[["idhh", *required_columns]]
+        .drop_duplicates(subset="idhh")
+        .copy()
+    )
+
+
+def _safe_spearman(
+    x: pd.Series,
+    y: pd.Series,
+) -> tuple[float, float, int]:
+    """
+    Compute Spearman correlation using complete observations.
+
+    Returns NaN values when fewer than three usable observations remain or
+    either variable has no cross-sectional variation.
+    """
+    valid = x.notna() & y.notna()
+    x_valid = x.loc[valid]
+    y_valid = y.loc[valid]
+    n = int(valid.sum())
+
+    if n < 3 or x_valid.nunique() < 2 or y_valid.nunique() < 2:
+        return np.nan, np.nan, n
+
+    rho, pval = spearmanr(x_valid, y_valid)
+    return float(rho), float(pval), n
+
+
+# =============================================================================
+# A. IMV simulation-quality tests
+# =============================================================================
+
 def test_benefit_bounds(
     df: pd.DataFrame,
     year: int,
@@ -67,81 +132,167 @@ def test_benefit_bounds(
     floor_monthly: float = 10.0,
 ) -> dict:
     """
-    Test 1: bsa00_s must be above the payment floor (€10) and below
-    110% of the statutory maximum. The 10% tolerance accommodates
-    legitimate supplement combinations (single-parent, disability).
-    Operates at person level — bsa00_s is the same for all household
-    members so aggregation is not required for this bound check.
-    """
-    recipients = df[df["bsa00_s"] > 0].copy()
-    n = len(recipients)
-    w = recipients["dwt"].sum()
+    Test 1: household-level IMV benefits should respect plausible bounds.
 
-    below_floor = (recipients["bsa00_s"] < floor_monthly).sum()
-    above_max   = (recipients["bsa00_s"] > statutory_max * 1.10).sum()
-    wmean       = (recipients["bsa00_s"] * recipients["dwt"]).sum() / w
+    Recipient status is defined consistently with the exposure construction:
+    bsa00_s >= floor_monthly.
+
+    The upper bound allows a 10 percent tolerance for supplement combinations.
+    """
+    hh = _household_level(
+        df,
+        ["bsa00_s", "dwt"],
+    )
+
+    recipients = hh[
+        hh["bsa00_s"].notna()
+        & hh["dwt"].notna()
+        & hh["dwt"].gt(0)
+        & hh["bsa00_s"].ge(floor_monthly)
+    ].copy()
+
+    if recipients.empty:
+        result = {
+            "test": "benefit_bounds",
+            "year": year,
+            "pass": None,
+            "note": "no household recipients at or above the payment floor",
+        }
+        logger.warning(
+            "[INFO] Test 1 — Benefit bounds %d: no eligible recipients",
+            year,
+        )
+        return result
+
+    n = len(recipients)
+    weighted_n = recipients["dwt"].sum()
+
+    below_floor = int(
+        recipients["bsa00_s"].lt(floor_monthly).sum()
+    )
+    above_max = int(
+        recipients["bsa00_s"].gt(statutory_max * 1.10).sum()
+    )
+
+    weighted_mean = (
+        recipients["bsa00_s"] * recipients["dwt"]
+    ).sum() / weighted_n
 
     result = {
-        "test":                       "benefit_bounds",
-        "year":                       year,
-        "n_recipients_unweighted":    n,
-        "n_recipients_weighted":      round(w, 0),
-        "mean_monthly_benefit":       round(wmean, 2),
-        "statutory_single_GMI":       statutory_min,
-        "statutory_max_GMI":          statutory_max,
-        "n_below_floor":              int(below_floor),
-        "n_above_max_110pct":         int(above_max),
+        "test": "benefit_bounds",
+        "year": year,
+        "n_recipient_households_unweighted": n,
+        "n_recipient_households_weighted": round(weighted_n, 0),
+        "mean_monthly_benefit": round(weighted_mean, 2),
+        "statutory_single_GMI": statutory_min,
+        "statutory_max_GMI": statutory_max,
+        "payment_floor": floor_monthly,
+        "n_below_floor": below_floor,
+        "n_above_max_110pct": above_max,
         "pass": below_floor == 0 and above_max == 0,
     }
+
     status = "PASS" if result["pass"] else "WARN"
+
     logger.info(
-        "[%s] Test 1 — Benefit bounds %d: mean=€%.2f, "
-        "below_floor=%d, above_max(110%%)=%d",
-        status, year, wmean, below_floor, above_max,
+        "[%s] Test 1 — Benefit bounds %d: "
+        "household mean=€%.2f, below_floor=%d, above_max(110%%)=%d",
+        status,
+        year,
+        weighted_mean,
+        below_floor,
+        above_max,
     )
+
     return result
 
 
-def test_income_means_test(df: pd.DataFrame, year: int) -> dict:
+def test_income_means_test(
+    df: pd.DataFrame,
+    year: int,
+    floor_monthly: float = 10.0,
+) -> dict:
     """
-    Test 3: IMV recipients must have lower household income than
-    non-recipients. Deduplicates to household level before the
-    Mann-Whitney test — yds and bsa00_s are household-level variables
-    replicated across person rows; running at person level would inflate
-    N and pseudo-replicate observations.
-    """
-    hh = df.drop_duplicates(subset="idhh")
-    recipients     = hh[hh["bsa00_s"] > 0]["yds"].dropna()
-    non_recipients = hh[hh["bsa00_s"] == 0]["yds"].dropna()
+    Test 3: recipient households should have lower disposable household income
+    than non-recipient households.
 
-    stat, pval = mannwhitneyu(
-        recipients, non_recipients, alternative="less"
+    The comparison is performed at household level. Households receiving less
+    than the statutory payment floor are classified as non-recipients.
+    """
+    hh = _household_level(
+        df,
+        ["bsa00_s", "yds"],
     )
 
-    mean_inc_rec    = recipients.mean()
-    mean_inc_nonrec = non_recipients.mean()
+    valid = hh["bsa00_s"].notna() & hh["yds"].notna()
+    hh = hh.loc[valid].copy()
+
+    recipients = hh.loc[
+        hh["bsa00_s"].ge(floor_monthly),
+        "yds",
+    ]
+
+    non_recipients = hh.loc[
+        hh["bsa00_s"].lt(floor_monthly),
+        "yds",
+    ]
+
+    if recipients.empty or non_recipients.empty:
+        result = {
+            "test": "income_means_test",
+            "year": year,
+            "pass": None,
+            "note": "recipient or non-recipient comparison group is empty",
+        }
+        logger.warning(
+            "[INFO] Test 3 — Income means test %d: comparison unavailable",
+            year,
+        )
+        return result
+
+    statistic, pval = mannwhitneyu(
+        recipients,
+        non_recipients,
+        alternative="less",
+    )
+
+    mean_recipient_income = recipients.mean()
+    mean_nonrecipient_income = non_recipients.mean()
 
     result = {
-        "test":                    "income_means_test",
-        "year":                    year,
-        "n_hh_recipients":         len(recipients),
-        "n_hh_non_recipients":     len(non_recipients),
-        "mean_yds_recipients":     round(mean_inc_rec, 2),
-        "mean_yds_non_recipients": round(mean_inc_nonrec, 2),
-        "ratio":                   round(mean_inc_rec / mean_inc_nonrec, 3),
-        "mannwhitney_stat":        round(stat, 0),
-        "mannwhitney_p":           round(pval, 6),
-        "pass": pval < 0.05 and mean_inc_rec < mean_inc_nonrec,
+        "test": "income_means_test",
+        "year": year,
+        "n_hh_recipients": len(recipients),
+        "n_hh_non_recipients": len(non_recipients),
+        "mean_yds_recipients": round(mean_recipient_income, 2),
+        "mean_yds_non_recipients": round(mean_nonrecipient_income, 2),
+        "income_ratio": round(
+            mean_recipient_income / mean_nonrecipient_income,
+            3,
+        ),
+        "mannwhitney_stat": round(statistic, 0),
+        "mannwhitney_p": round(pval, 6),
+        "pass": (
+            pval < 0.05
+            and mean_recipient_income < mean_nonrecipient_income
+        ),
     }
+
     status = "PASS" if result["pass"] else "WARN"
+
     logger.info(
         "[%s] Test 3 — Income means test %d: "
         "mean_yds_rec=€%.0f vs non_rec=€%.0f (p=%.4f) "
         "[N_hh: %d recipients, %d non-recipients]",
-        status, year,
-        mean_inc_rec, mean_inc_nonrec, pval,
-        len(recipients), len(non_recipients),
+        status,
+        year,
+        mean_recipient_income,
+        mean_nonrecipient_income,
+        pval,
+        len(recipients),
+        len(non_recipients),
     )
+
     return result
 
 
@@ -149,125 +300,220 @@ def test_formula_plausibility(
     df: pd.DataFrame,
     year: int,
     statutory_single: float,
+    floor_monthly: float = 10.0,
 ) -> dict:
     """
-    Test 6: Single-person household recipients should receive approximately
-    the statutory single-adult GMI (within 20% tolerance). Recipients have
-    nonzero disposable income so the top-up will always be below the full
-    threshold — the tolerance accounts for this.
+    Test 6: single-person recipient households should receive benefits broadly
+    consistent with the statutory single-adult guaranteed-income amount.
 
-    Uses person count per idhh as household size proxy. Deduplicates to
-    household level before computing the weighted mean.
+    A 20 percent tolerance is retained because bsa00_s is an income top-up,
+    not necessarily the full statutory guaranteed-income threshold.
     """
-    hh_size   = df.groupby("idhh")["idperson"].count().rename("hh_size_proxy")
-    df_merged = df.merge(hh_size, on="idhh", how="left")
+    required = {
+        "idhh",
+        "idperson",
+        "bsa00_s",
+        "dwt",
+    }
+    missing = required - set(df.columns)
 
-    single_rec = (
-        df_merged[
-            (df_merged["bsa00_s"] > 0) &
-            (df_merged["hh_size_proxy"] == 1)
-        ]
-        .drop_duplicates(subset="idhh")
-        .copy()
+    if missing:
+        raise KeyError(
+            "Cannot run formula-plausibility test. "
+            f"Missing columns: {sorted(missing)}"
+        )
+
+    household_size = (
+        df.groupby("idhh")["idperson"]
+        .nunique()
+        .rename("hh_size_proxy")
     )
 
-    if len(single_rec) == 0:
-        return {
+    hh = (
+        df[["idhh", "bsa00_s", "dwt"]]
+        .drop_duplicates(subset="idhh")
+        .merge(
+            household_size,
+            left_on="idhh",
+            right_index=True,
+            how="left",
+        )
+    )
+
+    single_recipients = hh[
+        hh["bsa00_s"].ge(floor_monthly)
+        & hh["dwt"].notna()
+        & hh["dwt"].gt(0)
+        & hh["hh_size_proxy"].eq(1)
+    ].copy()
+
+    if single_recipients.empty:
+        result = {
             "test": "formula_plausibility",
             "year": year,
             "pass": None,
-            "note": "no single-person recipients found",
+            "note": "no single-person recipient households found",
         }
 
-    wmean    = (
-        (single_rec["bsa00_s"] * single_rec["dwt"]).sum() /
-        single_rec["dwt"].sum()
+        logger.info(
+            "[INFO] Test 6 — Formula plausibility %d: "
+            "no single-person recipients",
+            year,
+        )
+
+        return result
+
+    weighted_mean = (
+        single_recipients["bsa00_s"]
+        * single_recipients["dwt"]
+    ).sum() / single_recipients["dwt"].sum()
+
+    percentage_difference = (
+        abs(weighted_mean - statutory_single)
+        / statutory_single
     )
-    pct_diff = abs(wmean - statutory_single) / statutory_single
 
     result = {
-        "test":                    "formula_plausibility",
-        "year":                    year,
-        "mean_bsa00_s_single_hh":  round(wmean, 2),
-        "statutory_single_GMI":    statutory_single,
-        "pct_difference":          round(100 * pct_diff, 1),
-        "n_single_hh_recipients":  len(single_rec),
-        "pass": pct_diff <= 0.20,
-        "note": "within 20% of statutory single-person GMI",
+        "test": "formula_plausibility",
+        "year": year,
+        "mean_bsa00_s_single_hh": round(weighted_mean, 2),
+        "statutory_single_GMI": statutory_single,
+        "pct_difference": round(100 * percentage_difference, 1),
+        "n_single_hh_recipients": len(single_recipients),
+        "pass": percentage_difference <= 0.20,
+        "note": (
+            "20 percent tolerance around statutory single-person "
+            "guaranteed-income amount"
+        ),
     }
+
     status = "PASS" if result["pass"] else "WARN"
+
     logger.info(
         "[%s] Test 6 — Formula plausibility %d: "
         "mean_single=€%.2f vs statutory=€%.2f (diff=%.1f%%)",
-        status, year, wmean, statutory_single, 100 * pct_diff,
+        status,
+        year,
+        weighted_mean,
+        statutory_single,
+        100 * percentage_difference,
     )
+
     return result
+
+
+# =============================================================================
+# B. Exposure-measure diagnostics
+# =============================================================================
 
 def test_exposure_dimension_stability(
     all_dims: pd.DataFrame,
     exclude_regions: frozenset[int],
 ) -> list[dict]:
     """
-    Test 4: Per-year delta_exp_sim_yr should rank regions consistently
-    across simulation years. High Spearman stability (rho > 0.70) confirms
-    the pooled exposure index is not dominated by one anomalous ECV wave.
+    Test 4: assess year-to-year regional rank stability separately for:
 
-    Uses all_dims (year-by-year) from pool_dimensions.
-    Column name updated to delta_exp_sim_yr (renamed from delta_expenditure_pc
-    in exposure_dimensions.py).
+      - delta_benefit_sim_yr;
+      - delta_cov_sim_yr.
 
-    Two stability checks:
-      4a — delta_exp_sim_yr  (fully simulated, primary stability check)
-      4b — informative only: logged but always pass=True since hybrid
-           dimensions are not in all_dims (computed only from pooled averages)
+    The old expenditure-per-resident variable is not used.
+
+    A correlation above 0.70 with p < 0.05 is treated as a strong stability
+    result. Lower correlations are reported as warnings rather than evidence
+    that the exposure construction is necessarily invalid.
     """
-    dims  = all_dims[~all_dims["drgn2"].isin(exclude_regions)].copy()
-    years = sorted(dims["year"].unique())
-    results = []
+    required = {
+        "drgn2",
+        "year",
+        "delta_benefit_sim_yr",
+        "delta_cov_sim_yr",
+    }
+    missing = required - set(all_dims.columns)
 
-    for i in range(len(years) - 1):
-        y1, y2 = years[i], years[i + 1]
+    if missing:
+        raise KeyError(
+            "Cannot test annual exposure-dimension stability. "
+            f"Missing columns: {sorted(missing)}"
+        )
 
-        # Test 4a — simulated delta stability
-        col = "delta_exp_sim_yr"
-        if col not in dims.columns:
-            logger.warning(
-                "Test 4 — column '%s' not found in all_dims — skipping", col
+    dims = all_dims[
+        ~all_dims["drgn2"].isin(exclude_regions)
+    ].copy()
+
+    years = sorted(dims["year"].dropna().unique())
+    results: list[dict] = []
+
+    dimension_labels = {
+        "delta_benefit_sim_yr": "average-benefit margin",
+        "delta_cov_sim_yr": "coverage margin",
+    }
+
+    for column, label in dimension_labels.items():
+        for index in range(len(years) - 1):
+            year_1 = years[index]
+            year_2 = years[index + 1]
+
+            first = (
+                dims[dims["year"].eq(year_1)]
+                .set_index("drgn2")[column]
             )
-            continue
+            second = (
+                dims[dims["year"].eq(year_2)]
+                .set_index("drgn2")[column]
+            )
 
-        d1 = dims[dims["year"] == y1].set_index("drgn2")[col].dropna()
-        d2 = dims[dims["year"] == y2].set_index("drgn2")[col].dropna()
+            common = first.index.intersection(second.index)
 
-        common    = d1.index.intersection(d2.index)
-        rho, pval = spearmanr(d1[common], d2[common])
+            rho, pval, n_regions = _safe_spearman(
+                first.loc[common],
+                second.loc[common],
+            )
 
-        result = {
-            "test":         "exposure_dimension_stability_sim",
-            "dimension":    col,
-            "years":        f"{y1}_vs_{y2}",
-            "spearman_rho": round(rho, 3),
-            "spearman_p":   round(pval, 4),
-            "n_regions":    len(common),
-            "pass":         rho > 0.70 and pval < 0.05,
-            "note": (
-                "stability of per-year simulated delta — "
-                "hybrid deltas more stable by construction "
-                "(administrative RMI baseline removes ECV noise)"
-            ),
-        }
-        status = "PASS" if result["pass"] else "WARN"
-        logger.info(
-            "[%s] Test 4 — Dimension stability (delta_exp_sim_yr) "
-            "%d vs %d: rho=%.3f (p=%.4f)",
-            status, y1, y2, rho, pval,
-        )
-        logger.info(
-            "       [INFO] Hybrid specs (delta_exp_hybrid, delta_cov_hybrid) "
-            "are more stable by construction — administrative RMI baseline "
-            "is fixed across ECV waves, removing sampling noise from RMI side."
-        )
-        results.append(result)
+            passed = (
+                not np.isnan(rho)
+                and not np.isnan(pval)
+                and rho > 0.70
+                and pval < 0.05
+            )
+
+            result = {
+                "test": "exposure_dimension_stability_sim",
+                "dimension": column,
+                "dimension_label": label,
+                "years": f"{year_1}_vs_{year_2}",
+                "spearman_rho": (
+                    round(rho, 3)
+                    if not np.isnan(rho)
+                    else None
+                ),
+                "spearman_p": (
+                    round(pval, 4)
+                    if not np.isnan(pval)
+                    else None
+                ),
+                "n_regions": n_regions,
+                "pass": passed,
+                "note": (
+                    "year-to-year rank stability of the fully simulated "
+                    f"{label}"
+                ),
+            }
+
+            status = "PASS" if passed else "WARN"
+
+            logger.info(
+                "[%s] Test 4 — Stability of %s, %d vs %d: "
+                "rho=%s (p=%s), N=%d",
+                status,
+                label,
+                year_1,
+                year_2,
+                f"{rho:.3f}" if not np.isnan(rho) else "NA",
+                f"{pval:.4f}" if not np.isnan(pval) else "NA",
+                n_regions,
+            )
+
+            results.append(result)
 
     return results
 
@@ -275,61 +521,103 @@ def test_exposure_dimension_stability(
 def test_regional_rank_consistency(
     imv_dfs: dict[int, pd.DataFrame],
     exclude_regions: frozenset[int],
+    floor_monthly: float = 10.0,
 ) -> list[dict]:
     """
-    Test 5: Regional rank consistency of IMV simulation across ECV waves.
-    Computes weighted mean bsa00_s per region and checks Spearman stability.
+    Test 5: assess regional rank stability of average simulated IMV benefits.
 
-    For a nationally uniform programme, cross-regional variation in bsa00_s
-    reflects the income distribution of ECV households, which fluctuates
-    with the cross-sectional sample. Low consistency here confirms the IMV
-    is functioning as a national programme (expected) rather than indicating
-    simulation instability.
+    Household-level data and the same minimum-payment threshold used in the
+    exposure construction are applied.
 
-    Operates at the regional level — no person/household confusion.
+    This remains an informative diagnostic and does not determine whether the
+    validation suite passes.
     """
     def regional_means(df: pd.DataFrame) -> pd.Series:
-        rec = df[
-            (df["bsa00_s"] > 0) &
-            (~df["drgn2"].isin(exclude_regions))
-        ].copy()
-        return (
-            rec.groupby("drgn2")
-            .apply(lambda x:
-                   (x["bsa00_s"] * x["dwt"]).sum() / x["dwt"].sum()
+        required = {
+            "idhh",
+            "drgn2",
+            "bsa00_s",
+            "dwt",
+        }
+        missing = required - set(df.columns)
+
+        if missing:
+            raise KeyError(
+                "Cannot compute regional IMV benefit means. "
+                f"Missing columns: {sorted(missing)}"
             )
+
+        hh = (
+            df[["idhh", "drgn2", "bsa00_s", "dwt"]]
+            .drop_duplicates(subset="idhh")
+            .copy()
         )
 
-    years   = sorted(imv_dfs.keys())
-    results = []
+        recipients = hh[
+            hh["bsa00_s"].ge(floor_monthly)
+            & hh["dwt"].notna()
+            & hh["dwt"].gt(0)
+            & ~hh["drgn2"].isin(exclude_regions)
+        ].copy()
 
-    for i in range(len(years) - 1):
-        y1, y2 = years[i], years[i + 1]
-        m1 = regional_means(imv_dfs[y1])
-        m2 = regional_means(imv_dfs[y2])
+        if recipients.empty:
+            return pd.Series(dtype=float)
 
-        common   = m1.index.intersection(m2.index)
-        rho, pval = spearmanr(m1[common], m2[common])
+        return recipients.groupby("drgn2").apply(
+            lambda group: (
+                group["bsa00_s"] * group["dwt"]
+            ).sum() / group["dwt"].sum(),
+            include_groups=False,
+        )
+
+    years = sorted(imv_dfs.keys())
+    results: list[dict] = []
+
+    for index in range(len(years) - 1):
+        year_1 = years[index]
+        year_2 = years[index + 1]
+
+        first = regional_means(imv_dfs[year_1])
+        second = regional_means(imv_dfs[year_2])
+
+        common = first.index.intersection(second.index)
+
+        rho, pval, n_regions = _safe_spearman(
+            first.loc[common],
+            second.loc[common],
+        )
 
         result = {
-            "test":         "regional_rank_consistency",
-            "years":        f"{y1}_vs_{y2}",
-            "spearman_rho": round(rho, 3),
-            "spearman_p":   round(pval, 4),
-            "n_regions":    len(common),
-            # Low rho is expected for a nationally uniform programme —
-            # do not flag as a validation failure
-            "pass": True,
+            "test": "regional_rank_consistency",
+            "years": f"{year_1}_vs_{year_2}",
+            "spearman_rho": (
+                round(rho, 3)
+                if not np.isnan(rho)
+                else None
+            ),
+            "spearman_p": (
+                round(pval, 4)
+                if not np.isnan(pval)
+                else None
+            ),
+            "n_regions": n_regions,
+            "pass": None,
             "note": (
-                "nationally uniform programme — regional variation driven by "
-                "ECV income distribution, not simulation rules"
+                "informative diagnostic only; the national IMV rules do not "
+                "imply stable regional benefit rankings across ECV samples"
             ),
         }
+
         logger.info(
-            "[INFO] Test 5 — IMV regional rank %d vs %d: "
-            "rho=%.3f (p=%.4f) — low rho expected for uniform programme",
-            y1, y2, rho, pval,
+            "[INFO] Test 5 — IMV regional average-benefit rank "
+            "%d vs %d: rho=%s (p=%s), N=%d",
+            year_1,
+            year_2,
+            f"{rho:.3f}" if not np.isnan(rho) else "NA",
+            f"{pval:.4f}" if not np.isnan(pval) else "NA",
+            n_regions,
         )
+
         results.append(result)
 
     return results
@@ -342,116 +630,214 @@ def test_institutional_consistency(
     exclude_regions: frozenset[int],
 ) -> list[dict]:
     """
-    Tests 7 and 8: The exposure index should correlate negatively with
-    pre-reform RMI generosity. Regions where the RMI provided less
-    protection (lower coverage, lower spending) should gain more from
-    the national IMV reform — expected negative Spearman correlation.
+    Tests 7 and 8: directional consistency of the two co-primary hybrid
+    exposure measures with their corresponding administrative baselines.
 
-    Test 7: Spearman(exposure, pre-reform RMI coverage rate)
-        coverage_rate = titulares / population × 1000 (averaged 2017–2019)
-        Expected sign: negative
+    Test 7:
+        Spearman(
+            exposure_cov_hybrid,
+            rmi_coverage_admin
+        )
+        Expected sign: negative.
 
-    Test 8: Spearman(exposure, pre-reform RMI expenditure per capita)
-        exp_pc = gasto_anual_ejecutado / population (averaged 2017–2019)
-        Expected sign: negative
+    Test 8:
+        Spearman(
+            exposure_exp_hybrid,
+            rmi_avg_benefit_admin
+        )
+        Expected sign: negative.
 
-    Pass/fail based on exposure_composite_hybrid (primary spec).
-    All five specifications correlated and logged for comparison.
+    informe_rmi and region_population remain in the function signature for
+    compatibility with the existing pipeline. The required administrative
+    baseline variables are already contained in exposure_df after pooling.
     """
-    from src.exposure_index import SPECS
+    del informe_rmi
+    del region_population
 
-    results = []
+    required = {
+        "drgn2",
+        "exposure_cov_hybrid",
+        "exposure_exp_hybrid",
+        "rmi_coverage_admin",
+        "rmi_avg_benefit_admin",
+    }
+    missing = required - set(exposure_df.columns)
 
-    records = []
-    for year, rows in sorted(informe_rmi.items()):
-        pop_year = region_population.get(year, {})
-        for row in rows:
-            drgn2 = row["drgn2"]
-            if drgn2 in exclude_regions:
-                continue
-            pop = pop_year.get(drgn2, None)
-            if pop is None or pop == 0:
-                continue
-            records.append({
-                "drgn2":         drgn2,
-                "year":          year,
-                "coverage_rate": row["titulares"] / pop * 1000,
-                "exp_pc":        row["gasto_anual_ejecutado"] / pop,
-            })
-
-    admin = (
-        pd.DataFrame(records)
-        .groupby("drgn2")
-        .agg(
-            coverage_rate_mean=("coverage_rate", "mean"),
-            exp_pc_mean       =("exp_pc",        "mean"),
+    if missing:
+        raise KeyError(
+            "Cannot run institutional-consistency diagnostics. "
+            f"Missing columns: {sorted(missing)}"
         )
-        .reset_index()
-    )
 
-    # All spec columns present in exposure_df
-    all_spec_cols = ["drgn2"] + [
-        s["name"] for s in SPECS if s["name"] in exposure_df.columns
+    data = exposure_df[
+        ~exposure_df["drgn2"].isin(exclude_regions)
+    ].copy()
+
+    diagnostics = [
+        {
+            "test_number": 7,
+            "test_name": "institutional_consistency_coverage",
+            "exposure_column": "exposure_cov_hybrid",
+            "baseline_column": "rmi_coverage_admin",
+            "label": "coverage among pre-reform poor households",
+            "note": (
+                "negative association expected: stronger pre-reform RMI "
+                "coverage implies a smaller post-minus-pre coverage gain"
+            ),
+        },
+        {
+            "test_number": 8,
+            "test_name": "institutional_consistency_average_benefit",
+            "exposure_column": "exposure_exp_hybrid",
+            "baseline_column": "rmi_avg_benefit_admin",
+            "label": "average annual benefit among RMI recipient households",
+            "note": (
+                "negative association expected: higher pre-reform average "
+                "benefits imply a smaller post-minus-pre benefit gain"
+            ),
+        },
     ]
-    merged = exposure_df[all_spec_cols].merge(admin, on="drgn2", how="inner")
 
-    if len(merged) < 5:
-        logger.warning(
-            "Institutional consistency: only %d regions in common — "
-            "insufficient for reliable correlation", len(merged)
+    results: list[dict] = []
+
+    for diagnostic in diagnostics:
+        exposure_column = diagnostic["exposure_column"]
+        baseline_column = diagnostic["baseline_column"]
+
+        rho, pval, n_regions = _safe_spearman(
+            data[baseline_column],
+            data[exposure_column],
         )
-        return []
 
-    primary_col = "exposure_composite_hybrid"
-
-    for test_num, admin_col, test_label, note in [
-        (7, "coverage_rate_mean",
-         "coverage rate (titulares/pop×1000)",
-         "negative rho expected: lower RMI coverage → higher IMV exposure"),
-        (8, "exp_pc_mean",
-         "expenditure per capita",
-         "negative rho expected: lower RMI spending → higher IMV exposure"),
-    ]:
-        # Primary spec — determines pass/fail
-        if primary_col in merged.columns:
-            rho_p, p_p = spearmanr(merged[admin_col], merged[primary_col])
-        else:
-            rho_p, p_p = np.nan, np.nan
+        passed = (
+            not np.isnan(rho)
+            and not np.isnan(pval)
+            and rho < 0
+            and pval < 0.10
+        )
 
         result = {
-            "test":         f"institutional_consistency_test{test_num}",
-            "admin_benchmark": admin_col,
-            "primary_spec": primary_col,
-            "n_regions":    len(merged),
-            "spearman_rho": round(rho_p, 3) if not np.isnan(rho_p) else None,
-            "spearman_p":   round(p_p,   4) if not np.isnan(p_p)   else None,
-            "pass":         (rho_p < 0 and p_p < 0.10)
-                            if not np.isnan(rho_p) else False,
-            "note":         note,
+            "test": diagnostic["test_name"],
+            "test_number": diagnostic["test_number"],
+            "exposure_spec": exposure_column,
+            "admin_benchmark": baseline_column,
+            "benchmark_label": diagnostic["label"],
+            "n_regions": n_regions,
+            "spearman_rho": (
+                round(rho, 3)
+                if not np.isnan(rho)
+                else None
+            ),
+            "spearman_p": (
+                round(pval, 4)
+                if not np.isnan(pval)
+                else None
+            ),
+            "pass": passed,
+            "note": (
+                diagnostic["note"]
+                + "; directional diagnostic, not independent validation, "
+                  "because the baseline enters the hybrid difference"
+            ),
         }
-        status = "PASS" if result["pass"] else "WARN"
-        logger.info(
-            "[%s] Test %d — Institutional consistency (%s): "
-            "%s rho=%.3f (p=%.4f)",
-            status, test_num, test_label, primary_col,
-            rho_p if not np.isnan(rho_p) else 0,
-            p_p   if not np.isnan(p_p)   else 1,
-        )
 
-        # Log all other specs for comparison
-        for spec in SPECS:
-            col = spec["name"]
-            if col == primary_col or col not in merged.columns:
-                continue
-            r_, p_ = spearmanr(merged[admin_col], merged[col])
-            logger.info(
-                "       [INFO] Test %d (%s): rho=%.3f (p=%.4f)",
-                test_num, col, r_, p_,
-            )
+        status = "PASS" if passed else "WARN"
+
+        logger.info(
+            "[%s] Test %d — Institutional consistency, %s: "
+            "%s vs %s, rho=%s (p=%s), N=%d",
+            status,
+            diagnostic["test_number"],
+            diagnostic["label"],
+            exposure_column,
+            baseline_column,
+            f"{rho:.3f}" if not np.isnan(rho) else "NA",
+            f"{pval:.4f}" if not np.isnan(pval) else "NA",
+            n_regions,
+        )
 
         results.append(result)
 
     return results
+
+
+def test_coverage_levels(
+    exposure_df: pd.DataFrame,
+    exclude_regions: frozenset[int],
+) -> list[dict]:
+    """
+    Additional diagnostic: report whether any coverage levels are negative or
+    exceed one.
+
+    Coverage above one is not automatically impossible because administrative
+    programme recipients and income-poor households are not perfectly nested.
+    Such cases are flagged for inspection rather than treated automatically as
+    validation failures.
+    """
+    coverage_columns = [
+        "rmi_coverage_sim",
+        "post_coverage_sim",
+        "rmi_coverage_admin",
+    ]
+
+    available = [
+        column
+        for column in coverage_columns
+        if column in exposure_df.columns
+    ]
+
+    data = exposure_df[
+        ~exposure_df["drgn2"].isin(exclude_regions)
+    ].copy()
+
+    results: list[dict] = []
+
+    for column in available:
+        values = data[column].dropna()
+
+        if values.empty:
+            continue
+
+        n_negative = int(values.lt(0).sum())
+        n_above_one = int(values.gt(1).sum())
+
+        result = {
+            "test": "coverage_level_diagnostic",
+            "dimension": column,
+            "n_regions": len(values),
+            "minimum": round(float(values.min()), 6),
+            "maximum": round(float(values.max()), 6),
+            "n_negative": n_negative,
+            "n_above_one": n_above_one,
+            "pass": n_negative == 0,
+            "note": (
+                "values above one are flagged for inspection but are not "
+                "automatically invalid because beneficiary and poverty "
+                "populations may not be perfectly nested"
+            ),
+        }
+
+        status = "PASS" if result["pass"] else "WARN"
+
+        logger.info(
+            "[%s] Coverage-level diagnostic — %s: "
+            "min=%.3f, max=%.3f, below_zero=%d, above_one=%d",
+            status,
+            column,
+            values.min(),
+            values.max(),
+            n_negative,
+            n_above_one,
+        )
+
+        results.append(result)
+
+    return results
+
+
+# =============================================================================
+# Full validation suite
+# =============================================================================
 
 def run_validation(
     imv_dfs: dict[int, pd.DataFrame],
@@ -466,67 +852,118 @@ def run_validation(
     output_dir: Path,
 ) -> pd.DataFrame:
     """
-    Run the full validation suite and save results to CSV.
+    Run the complete validation suite and save the results.
 
-    Parameters
-    ----------
-    imv_dfs           : EUROMOD IMV simulation outputs by year (person-level).
-    all_dims          : Year-by-year dimensions from pool_dimensions.
-    exposure_df       : Final regional exposure index — all specifications.
-    informe_rmi       : INFORME_RMI dict from constants.
-    region_population : REGION_POPULATION dict from constants.
-    statutory_single  : IMV GMI threshold for single adult (formula parameter).
-    statutory_max     : IMV maximum monthly benefit (formula parameter).
-    floor_monthly     : IMV minimum payment floor (€10).
-    exclude_regions   : Regions excluded from all exposure computations.
-    output_dir        : Directory for output CSV.
+    The function signature is retained so compute_exposure_variable.py does
+    not need to change.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     all_results: list[dict] = []
 
-    # --- A: IMV simulation quality ---
+    # -------------------------------------------------------------------------
+    # A. IMV simulation quality
+    # -------------------------------------------------------------------------
     for year, df in sorted(imv_dfs.items()):
-        logger.info("=" * 50)
+        logger.info("=" * 60)
         logger.info("Validating IMV simulation — year %d", year)
 
         all_results.append(
-            test_benefit_bounds(df, year, statutory_single, statutory_max, floor_monthly)
-        )
-        all_results.append(
-            test_income_means_test(df, year)
-        )
-        all_results.append(
-            test_formula_plausibility(df, year, statutory_single)
+            test_benefit_bounds(
+                df=df,
+                year=year,
+                statutory_min=statutory_single,
+                statutory_max=statutory_max,
+                floor_monthly=floor_monthly,
+            )
         )
 
-    logger.info("=" * 50)
-    logger.info("Validating exposure index")
+        all_results.append(
+            test_income_means_test(
+                df=df,
+                year=year,
+                floor_monthly=floor_monthly,
+            )
+        )
+
+        all_results.append(
+            test_formula_plausibility(
+                df=df,
+                year=year,
+                statutory_single=statutory_single,
+                floor_monthly=floor_monthly,
+            )
+        )
+
+    # -------------------------------------------------------------------------
+    # B. Exposure-measure diagnostics
+    # -------------------------------------------------------------------------
+    logger.info("=" * 60)
+    logger.info("Validating separate regional exposure measures")
 
     all_results.extend(
-        test_exposure_dimension_stability(all_dims, exclude_regions)
+        test_exposure_dimension_stability(
+            all_dims=all_dims,
+            exclude_regions=exclude_regions,
+        )
     )
+
     all_results.extend(
-        test_regional_rank_consistency(imv_dfs, exclude_regions)
+        test_regional_rank_consistency(
+            imv_dfs=imv_dfs,
+            exclude_regions=exclude_regions,
+            floor_monthly=floor_monthly,
+        )
     )
+
     all_results.extend(
         test_institutional_consistency(
-            exposure_df, informe_rmi, region_population, exclude_regions
+            exposure_df=exposure_df,
+            informe_rmi=informe_rmi,
+            region_population=region_population,
+            exclude_regions=exclude_regions,
         )
     )
 
-    flat_results = []
-    for r in all_results:
-        flat = {k: v for k, v in r.items() if not isinstance(v, (list, dict))}
-        flat_results.append(flat)
+    all_results.extend(
+        test_coverage_levels(
+            exposure_df=exposure_df,
+            exclude_regions=exclude_regions,
+        )
+    )
+
+    flat_results = [
+        {
+            key: value
+            for key, value in result.items()
+            if not isinstance(value, (list, dict))
+        }
+        for result in all_results
+    ]
 
     results_df = pd.DataFrame(flat_results)
 
-    out_path = output_dir / "imv_validation_report.csv"
-    results_df.to_csv(out_path, index=False)
-    logger.info("Validation report saved → %s", out_path)
+    output_path = output_dir / "imv_validation_report.csv"
+    results_df.to_csv(output_path, index=False)
 
-    passed = results_df["pass"].sum()
-    total  = results_df["pass"].notna().sum()
-    logger.info("Validation summary: %d/%d tests passed", passed, total)
+    logger.info(
+        "Validation report saved → %s",
+        output_path,
+    )
+
+    evaluated = results_df["pass"].notna()
+    n_evaluated = int(evaluated.sum())
+    n_passed = int(
+        results_df.loc[evaluated, "pass"]
+        .astype(bool)
+        .sum()
+    )
+
+    logger.info(
+        "Validation summary: %d/%d evaluated tests passed "
+        "(informative diagnostics excluded)",
+        n_passed,
+        n_evaluated,
+    )
 
     return results_df
+
