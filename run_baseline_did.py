@@ -1,12 +1,14 @@
 """
 run_baseline_did.py
 
-Runner for the baseline DiD estimation.
+Runner for the complementary continuous-intensity DiD estimation.
 
 Runs two post-period windows separately:
-  1. Baseline    : post = 2021–2025 (full post-reform period)
-  2. COVID robust: post = 2022–2025 (excludes 2021, peak COVID + low take-up)
+  1. Full post-reform period: 2021–2025
+  2. COVID-robust period: 2022–2025
 
+The tercile-based DiD remains the baseline specification. This runner reports
+continuous-intensity estimates as complementary dose-response evidence.
 """
 
 from __future__ import annotations
@@ -21,7 +23,6 @@ from src.baseline_did import build_did_data, run_baseline_did
 from src.constants import (
     DID_POST_YEARS_BASELINE,
     DID_POST_YEARS_COVID,
-    EXPOSURE_SPECS,
 )
 
 logging.basicConfig(
@@ -32,10 +33,14 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
 INPUT_PATH = BASE_DIR / "output" / "analysis_dataset_with_gap.parquet"
-OUTPUT_DIR = BASE_DIR / "output" / "baseline_did"
+OUTPUT_DIR = BASE_DIR / "output" / "continuous_did"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-PRIMARY_SPEC = EXPOSURE_SPECS[0]   # exposure_composite_hybrid
+PRIMARY_SPECS = [
+    "exposure_cov_hybrid",
+    "exposure_exp_hybrid",
+]
+
 
 def _stars(p: float) -> str:
     if pd.isna(p):
@@ -45,18 +50,18 @@ def _stars(p: float) -> str:
 
 def print_results(df: pd.DataFrame, label: str) -> None:
     """Print a compact results table to stdout."""
-    sep = "=" * 78
+    sep = "=" * 86
     print(f"\n{sep}")
-    print(f"  Baseline DiD — {label}")
-    print(f"  Inference: WCB p-value (primary) | CRV1 p-value (auxiliary)")
-    print(f"  CI: t(G−1) = t(14) critical value")
+    print(f"  Complementary continuous-intensity DiD — {label}")
+    print("  Inference: WCB p-value (primary) | CRV1 p-value (auxiliary)")
+    print("  Confidence intervals use t(G−1), with G taken from each fitted model")
     print(sep)
     print(
         f"  {'Outcome':<12} {'Exposure spec':<32} "
         f"{'β':>8} {'SE':>7} {'CI':>22} "
-        f"{'p_CRV1':>8} {'p_WCB':>8}"
+        f"{'G':>4} {'p_CRV1':>8} {'p_WCB':>8}"
     )
-    print("-" * 78)
+    print("-" * 86)
 
     for _, row in df.iterrows():
         stars = _stars(row["pval_wbt"])
@@ -69,18 +74,18 @@ def print_results(df: pd.DataFrame, label: str) -> None:
         print(
             f"  {row['outcome']:<12} {row['exposure_spec']:<32} "
             f"{row['coef']:+8.4f} {row['se']:7.4f} {ci_str:>22} "
-            f"{row['pval_cluster']:8.4f} {p_wbt_str:>14}"
+            f"{int(row['n_clusters']):4d} {row['pval_cluster']:8.4f} {p_wbt_str:>14}"
         )
 
 
 def print_primary_summary(df: pd.DataFrame) -> None:
-    """Print a one-line summary for the primary exposure spec."""
-    sep = "=" * 78
+    """Print summaries for both co-primary hybrid exposure margins."""
+    sep = "=" * 86
     print(f"\n{sep}")
-    print(f"  PRIMARY SPEC SUMMARY — {PRIMARY_SPEC}")
+    print("  COMPLEMENTARY CONTINUOUS SUMMARY — HYBRID COVERAGE AND BENEFIT MARGINS")
     print(sep)
 
-    primary = df[df["exposure_spec"] == PRIMARY_SPEC]
+    primary = df[df["exposure_spec"].isin(PRIMARY_SPECS)]
     for _, row in primary.iterrows():
         stars = _stars(row["pval_wbt"])
         p_wbt_str = (
@@ -89,43 +94,47 @@ def print_primary_summary(df: pd.DataFrame) -> None:
             else "n/a"
         )
         print(
-            f"  {row['label']:<30} | {row['outcome']:<12} | "
-            f"β={row['coef']:+.4f}  SE={row['se']:.4f}  "
-            f"p_WCB={p_wbt_str}"
+            f"  {row['label']:<30} | {row['exposure_spec']:<25} | "
+            f"{row['outcome']:<12} | β={row['coef']:+.4f}  "
+            f"SE={row['se']:.4f}  p_WCB={p_wbt_str}"
         )
 
+
 def main() -> None:
-    logger.info("=== IMV DiD — run_baseline_did.py ===")
+    logger.info("=== IMV DiD — complementary continuous-intensity models ===")
 
     panel = pl.read_parquet(INPUT_PATH)
     logger.info("Panel loaded: %d observations", len(panel))
 
-    logger.info("--- Baseline DiD: post = 2021–2025 ---")
-    did_baseline = build_did_data(panel, post_years=DID_POST_YEARS_BASELINE)
-    results_baseline = run_baseline_did(did_baseline, label="baseline_2021_2025")
+    logger.info("--- Continuous DiD: post = 2021–2025 ---")
+    did_full = build_did_data(panel, post_years=DID_POST_YEARS_BASELINE)
+    results_full = run_baseline_did(did_full, label="continuous_2021_2025")
 
-    print_results(results_baseline, "Full post-reform period (2021–2025)")
-    results_baseline.to_csv(OUTPUT_DIR / "did_baseline_2021_2025.csv", index=False)
-    logger.info("Saved: %s", OUTPUT_DIR / "did_baseline_2021_2025.csv")
+    print_results(results_full, "Full post-reform period (2021–2025)")
+    full_path = OUTPUT_DIR / "continuous_did_2021_2025.csv"
+    results_full.to_csv(full_path, index=False)
+    logger.info("Saved: %s", full_path)
 
-    # ── 2. COVID robust DiD: restricted post-reform period (2022–2025) ───────
-    logger.info("--- COVID robust DiD: post = 2022–2025 ---")
+    logger.info("--- Continuous COVID robustness: post = 2022–2025 ---")
     did_covid = build_did_data(panel, post_years=DID_POST_YEARS_COVID)
-    results_covid = run_baseline_did(did_covid, label="covid_robust_2022_2025")
+    results_covid = run_baseline_did(
+        did_covid,
+        label="continuous_covid_robust_2022_2025",
+    )
 
     print_results(results_covid, "COVID robust — post = 2022–2025")
-    results_covid.to_csv(OUTPUT_DIR / "did_covid_robust_2022_2025.csv", index=False)
-    logger.info("Saved: %s", OUTPUT_DIR / "did_covid_robust_2022_2025.csv")
+    covid_path = OUTPUT_DIR / "continuous_did_2022_2025.csv"
+    results_covid.to_csv(covid_path, index=False)
+    logger.info("Saved: %s", covid_path)
 
-    # ── 3. Combined output ────────────────────────────────────────────────────
-    combined = pd.concat([results_baseline, results_covid], ignore_index=True)
-    combined.to_csv(OUTPUT_DIR / "did_all_specs.csv", index=False)
-    logger.info("Saved combined: %s", OUTPUT_DIR / "did_all_specs.csv")
+    combined = pd.concat([results_full, results_covid], ignore_index=True)
+    combined_path = OUTPUT_DIR / "continuous_did_all_specs.csv"
+    combined.to_csv(combined_path, index=False)
+    logger.info("Saved combined: %s", combined_path)
 
-    # ── 4. Primary spec summary ───────────────────────────────────────────────
     print_primary_summary(combined)
 
-    logger.info("Baseline DiD complete. All results saved to %s", OUTPUT_DIR)
+    logger.info("Continuous DiD complete. All results saved to %s", OUTPUT_DIR)
 
 
 if __name__ == "__main__":
