@@ -2,6 +2,7 @@
 
 Outputs include separate standardised models, raw-unit models, and a secondary
 joint standardised coverage-benefit specification for two post-period windows.
+All adjusted models use the preferred demographic control set.
 """
 from __future__ import annotations
 
@@ -10,10 +11,11 @@ from pathlib import Path
 import pandas as pd
 import polars as pl
 
-from src.baseline_did import build_did_data, run_baseline_did
+from src.baseline_did import build_did_data
 from src.constants import DID_POST_YEARS_BASELINE, DID_POST_YEARS_COVID
 from src.continuous_extensions import attach_raw_exposures, run_joint_standardised_model, run_raw_continuous_models
 from src.exposure_specs import PRIMARY_EXPOSURE_SPECS
+from src.preferred_continuous_did import run_preferred_continuous_did
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -52,7 +54,7 @@ def main() -> None:
 
     for label, years in windows:
         did = build_did_data(panel, post_years=years)
-        standardised = run_baseline_did(did, label=label)
+        standardised = run_preferred_continuous_did(did, label=label)
         standardised["scale"] = "standardised_separate"
         raw = run_raw_continuous_models(panel, years, f"{label}_raw")
         joint = run_joint_standardised_model(panel, years, f"{label}_joint")
