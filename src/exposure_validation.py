@@ -67,20 +67,19 @@ from scipy.stats import mannwhitneyu, spearmanr
 logger = logging.getLogger(__name__)
 
 
-# =============================================================================
-# Helpers
-# =============================================================================
-
 def _household_level(
     df: pd.DataFrame,
     required_columns: list[str],
 ) -> pd.DataFrame:
     """
-    Return one row per household after checking that required columns exist.
+    Return one row per household.
 
-    EUROMOD household-level variables are repeated across person rows. Keeping
-    one record per idhh prevents recipient counts, expenditure, and test sample
-    sizes from being multiplied by household size.
+    bsa00_s is aggregated using the unique positive household amount. The
+    EUROMOD output may record the positive amount on one household-member row
+    and zero on the others, so arbitrary first-row deduplication is unsafe.
+
+    Other household-level variables are retained from the first row after
+    checking that they are constant within household.
     """
     required = {"idhh", *required_columns}
     missing = required - set(df.columns)
@@ -91,12 +90,79 @@ def _household_level(
             f"Missing columns: {sorted(missing)}"
         )
 
-    return (
-        df[["idhh", *required_columns]]
-        .drop_duplicates(subset="idhh")
-        .copy()
+    work = df[["idhh", *required_columns]].copy()
+
+    if "bsa00_s" in work.columns:
+        work["bsa00_s"] = pd.to_numeric(
+            work["bsa00_s"],
+            errors="coerce",
+        ).fillna(0.0)
+
+    non_benefit_columns = [
+        column
+        for column in required_columns
+        if column != "bsa00_s"
+    ]
+
+    # Verify that variables treated as household-level are constant within idhh.
+    for column in non_benefit_columns:
+        counts = (
+            work.groupby("idhh")[column]
+            .nunique(dropna=False)
+        )
+
+        inconsistent = counts[counts.gt(1)]
+
+        if not inconsistent.empty:
+            raise ValueError(
+                f"Variable '{column}' differs within "
+                f"{len(inconsistent)} households. Examples: "
+                f"{inconsistent.index.tolist()[:10]}"
+            )
+
+    household = (
+        work.groupby("idhh", as_index=False)
+        .agg(
+            **{
+                column: (column, "first")
+                for column in non_benefit_columns
+            }
+        )
     )
 
+    if "bsa00_s" in work.columns:
+        positive_counts = (
+            work.loc[work["bsa00_s"].gt(0)]
+            .groupby("idhh")["bsa00_s"]
+            .nunique()
+        )
+
+        conflicting = positive_counts[
+            positive_counts.gt(1)
+        ]
+
+        if not conflicting.empty:
+            raise ValueError(
+                f"{len(conflicting)} households contain multiple distinct "
+                "positive bsa00_s values. Examples: "
+                f"{conflicting.index.tolist()[:10]}"
+            )
+
+        bsa00_household = (
+            work.groupby("idhh", as_index=False)
+            .agg(
+                bsa00_s=("bsa00_s", "max"),
+            )
+        )
+
+        household = household.merge(
+            bsa00_household,
+            on="idhh",
+            how="left",
+            validate="one_to_one",
+        )
+
+    return household
 
 def _safe_spearman(
     x: pd.Series,
@@ -329,15 +395,15 @@ def test_formula_plausibility(
         .rename("hh_size_proxy")
     )
 
-    hh = (
-        df[["idhh", "bsa00_s", "dwt"]]
-        .drop_duplicates(subset="idhh")
-        .merge(
-            household_size,
-            left_on="idhh",
-            right_index=True,
-            how="left",
-        )
+    hh = _household_level(
+        df,
+        ["bsa00_s", "dwt"],
+    ).merge(
+        household_size,
+        left_on="idhh",
+        right_index=True,
+        how="left",
+        validate="one_to_one",
     )
 
     single_recipients = hh[
@@ -545,12 +611,11 @@ def test_regional_rank_consistency(
             raise KeyError(
                 "Cannot compute regional IMV benefit means. "
                 f"Missing columns: {sorted(missing)}"
-            )
+        )
 
-        hh = (
-            df[["idhh", "drgn2", "bsa00_s", "dwt"]]
-            .drop_duplicates(subset="idhh")
-            .copy()
+        hh = _household_level(
+            df,
+            ["drgn2", "bsa00_s", "dwt"],
         )
 
         recipients = hh[
@@ -563,11 +628,25 @@ def test_regional_rank_consistency(
         if recipients.empty:
             return pd.Series(dtype=float)
 
-        return recipients.groupby("drgn2").apply(
-            lambda group: (
-                group["bsa00_s"] * group["dwt"]
-            ).sum() / group["dwt"].sum(),
-            include_groups=False,
+        recipients["weighted_benefit"] = (
+            recipients["bsa00_s"]
+            * recipients["dwt"]
+        )
+
+        regional = recipients.groupby("drgn2").agg(
+            weighted_benefit_sum=(
+                "weighted_benefit",
+                "sum",
+            ),
+            weight_sum=(
+                "dwt",
+                "sum",
+            ),
+        )
+
+        return (
+            regional["weighted_benefit_sum"]
+            / regional["weight_sum"]
         )
 
     years = sorted(imv_dfs.keys())
