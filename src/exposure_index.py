@@ -22,7 +22,6 @@ analysis pipeline. It no longer represents expenditure per resident.
 No composite exposure variable is constructed. Coverage and average benefit
 are analysed separately as co-primary specifications.
 """
-
 from __future__ import annotations
 
 import logging
@@ -102,14 +101,16 @@ SPECS: list[dict] = [
 
 def _standardise(series: pd.Series) -> tuple[pd.Series, float, float]:
     """
-    Divide a dimension by its cross-regional sample standard deviation.
+    Mean-centre a dimension and divide it by its cross-regional sample standard
+    deviation.
 
-    The mean is not removed, so zero retains its substantive meaning:
-    zero indicates no difference between post-reform and pre-reform protection.
+    The resulting variable has cross-regional mean zero and sample standard
+    deviation one. A one-unit increase therefore corresponds to a one-standard-
+    deviation increase in the underlying exposure dimension.
 
     Returns
     -------
-    scaled_series, raw_mean, raw_standard_deviation
+    standardised_series, raw_mean, raw_standard_deviation
     """
     mean_ = series.mean()
     std_ = series.std(ddof=1)
@@ -120,7 +121,7 @@ def _standardise(series: pd.Series) -> tuple[pd.Series, float, float]:
             "standard deviation is zero or missing."
         )
 
-    return series / std_, mean_, std_
+    return (series - mean_) / std_, mean_, std_
 
 
 def _rank_exposure(series: pd.Series) -> pd.Series:
@@ -152,9 +153,9 @@ def compute_exposure(
     Each specification contains only one economic margin. Consequently, no
     weighting or composite-index calculation is required.
 
-    The raw dimension is divided by its cross-regional standard deviation to
-    facilitate coefficient comparisons. The unstandardised dimensions remain
-    in the returned DataFrame.
+    The raw dimension is mean-centred and divided by its cross-regional sample
+    standard deviation to facilitate coefficient comparisons. The
+    unstandardised dimensions remain in the returned DataFrame.
 
     Parameters
     ----------
@@ -240,4 +241,3 @@ def compute_exposure(
     )
 
     return display.reset_index(drop=True)
-
