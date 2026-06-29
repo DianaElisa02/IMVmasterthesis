@@ -12,6 +12,7 @@ SCRIPTS = [
     "run_late_post_did.py",
     "run_event_study.py",
     "run_preferred_placebo.py",
+    "run_leave_one_region_out.py",
     "make_updated_thesis_figures.py",
     "validate_current_analysis.py",
 ]
