@@ -1,13 +1,19 @@
-2026-06-29 16:41:03,962 | INFO | ============================================================
-2026-06-29 16:41:03,962 | INFO | Starting regional exposure-measures pipeline
-2026-06-29 16:41:03,962 | INFO | Primary specifications: ['exposure_cov_hybrid', 'exposure_exp_hybrid']
-2026-06-29 16:41:03,962 | INFO | ============================================================
-2026-06-29 16:41:03,962 | INFO | Excluded from all specifications: Ceuta (63), Melilla (64)
-2026-06-29 16:41:03,962 | INFO | Excluded from fully simulated specifications only: La Rioja (23), Aragón (24) (bsarg_s €1 placeholder in STD files)
-2026-06-29 16:41:03,963 | INFO | Incompatible post-reform regional component (bsarg_s_post=0): Galicia (11), Illes Balears (53), Andalucía (61)
-2026-06-29 16:41:03,963 | INFO | Step 1: Loading EUROMOD output files
-2026-06-29 16:41:03,963 | INFO | Loading RMI 2017 → input_data/euromod_output/es_2017_std.txt
-2026-06-29 16:41:14,650 | INFO | RMI 2017: loaded 34911 persons, 322 columns
-2026-06-29 16:41:14,650 | INFO | Loading IMV 2017 → input_data/euromod_output/IMV_2022ruleson2017.txt
-2026-06-29 16:41:26,696 | INFO | IMV 2017: loaded 34911 persons, 375 columns
-2026-06-29 16:41:26,696 | INFO | Loading RMI 2018 → input_data/euromod_output/es_2018_std.txt
+2026-06-29 16:42:02,832 | INFO | ============================================================
+2026-06-29 16:42:02,833 | INFO | Starting regional exposure-measures pipeline
+2026-06-29 16:42:02,833 | INFO | Primary specifications: ['exposure_cov_hybrid', 'exposure_exp_hybrid']
+2026-06-29 16:42:02,833 | INFO | ============================================================
+2026-06-29 16:42:02,833 | INFO | Excluded from all specifications: Ceuta (63), Melilla (64)
+2026-06-29 16:42:02,833 | INFO | Excluded from fully simulated specifications only: La Rioja (23), Aragón (24) (bsarg_s €1 placeholder in STD files)
+2026-06-29 16:42:02,833 | INFO | Incompatible post-reform regional component (bsarg_s_post=0): Galicia (11), Illes Balears (53), Andalucía (61)
+2026-06-29 16:42:02,834 | INFO | Step 1: Loading EUROMOD output files
+2026-06-29 16:42:02,834 | INFO | Loading RMI 2017 → input_data/euromod_output/es_2017_std.txt
+2026-06-29 16:42:11,410 | INFO | RMI 2017: loaded 34911 persons, 322 columns
+2026-06-29 16:42:11,410 | INFO | Loading IMV 2017 → input_data/euromod_output/IMV_2022ruleson2017.txt
+2026-06-29 16:42:19,659 | INFO | IMV 2017: loaded 34911 persons, 375 columns
+2026-06-29 16:42:19,659 | INFO | Loading RMI 2018 → input_data/euromod_output/es_2018_std.txt
+2026-06-29 16:42:27,025 | INFO | RMI 2018: loaded 33734 persons, 340 columns
+2026-06-29 16:42:27,025 | INFO | Loading IMV 2018 → input_data/euromod_output/IMV_2022ruleson2018.txt
+2026-06-29 16:42:36,804 | INFO | IMV 2018: loaded 33734 persons, 375 columns
+2026-06-29 16:42:36,805 | INFO | Loading RMI 2019 → input_data/euromod_output/es_2019_std.txt
+2026-06-29 16:42:47,687 | INFO | RMI 2019: loaded 39852 persons, 343 columns
+2026-06-29 16:42:47,688 | INFO | Loading IMV 2019 → input_data/euromod_output/IMV_2022ruleson2019.txt
