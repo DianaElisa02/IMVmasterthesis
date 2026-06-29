@@ -229,7 +229,7 @@ def _make_long(results: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _summarise(long: pd.DataFrame) -> pd.DataFrame:
+def _summarise(long: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     full = (
         long[long["loo_variant"].eq("full_sample")]
         .set_index(["exposure_spec", "outcome", "group"])["coef"]
@@ -268,13 +268,6 @@ def _plot(long_with_deltas: pd.DataFrame, exposure_spec: str, variant: str) -> N
         long_with_deltas["exposure_spec"].eq(exposure_spec)
         & long_with_deltas["loo_variant"].eq(variant)
     ].copy()
-    full = (
-        long_with_deltas[
-            long_with_deltas["exposure_spec"].eq(exposure_spec)
-            & long_with_deltas["loo_variant"].eq("full_sample")
-        ]
-        .set_index(["outcome", "group"])["coef"]
-    )
 
     for outcome in ANALYSIS_OUTCOMES:
         fig, axes = plt.subplots(1, 2, figsize=(12.0, 6.8), sharey=True)
@@ -282,7 +275,13 @@ def _plot(long_with_deltas: pd.DataFrame, exposure_spec: str, variant: str) -> N
 
         for ax, group in zip(axes, ["medium", "high"]):
             series = outcome_block[outcome_block["group"].eq(group)].copy()
+            if series.empty:
+                raise ValueError(
+                    f"No leave-one-out rows for {exposure_spec}, {variant}, "
+                    f"{outcome}, {group}"
+                )
             series = series.sort_values("coef")
+            full_sample_coef = float(series["full_sample_coef"].iloc[0])
             y = np.arange(len(series))
             ax.errorbar(
                 series["coef"],
@@ -291,7 +290,7 @@ def _plot(long_with_deltas: pd.DataFrame, exposure_spec: str, variant: str) -> N
                 fmt="o",
                 capsize=2.5,
             )
-            ax.axvline(full.loc[(outcome, group)], linestyle="--", linewidth=1.2)
+            ax.axvline(full_sample_coef, linestyle="--", linewidth=1.2)
             ax.axvline(0, linewidth=0.9)
             ax.set_yticks(y)
             ax.set_yticklabels(series["omitted_region_name"])
