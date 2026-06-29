@@ -133,15 +133,7 @@ def plot_descriptive_trends(trend_df: pd.DataFrame, exposure_spec: str) -> None:
     fig.suptitle(
         f"Descriptive outcome trends by {EXPOSURE_LABELS[exposure_spec].lower()} tercile"
     )
-    fig.text(
-        0.5,
-        0.025,
-        "Notes: Points report unweighted household means. Regional terciles match the preferred grouped DiD. "
-        "The dashed line marks the 2020 introduction of the IMV; 2020 is excluded from estimation.",
-        ha="center",
-        fontsize=8.4,
-    )
-    fig.tight_layout(rect=[0, 0.07, 1, 0.95])
+    fig.tight_layout(rect=[0, 0.05, 1, 0.95])
     _save(fig, f"fig_outcome_trends_{exposure_spec}.png")
 
 
@@ -208,15 +200,7 @@ def plot_event_study(event_df: pd.DataFrame, exposure_spec: str) -> None:
     fig.suptitle(
         f"Preferred adjusted tercile event study: {EXPOSURE_LABELS[exposure_spec]}"
     )
-    fig.text(
-        0.5,
-        0.025,
-        "Notes: The omitted reference year is 2019. Error bars are 95% confidence intervals based on "
-        "region-clustered standard errors. Models include region and year fixed effects and the preferred demographic controls.",
-        ha="center",
-        fontsize=8.3,
-    )
-    fig.tight_layout(rect=[0, 0.08, 1, 0.95])
+    fig.tight_layout(rect=[0, 0.05, 1, 0.95])
     _save(fig, f"fig_event_study_{exposure_spec}.png")
 
 
