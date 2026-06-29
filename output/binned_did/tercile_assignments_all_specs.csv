@@ -1,0 +1,197 @@
+drgn2,exposure_value,rank,exposure_tercile,region_name,exposure_spec,label
+21,-2.6097,1,low,País Vasco,exposure_cov_hybrid,baseline_2021_2025
+22,-0.4875,2,low,Comunidad Foral de Navarra,exposure_cov_hybrid,baseline_2021_2025
+23,-0.2666,3,low,La Rioja,exposure_cov_hybrid,baseline_2021_2025
+53,-0.0221,4,low,Illes Balears,exposure_cov_hybrid,baseline_2021_2025
+24,0.0153,5,low,Aragón,exposure_cov_hybrid,baseline_2021_2025
+30,0.2823,6,low,Comunidad de Madrid,exposure_cov_hybrid,baseline_2021_2025
+12,0.3241,7,medium,Principado de Asturias,exposure_cov_hybrid,baseline_2021_2025
+13,0.3424,8,medium,Cantabria,exposure_cov_hybrid,baseline_2021_2025
+11,0.4459,9,medium,Galicia,exposure_cov_hybrid,baseline_2021_2025
+42,0.6099,10,medium,Castilla-La Mancha,exposure_cov_hybrid,baseline_2021_2025
+41,0.6732,11,medium,Castilla y León,exposure_cov_hybrid,baseline_2021_2025
+43,0.8045,12,high,Extremadura,exposure_cov_hybrid,baseline_2021_2025
+61,0.9067,13,high,Andalucía,exposure_cov_hybrid,baseline_2021_2025
+62,0.9431,14,high,Región de Murcia,exposure_cov_hybrid,baseline_2021_2025
+70,0.9562,15,high,Canarias,exposure_cov_hybrid,baseline_2021_2025
+52,1.4788,16,high,Comunitat Valenciana,exposure_cov_hybrid,baseline_2021_2025
+51,2.1479,17,high,Cataluña,exposure_cov_hybrid,baseline_2021_2025
+43,-1.1222,1,low,Extremadura,exposure_exp_hybrid,baseline_2021_2025
+51,-0.933,2,low,Cataluña,exposure_exp_hybrid,baseline_2021_2025
+13,-0.398,3,low,Cantabria,exposure_exp_hybrid,baseline_2021_2025
+12,0.0779,4,low,Principado de Asturias,exposure_exp_hybrid,baseline_2021_2025
+30,0.0785,5,low,Comunidad de Madrid,exposure_exp_hybrid,baseline_2021_2025
+24,0.2888,6,low,Aragón,exposure_exp_hybrid,baseline_2021_2025
+41,0.3873,7,medium,Castilla y León,exposure_exp_hybrid,baseline_2021_2025
+53,0.5145,8,medium,Illes Balears,exposure_exp_hybrid,baseline_2021_2025
+23,0.6488,9,medium,La Rioja,exposure_exp_hybrid,baseline_2021_2025
+42,0.73,10,medium,Castilla-La Mancha,exposure_exp_hybrid,baseline_2021_2025
+22,0.9161,11,medium,Comunidad Foral de Navarra,exposure_exp_hybrid,baseline_2021_2025
+62,0.9495,12,high,Región de Murcia,exposure_exp_hybrid,baseline_2021_2025
+70,1.4276,13,high,Canarias,exposure_exp_hybrid,baseline_2021_2025
+61,1.5052,14,high,Andalucía,exposure_exp_hybrid,baseline_2021_2025
+52,1.5535,15,high,Comunitat Valenciana,exposure_exp_hybrid,baseline_2021_2025
+11,1.6496,16,high,Galicia,exposure_exp_hybrid,baseline_2021_2025
+21,2.9008,17,high,País Vasco,exposure_exp_hybrid,baseline_2021_2025
+21,-1.2875,1,low,País Vasco,exposure_cov_sim,baseline_2021_2025
+30,0.3445,2,low,Comunidad de Madrid,exposure_cov_sim,baseline_2021_2025
+53,0.5084,3,low,Illes Balears,exposure_cov_sim,baseline_2021_2025
+12,0.5229,4,low,Principado de Asturias,exposure_cov_sim,baseline_2021_2025
+13,0.5443,5,low,Cantabria,exposure_cov_sim,baseline_2021_2025
+11,0.9192,6,medium,Galicia,exposure_cov_sim,baseline_2021_2025
+42,0.9931,7,medium,Castilla-La Mancha,exposure_cov_sim,baseline_2021_2025
+41,1.0184,8,medium,Castilla y León,exposure_cov_sim,baseline_2021_2025
+22,1.0313,9,medium,Comunidad Foral de Navarra,exposure_cov_sim,baseline_2021_2025
+43,1.0478,10,medium,Extremadura,exposure_cov_sim,baseline_2021_2025
+61,1.4401,11,high,Andalucía,exposure_cov_sim,baseline_2021_2025
+70,1.6152,12,high,Canarias,exposure_cov_sim,baseline_2021_2025
+62,1.8622,13,high,Región de Murcia,exposure_cov_sim,baseline_2021_2025
+52,2.3228,14,high,Comunitat Valenciana,exposure_cov_sim,baseline_2021_2025
+51,3.1582,15,high,Cataluña,exposure_cov_sim,baseline_2021_2025
+62,-1.7311,1,low,Región de Murcia,exposure_exp_sim,baseline_2021_2025
+51,-1.3776,2,low,Cataluña,exposure_exp_sim,baseline_2021_2025
+42,-0.8789,3,low,Castilla-La Mancha,exposure_exp_sim,baseline_2021_2025
+53,-0.4216,4,low,Illes Balears,exposure_exp_sim,baseline_2021_2025
+13,-0.2662,5,low,Cantabria,exposure_exp_sim,baseline_2021_2025
+43,-0.0403,6,medium,Extremadura,exposure_exp_sim,baseline_2021_2025
+70,0.0429,7,medium,Canarias,exposure_exp_sim,baseline_2021_2025
+22,0.1057,8,medium,Comunidad Foral de Navarra,exposure_exp_sim,baseline_2021_2025
+12,0.2111,9,medium,Principado de Asturias,exposure_exp_sim,baseline_2021_2025
+30,0.4006,10,medium,Comunidad de Madrid,exposure_exp_sim,baseline_2021_2025
+41,0.4628,11,high,Castilla y León,exposure_exp_sim,baseline_2021_2025
+52,0.9256,12,high,Comunitat Valenciana,exposure_exp_sim,baseline_2021_2025
+61,1.2092,13,high,Andalucía,exposure_exp_sim,baseline_2021_2025
+11,1.4051,14,high,Galicia,exposure_exp_sim,baseline_2021_2025
+21,1.9001,15,high,País Vasco,exposure_exp_sim,baseline_2021_2025
+22,-3.4945,1,low,Comunidad Foral de Navarra,exposure_cov_admin,baseline_2021_2025
+21,-3.0397,2,low,País Vasco,exposure_cov_admin,baseline_2021_2025
+12,-1.1246,3,low,Principado de Asturias,exposure_cov_admin,baseline_2021_2025
+23,-0.7718,4,low,La Rioja,exposure_cov_admin,baseline_2021_2025
+13,-0.5333,5,low,Cantabria,exposure_cov_admin,baseline_2021_2025
+53,-0.5331,6,low,Illes Balears,exposure_cov_admin,baseline_2021_2025
+24,-0.4995,7,medium,Aragón,exposure_cov_admin,baseline_2021_2025
+41,-0.3978,8,medium,Castilla y León,exposure_cov_admin,baseline_2021_2025
+30,-0.3444,9,medium,Comunidad de Madrid,exposure_cov_admin,baseline_2021_2025
+51,-0.2967,10,medium,Cataluña,exposure_cov_admin,baseline_2021_2025
+11,-0.2448,11,medium,Galicia,exposure_cov_admin,baseline_2021_2025
+43,-0.1946,12,high,Extremadura,exposure_cov_admin,baseline_2021_2025
+52,-0.1817,13,high,Comunitat Valenciana,exposure_cov_admin,baseline_2021_2025
+70,-0.1704,14,high,Canarias,exposure_cov_admin,baseline_2021_2025
+62,-0.1673,15,high,Región de Murcia,exposure_cov_admin,baseline_2021_2025
+61,-0.0955,16,high,Andalucía,exposure_cov_admin,baseline_2021_2025
+42,-0.0692,17,high,Castilla-La Mancha,exposure_cov_admin,baseline_2021_2025
+51,-5.125,1,low,Cataluña,exposure_exp_admin,baseline_2021_2025
+43,-4.5811,2,low,Extremadura,exposure_exp_admin,baseline_2021_2025
+22,-4.1138,3,low,Comunidad Foral de Navarra,exposure_exp_admin,baseline_2021_2025
+21,-3.9824,4,low,País Vasco,exposure_exp_admin,baseline_2021_2025
+12,-3.5314,5,low,Principado de Asturias,exposure_exp_admin,baseline_2021_2025
+41,-3.193,6,low,Castilla y León,exposure_exp_admin,baseline_2021_2025
+13,-3.1631,7,medium,Cantabria,exposure_exp_admin,baseline_2021_2025
+30,-3.16,8,medium,Comunidad de Madrid,exposure_exp_admin,baseline_2021_2025
+24,-3.1296,9,medium,Aragón,exposure_exp_admin,baseline_2021_2025
+52,-2.5619,10,medium,Comunitat Valenciana,exposure_exp_admin,baseline_2021_2025
+11,-2.5505,11,medium,Galicia,exposure_exp_admin,baseline_2021_2025
+70,-2.4268,12,high,Canarias,exposure_exp_admin,baseline_2021_2025
+23,-2.4077,13,high,La Rioja,exposure_exp_admin,baseline_2021_2025
+61,-2.2945,14,high,Andalucía,exposure_exp_admin,baseline_2021_2025
+42,-2.0167,15,high,Castilla-La Mancha,exposure_exp_admin,baseline_2021_2025
+62,-1.7951,16,high,Región de Murcia,exposure_exp_admin,baseline_2021_2025
+53,-1.4463,17,high,Illes Balears,exposure_exp_admin,baseline_2021_2025
+21,-2.6097,1,low,País Vasco,exposure_cov_hybrid,covid_robust_2022_2025
+22,-0.4875,2,low,Comunidad Foral de Navarra,exposure_cov_hybrid,covid_robust_2022_2025
+23,-0.2666,3,low,La Rioja,exposure_cov_hybrid,covid_robust_2022_2025
+53,-0.0221,4,low,Illes Balears,exposure_cov_hybrid,covid_robust_2022_2025
+24,0.0153,5,low,Aragón,exposure_cov_hybrid,covid_robust_2022_2025
+30,0.2823,6,low,Comunidad de Madrid,exposure_cov_hybrid,covid_robust_2022_2025
+12,0.3241,7,medium,Principado de Asturias,exposure_cov_hybrid,covid_robust_2022_2025
+13,0.3424,8,medium,Cantabria,exposure_cov_hybrid,covid_robust_2022_2025
+11,0.4459,9,medium,Galicia,exposure_cov_hybrid,covid_robust_2022_2025
+42,0.6099,10,medium,Castilla-La Mancha,exposure_cov_hybrid,covid_robust_2022_2025
+41,0.6732,11,medium,Castilla y León,exposure_cov_hybrid,covid_robust_2022_2025
+43,0.8045,12,high,Extremadura,exposure_cov_hybrid,covid_robust_2022_2025
+61,0.9067,13,high,Andalucía,exposure_cov_hybrid,covid_robust_2022_2025
+62,0.9431,14,high,Región de Murcia,exposure_cov_hybrid,covid_robust_2022_2025
+70,0.9562,15,high,Canarias,exposure_cov_hybrid,covid_robust_2022_2025
+52,1.4788,16,high,Comunitat Valenciana,exposure_cov_hybrid,covid_robust_2022_2025
+51,2.1479,17,high,Cataluña,exposure_cov_hybrid,covid_robust_2022_2025
+43,-1.1222,1,low,Extremadura,exposure_exp_hybrid,covid_robust_2022_2025
+51,-0.933,2,low,Cataluña,exposure_exp_hybrid,covid_robust_2022_2025
+13,-0.398,3,low,Cantabria,exposure_exp_hybrid,covid_robust_2022_2025
+12,0.0779,4,low,Principado de Asturias,exposure_exp_hybrid,covid_robust_2022_2025
+30,0.0785,5,low,Comunidad de Madrid,exposure_exp_hybrid,covid_robust_2022_2025
+24,0.2888,6,low,Aragón,exposure_exp_hybrid,covid_robust_2022_2025
+41,0.3873,7,medium,Castilla y León,exposure_exp_hybrid,covid_robust_2022_2025
+53,0.5145,8,medium,Illes Balears,exposure_exp_hybrid,covid_robust_2022_2025
+23,0.6488,9,medium,La Rioja,exposure_exp_hybrid,covid_robust_2022_2025
+42,0.73,10,medium,Castilla-La Mancha,exposure_exp_hybrid,covid_robust_2022_2025
+22,0.9161,11,medium,Comunidad Foral de Navarra,exposure_exp_hybrid,covid_robust_2022_2025
+62,0.9495,12,high,Región de Murcia,exposure_exp_hybrid,covid_robust_2022_2025
+70,1.4276,13,high,Canarias,exposure_exp_hybrid,covid_robust_2022_2025
+61,1.5052,14,high,Andalucía,exposure_exp_hybrid,covid_robust_2022_2025
+52,1.5535,15,high,Comunitat Valenciana,exposure_exp_hybrid,covid_robust_2022_2025
+11,1.6496,16,high,Galicia,exposure_exp_hybrid,covid_robust_2022_2025
+21,2.9008,17,high,País Vasco,exposure_exp_hybrid,covid_robust_2022_2025
+21,-1.2875,1,low,País Vasco,exposure_cov_sim,covid_robust_2022_2025
+30,0.3445,2,low,Comunidad de Madrid,exposure_cov_sim,covid_robust_2022_2025
+53,0.5084,3,low,Illes Balears,exposure_cov_sim,covid_robust_2022_2025
+12,0.5229,4,low,Principado de Asturias,exposure_cov_sim,covid_robust_2022_2025
+13,0.5443,5,low,Cantabria,exposure_cov_sim,covid_robust_2022_2025
+11,0.9192,6,medium,Galicia,exposure_cov_sim,covid_robust_2022_2025
+42,0.9931,7,medium,Castilla-La Mancha,exposure_cov_sim,covid_robust_2022_2025
+41,1.0184,8,medium,Castilla y León,exposure_cov_sim,covid_robust_2022_2025
+22,1.0313,9,medium,Comunidad Foral de Navarra,exposure_cov_sim,covid_robust_2022_2025
+43,1.0478,10,medium,Extremadura,exposure_cov_sim,covid_robust_2022_2025
+61,1.4401,11,high,Andalucía,exposure_cov_sim,covid_robust_2022_2025
+70,1.6152,12,high,Canarias,exposure_cov_sim,covid_robust_2022_2025
+62,1.8622,13,high,Región de Murcia,exposure_cov_sim,covid_robust_2022_2025
+52,2.3228,14,high,Comunitat Valenciana,exposure_cov_sim,covid_robust_2022_2025
+51,3.1582,15,high,Cataluña,exposure_cov_sim,covid_robust_2022_2025
+62,-1.7311,1,low,Región de Murcia,exposure_exp_sim,covid_robust_2022_2025
+51,-1.3776,2,low,Cataluña,exposure_exp_sim,covid_robust_2022_2025
+42,-0.8789,3,low,Castilla-La Mancha,exposure_exp_sim,covid_robust_2022_2025
+53,-0.4216,4,low,Illes Balears,exposure_exp_sim,covid_robust_2022_2025
+13,-0.2662,5,low,Cantabria,exposure_exp_sim,covid_robust_2022_2025
+43,-0.0403,6,medium,Extremadura,exposure_exp_sim,covid_robust_2022_2025
+70,0.0429,7,medium,Canarias,exposure_exp_sim,covid_robust_2022_2025
+22,0.1057,8,medium,Comunidad Foral de Navarra,exposure_exp_sim,covid_robust_2022_2025
+12,0.2111,9,medium,Principado de Asturias,exposure_exp_sim,covid_robust_2022_2025
+30,0.4006,10,medium,Comunidad de Madrid,exposure_exp_sim,covid_robust_2022_2025
+41,0.4628,11,high,Castilla y León,exposure_exp_sim,covid_robust_2022_2025
+52,0.9256,12,high,Comunitat Valenciana,exposure_exp_sim,covid_robust_2022_2025
+61,1.2092,13,high,Andalucía,exposure_exp_sim,covid_robust_2022_2025
+11,1.4051,14,high,Galicia,exposure_exp_sim,covid_robust_2022_2025
+21,1.9001,15,high,País Vasco,exposure_exp_sim,covid_robust_2022_2025
+22,-3.4945,1,low,Comunidad Foral de Navarra,exposure_cov_admin,covid_robust_2022_2025
+21,-3.0397,2,low,País Vasco,exposure_cov_admin,covid_robust_2022_2025
+12,-1.1246,3,low,Principado de Asturias,exposure_cov_admin,covid_robust_2022_2025
+23,-0.7718,4,low,La Rioja,exposure_cov_admin,covid_robust_2022_2025
+13,-0.5333,5,low,Cantabria,exposure_cov_admin,covid_robust_2022_2025
+53,-0.5331,6,low,Illes Balears,exposure_cov_admin,covid_robust_2022_2025
+24,-0.4995,7,medium,Aragón,exposure_cov_admin,covid_robust_2022_2025
+41,-0.3978,8,medium,Castilla y León,exposure_cov_admin,covid_robust_2022_2025
+30,-0.3444,9,medium,Comunidad de Madrid,exposure_cov_admin,covid_robust_2022_2025
+51,-0.2967,10,medium,Cataluña,exposure_cov_admin,covid_robust_2022_2025
+11,-0.2448,11,medium,Galicia,exposure_cov_admin,covid_robust_2022_2025
+43,-0.1946,12,high,Extremadura,exposure_cov_admin,covid_robust_2022_2025
+52,-0.1817,13,high,Comunitat Valenciana,exposure_cov_admin,covid_robust_2022_2025
+70,-0.1704,14,high,Canarias,exposure_cov_admin,covid_robust_2022_2025
+62,-0.1673,15,high,Región de Murcia,exposure_cov_admin,covid_robust_2022_2025
+61,-0.0955,16,high,Andalucía,exposure_cov_admin,covid_robust_2022_2025
+42,-0.0692,17,high,Castilla-La Mancha,exposure_cov_admin,covid_robust_2022_2025
+51,-5.125,1,low,Cataluña,exposure_exp_admin,covid_robust_2022_2025
+43,-4.5811,2,low,Extremadura,exposure_exp_admin,covid_robust_2022_2025
+22,-4.1138,3,low,Comunidad Foral de Navarra,exposure_exp_admin,covid_robust_2022_2025
+21,-3.9824,4,low,País Vasco,exposure_exp_admin,covid_robust_2022_2025
+12,-3.5314,5,low,Principado de Asturias,exposure_exp_admin,covid_robust_2022_2025
+41,-3.193,6,low,Castilla y León,exposure_exp_admin,covid_robust_2022_2025
+13,-3.1631,7,medium,Cantabria,exposure_exp_admin,covid_robust_2022_2025
+30,-3.16,8,medium,Comunidad de Madrid,exposure_exp_admin,covid_robust_2022_2025
+24,-3.1296,9,medium,Aragón,exposure_exp_admin,covid_robust_2022_2025
+52,-2.5619,10,medium,Comunitat Valenciana,exposure_exp_admin,covid_robust_2022_2025
+11,-2.5505,11,medium,Galicia,exposure_exp_admin,covid_robust_2022_2025
+70,-2.4268,12,high,Canarias,exposure_exp_admin,covid_robust_2022_2025
+23,-2.4077,13,high,La Rioja,exposure_exp_admin,covid_robust_2022_2025
+61,-2.2945,14,high,Andalucía,exposure_exp_admin,covid_robust_2022_2025
+42,-2.0167,15,high,Castilla-La Mancha,exposure_exp_admin,covid_robust_2022_2025
+62,-1.7951,16,high,Región de Murcia,exposure_exp_admin,covid_robust_2022_2025
+53,-1.4463,17,high,Illes Balears,exposure_exp_admin,covid_robust_2022_2025

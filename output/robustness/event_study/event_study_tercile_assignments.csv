@@ -1,0 +1,35 @@
+drgn2,exposure_value,rank,exposure_tercile,region_name,exposure_spec
+21,-2.6097,1,low,País Vasco,exposure_cov_hybrid
+22,-0.4875,2,low,Comunidad Foral de Navarra,exposure_cov_hybrid
+23,-0.2666,3,low,La Rioja,exposure_cov_hybrid
+53,-0.0221,4,low,Illes Balears,exposure_cov_hybrid
+24,0.0153,5,low,Aragón,exposure_cov_hybrid
+30,0.2823,6,low,Comunidad de Madrid,exposure_cov_hybrid
+12,0.3241,7,medium,Principado de Asturias,exposure_cov_hybrid
+13,0.3424,8,medium,Cantabria,exposure_cov_hybrid
+11,0.4459,9,medium,Galicia,exposure_cov_hybrid
+42,0.6099,10,medium,Castilla-La Mancha,exposure_cov_hybrid
+41,0.6732,11,medium,Castilla y León,exposure_cov_hybrid
+43,0.8045,12,high,Extremadura,exposure_cov_hybrid
+61,0.9067,13,high,Andalucía,exposure_cov_hybrid
+62,0.9431,14,high,Región de Murcia,exposure_cov_hybrid
+70,0.9562,15,high,Canarias,exposure_cov_hybrid
+52,1.4788,16,high,Comunitat Valenciana,exposure_cov_hybrid
+51,2.1479,17,high,Cataluña,exposure_cov_hybrid
+43,-1.1222,1,low,Extremadura,exposure_exp_hybrid
+51,-0.933,2,low,Cataluña,exposure_exp_hybrid
+13,-0.398,3,low,Cantabria,exposure_exp_hybrid
+12,0.0779,4,low,Principado de Asturias,exposure_exp_hybrid
+30,0.0785,5,low,Comunidad de Madrid,exposure_exp_hybrid
+24,0.2888,6,low,Aragón,exposure_exp_hybrid
+41,0.3873,7,medium,Castilla y León,exposure_exp_hybrid
+53,0.5145,8,medium,Illes Balears,exposure_exp_hybrid
+23,0.6488,9,medium,La Rioja,exposure_exp_hybrid
+42,0.73,10,medium,Castilla-La Mancha,exposure_exp_hybrid
+22,0.9161,11,medium,Comunidad Foral de Navarra,exposure_exp_hybrid
+62,0.9495,12,high,Región de Murcia,exposure_exp_hybrid
+70,1.4276,13,high,Canarias,exposure_exp_hybrid
+61,1.5052,14,high,Andalucía,exposure_exp_hybrid
+52,1.5535,15,high,Comunitat Valenciana,exposure_exp_hybrid
+11,1.6496,16,high,Galicia,exposure_exp_hybrid
+21,2.9008,17,high,País Vasco,exposure_exp_hybrid

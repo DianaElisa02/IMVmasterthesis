@@ -1,413 +1,145 @@
+"""Baseline tercile DiD for the IMV analysis.
+
+Regions are ranked separately for every exposure measure. Low exposure is the
+comparison group; medium and high exposure effects are estimated relative to it.
 """
-binned_did.py
-=============
-Structure
----------
-  - _compute_dynamic_terciles() : assigns regions to terciles for a given spec
-  - build_binned_did_data()     : constructs post indicator + tercile interactions
-  - run_binned_did_spec()       : estimates one outcome with PyFixest + WCB
-  - run_binned_did()            : loops over all specs x outcomes, returns tidy DataFrame
-
-Specification
--------------
-  Y_hrt = α + β_M (Post_t × 1[medium_r])
-              + β_H (Post_t × 1[high_r])
-              + γ_r + δ_t + X_hrt·θ + ε_hrt
-
-  Reference group: low-exposure tercile.
-
-Tercile assignment
-------------------
-Terciles are computed dynamically for each exposure specification by
-ranking the regions in ascending order of their exposure value. The bottom
-6 regions form the low-exposure group, the next 5 form the medium-exposure
-group, and the remaining 6 form the high-exposure group. For the primary
-specification (exposure_composite_hybrid), this reproduces the intended
-baseline exposure grouping. For alternative specifications, regions are
-re-ranked and reassigned according to the corresponding exposure measure.
-
-WCB seeds
----------
-Seeds vary by spec index x outcome index to ensure independent bootstrap
-draws across all combinations. For spec at index i and outcome at index j:
-  seed_M = 42 + i * n_outcomes * 2 + j * 2
-  seed_H = seed_M + 1
-
-Linearity test
---------------
-H0: β_H = 2 × β_M, implemented as a Wald test via PyFixest's wald_test().
-The ratio b_H/b_M is a descriptive heuristic only and is suppressed when
-|b_M| < 0.001.
-"""
-
 from __future__ import annotations
 
 import logging
-
 import numpy as np
 import pandas as pd
 import polars as pl
 import pyfixest as pf
 from scipy.stats import t as t_dist
 
-from src.constants import (
-    ANALYSIS_OUTCOMES,
-    BALANCE_CONTROLS,
-    DID_POST_YEARS_BASELINE,
-    EXPOSURE_SPECS,
-    REGION_NAMES,
-    YEARS,
-)
+from src.constants import ANALYSIS_OUTCOMES, DID_POST_YEARS_BASELINE, EXPOSURE_SPECS, REGION_NAMES, YEARS
+from src.control_specs import PREFERRED_CONTROLS, add_preferred_control_groups, cast_categorical_controls
 
 logger = logging.getLogger(__name__)
-
-_PRE_YEARS: list[int] = YEARS          # [2017, 2018, 2019]
-_N_LOW: int = 6                        # regions in low exposure group
-_N_MEDIUM: int = 5                     # regions in medium exposure group
-
-CATEGORICAL_CONTROLS = {
-    "head_age_group",
-    "head_sex",
-    "head_labour_group",
-}
+_PRE_YEARS = YEARS
 
 
-def _control_terms_for_formula(controls: list[str]) -> list[str]:
-    """
-    Return formula terms for controls.
-
-    Categorical controls are kept as plain column names because they are cast
-    to pandas 'category' before estimation. This keeps the formula compatible
-    with wild cluster bootstrap.
-    """
-    return controls
-
-
-def _prepare_controls_for_formula(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
-
-    for col in CATEGORICAL_CONTROLS:
-        if col in out.columns:
-            out[col] = out[col].astype("category")
-
-    return out
+def _balanced_group_sizes(n: int) -> tuple[int, int, int]:
+    if n < 3:
+        raise ValueError("At least three regions are required for tercile estimation")
+    base, rem = divmod(n, 3)
+    if rem == 0:
+        return base, base, base
+    if rem == 1:
+        return base + 1, base, base
+    return base + 1, base, base + 1
 
 
-def _extract_boot_pvalue(boot) -> float:
-    for key in ["Pr(>|t|)", "p-value", "pvalue", "p_value"]:
-        try:
-            if key in boot:
-                value = boot[key]
-                if hasattr(value, "iloc"):
-                    return float(value.iloc[0])
-                return float(value)
-        except Exception:
-            continue
-    return np.nan
-
-
-def _run_wcb(fit, param: str, seed: int, reps: int = 9999) -> float:
-    try:
-        boot = fit.wildboottest(param=param, reps=reps, seed=seed)
-        return _extract_boot_pvalue(boot)
-    except Exception as exc:
-        logger.warning("    WCB failed for %s: %s", param, exc)
-        return np.nan
-
-
-def _compute_dynamic_terciles(
-    panel: pl.DataFrame,
-    exposure_spec: str,
-    n_low: int = _N_LOW,
-    n_medium: int = _N_MEDIUM,
-) -> dict[str, list[int]]:
+def compute_tercile_assignments(panel: pl.DataFrame, exposure_spec: str) -> pd.DataFrame:
     if exposure_spec not in panel.columns:
-        raise ValueError(
-            f"Exposure spec '{exposure_spec}' not found in panel. "
-            f"Available specs: {[c for c in panel.columns if 'exposure' in c]}"
+        raise ValueError(f"Exposure '{exposure_spec}' not found")
+    regional = (
+        panel.select(["drgn2", exposure_spec])
+        .group_by("drgn2")
+        .agg(
+            pl.col(exposure_spec).drop_nulls().n_unique().alias("n_values"),
+            pl.col(exposure_spec).drop_nulls().first().alias("exposure_value"),
         )
-
-    region_exposure = (
-        panel
-        .select(["drgn2", exposure_spec])
-        .unique(subset=["drgn2"])
-        .drop_nulls(subset=[exposure_spec])
-        .sort(exposure_spec, descending=False)
+        .filter(pl.col("n_values") > 0)
     )
-
-    regions = region_exposure["drgn2"].to_list()
-    n_total = len(regions)
-
-    if n_total < n_low + n_medium + 1:
-        raise ValueError(
-            f"Only {n_total} regions — cannot form three non-empty exposure groups "
-            f"with n_low={n_low}, n_medium={n_medium}."
-        )
-
-    return {
-        "low": regions[:n_low],
-        "medium": regions[n_low: n_low + n_medium],
-        "high": regions[n_low + n_medium:],
-    }
-
-def build_binned_did_data(
-    panel: pl.DataFrame,
-    post_years: list[int] | None = None,
-    exposure_spec: str = EXPOSURE_SPECS[0],
-) -> pl.DataFrame:
-    """
-    Prepare the analysis panel for binned DiD estimation.
-
-    Constructs:
-      - post             : binary (0 = pre-reform, 1 = post-reform)
-      - exposure_tercile : low / medium / high
-      - tercile_medium   : 1 if medium exposure group
-      - tercile_high     : 1 if high exposure group
-      - post_x_medium    : Post x medium
-      - post_x_high      : Post x high
-    """
-    if post_years is None:
-        post_years = DID_POST_YEARS_BASELINE
-
-    pre_years = _PRE_YEARS
-    keep_years = pre_years + post_years
-
-    did = panel.filter(pl.col("year").is_in(keep_years))
-
-    did = did.with_columns(
-        pl.when(pl.col("year").is_in(post_years))
-        .then(pl.lit(1.0))
-        .when(pl.col("year").is_in(pre_years))
-        .then(pl.lit(0.0))
-        .otherwise(pl.lit(None))
-        .alias("post")
+    bad = regional.filter(pl.col("n_values") > 1)
+    if bad.height:
+        raise ValueError(f"Exposure varies within region: {bad['drgn2'].to_list()}")
+    regional = regional.sort(["exposure_value", "drgn2"])
+    n_low, n_medium, _ = _balanced_group_sizes(regional.height)
+    pdf = regional.select(["drgn2", "exposure_value"]).to_pandas()
+    pdf["rank"] = np.arange(1, len(pdf) + 1)
+    pdf["exposure_tercile"] = np.where(
+        pdf["rank"] <= n_low,
+        "low",
+        np.where(pdf["rank"] <= n_low + n_medium, "medium", "high"),
     )
+    pdf["region_name"] = pdf["drgn2"].map(REGION_NAMES).fillna(pdf["drgn2"].astype(str))
+    pdf["exposure_spec"] = exposure_spec
+    ties = pdf.groupby("exposure_value")["drgn2"].count()
+    if (ties > 1).any():
+        logger.warning("Ties in %s resolved deterministically by drgn2", exposure_spec)
+    return pdf
 
-    terciles = _compute_dynamic_terciles(did, exposure_spec)
-    low_regions = terciles["low"]
-    medium_regions = terciles["medium"]
-    high_regions = terciles["high"]
 
-    low_names = [REGION_NAMES.get(r, str(r)) for r in low_regions]
-    medium_names = [REGION_NAMES.get(r, str(r)) for r in medium_regions]
-    high_names = [REGION_NAMES.get(r, str(r)) for r in high_regions]
-
-    logger.info(
-        "  Exposure groups [%s] | low: %s | medium: %s | high: %s",
-        exposure_spec,
-        low_names,
-        medium_names,
-        high_names,
+def build_binned_did_data(panel: pl.DataFrame, post_years: list[int] | None = None, exposure_spec: str = EXPOSURE_SPECS[0]) -> tuple[pl.DataFrame, pd.DataFrame]:
+    post_years = post_years or DID_POST_YEARS_BASELINE
+    panel = add_preferred_control_groups(panel)
+    did = panel.filter(pl.col("year").is_in(_PRE_YEARS + post_years)).with_columns(
+        pl.col("year").is_in(post_years).cast(pl.Float64).alias("post")
     )
-
-    did = did.with_columns(
-        pl.when(pl.col("drgn2").is_in(low_regions))
-        .then(pl.lit("low"))
-        .when(pl.col("drgn2").is_in(medium_regions))
-        .then(pl.lit("medium"))
-        .when(pl.col("drgn2").is_in(high_regions))
-        .then(pl.lit("high"))
-        .otherwise(pl.lit(None))
-        .alias("exposure_tercile")
-    )
-
-    n_null = did.filter(pl.col("exposure_tercile").is_null()).height
-    if n_null > 0:
-        unassigned = (
-            did.filter(pl.col("exposure_tercile").is_null())
-            .select("drgn2")
-            .unique()
-            .to_series()
-            .to_list()
-        )
-        unassigned_names = [REGION_NAMES.get(r, str(r)) for r in unassigned]
-        logger.info(
-            "  Dropping %d obs from regions with missing exposure group (%s) — "
-            "excluded from %s by construction",
-            n_null,
-            unassigned_names,
-            exposure_spec,
-        )
-        did = did.filter(pl.col("exposure_tercile").is_not_null())
-
-    did = did.with_columns(
+    assignments = compute_tercile_assignments(did, exposure_spec)
+    assignment_pl = pl.from_pandas(assignments[["drgn2", "exposure_tercile"]])
+    did = did.join(assignment_pl, on="drgn2", how="inner").with_columns(
         pl.col("exposure_tercile").eq("medium").cast(pl.Float64).alias("tercile_medium"),
         pl.col("exposure_tercile").eq("high").cast(pl.Float64).alias("tercile_high"),
-    )
-
-    did = did.with_columns(
+    ).with_columns(
         (pl.col("post") * pl.col("tercile_medium")).alias("post_x_medium"),
         (pl.col("post") * pl.col("tercile_high")).alias("post_x_high"),
     )
-
-    logger.info(
-        "  Data built: %d obs | pre=%s | post=%s | low=%d, medium=%d, high=%d regions",
-        len(did),
-        pre_years,
-        post_years,
-        len(low_regions),
-        len(medium_regions),
-        len(high_regions),
-    )
-
-    return did
-
-def run_binned_did_spec(
-    df: pd.DataFrame,
-    outcome: str,
-    controls: list[str],
-    seed_M: int = 42,
-    seed_H: int = 43,
-) -> dict:
-    required = [outcome, "post_x_medium", "post_x_high", "drgn2", "year"] + controls
-    df_clean = (
-        df[[c for c in required if c in df.columns]]
-        .dropna()
-        .reset_index(drop=True)
-    )
-
-    if len(df_clean) == 0:
-        raise ValueError(f"No complete cases for outcome={outcome}")
-
-    df_clean = _prepare_controls_for_formula(df_clean)
-
-    control_terms = _control_terms_for_formula(controls)
-    ctrl_str = (" + " + " + ".join(control_terms)) if control_terms else ""
-    formula = f"{outcome} ~ post_x_medium + post_x_high{ctrl_str} | drgn2 + year"
-
-    fit = pf.feols(
-        formula,
-        data=df_clean,
-        vcov={"CRV1": "drgn2"},
-    )
-
-    coef_M = float(fit.coef()["post_x_medium"])
-    se_M = float(fit.se()["post_x_medium"])
-    pval_M = float(fit.pvalue()["post_x_medium"])
-
-    coef_H = float(fit.coef()["post_x_high"])
-    se_H = float(fit.se()["post_x_high"])
-    pval_H = float(fit.pvalue()["post_x_high"])
-
-    n_clusters = int(df_clean["drgn2"].nunique())
-    t_crit = float(t_dist.ppf(0.975, df=n_clusters - 1))
-
-    p_wbt_M = _run_wcb(fit, "post_x_medium", seed=seed_M, reps=9999)
-    if not np.isnan(p_wbt_M):
-        logger.info("    WCB %s x medium: p = %.4f", outcome, p_wbt_M)
-
-    p_wbt_H = _run_wcb(fit, "post_x_high", seed=seed_H, reps=9999)
-    if not np.isnan(p_wbt_H):
-        logger.info("    WCB %s x high: p = %.4f", outcome, p_wbt_H)
-
-    lin_stat, lin_p, linearity_ratio = np.nan, np.nan, np.nan
-    try:
-        coef_names = fit.coef().index.tolist()
-        idx_M = coef_names.index("post_x_medium")
-        idx_H = coef_names.index("post_x_high")
-
-        R = np.zeros((1, len(coef_names)))
-        R[0, idx_H] = 1.0
-        R[0, idx_M] = -2.0
-
-        wald = fit.wald_test(R=R)
-        lin_stat = float(wald["statistic"])
-        lin_p = float(wald["pvalue"])
-
-        if abs(coef_M) > 1e-3:
-            linearity_ratio = coef_H / coef_M
-
-    except Exception as exc:
-        logger.warning("    Linearity test failed %s: %s", outcome, exc)
-
-    logger.info(
-        "    Result %s: b_M=%+.4f (p=%.4f) b_H=%+.4f (p=%.4f) Wald=%.2f p=%.4f",
-        outcome,
-        coef_M,
-        p_wbt_M if not np.isnan(p_wbt_M) else -99,
-        coef_H,
-        p_wbt_H if not np.isnan(p_wbt_H) else -99,
-        lin_stat if not np.isnan(lin_stat) else -99,
-        lin_p if not np.isnan(lin_p) else -99,
-    )
-
-    return {
-        "outcome": outcome,
-        "coef_medium": coef_M,
-        "se_medium": se_M,
-        "ci_low_medium": coef_M - t_crit * se_M,
-        "ci_high_medium": coef_M + t_crit * se_M,
-        "pval_cluster_medium": pval_M,
-        "pval_wbt_medium": p_wbt_M,
-        "coef_high": coef_H,
-        "se_high": se_H,
-        "ci_low_high": coef_H - t_crit * se_H,
-        "ci_high_high": coef_H + t_crit * se_H,
-        "pval_cluster_high": pval_H,
-        "pval_wbt_high": p_wbt_H,
-        "linearity_ratio": linearity_ratio,
-        "linearity_stat": lin_stat,
-        "linearity_p": lin_p,
-        "n_obs": len(df_clean),
-        "n_clusters": n_clusters,
-    }
+    logger.info("Groups [%s]: %s", exposure_spec, assignments.groupby("exposure_tercile")["region_name"].apply(list).to_dict())
+    return did, assignments
 
 
-def run_binned_did(
-    panel: pl.DataFrame,
-    post_years: list[int],
-    label: str = "baseline",
-    outcomes: list[str] | None = None,
-) -> pd.DataFrame:
-    if outcomes is None:
-        outcomes = ANALYSIS_OUTCOMES
-
-    n_outcomes = len(outcomes)
-    rows = []
-
-    for spec_idx, spec in enumerate(EXPOSURE_SPECS):
-        logger.info("--- Spec %d/%d: %s ---", spec_idx + 1, len(EXPOSURE_SPECS), spec)
-
+def _boot_pvalue(boot) -> float:
+    for key in ["Pr(>|t|)", "p-value", "pvalue", "p_value"]:
         try:
-            did = build_binned_did_data(panel, post_years=post_years, exposure_spec=spec)
+            value = boot[key]
+            return float(value.iloc[0] if hasattr(value, "iloc") else value)
+        except Exception:
+            pass
+    return np.nan
+
+
+def run_binned_did_spec(df: pd.DataFrame, outcome: str, controls: list[str], seed_medium: int, seed_high: int) -> dict:
+    required = [outcome, "post_x_medium", "post_x_high", "drgn2", "year"] + controls
+    clean = cast_categorical_controls(df[required].dropna().reset_index(drop=True))
+    ctrl = (" + " + " + ".join(controls)) if controls else ""
+    fit = pf.feols(f"{outcome} ~ post_x_medium + post_x_high{ctrl} | drgn2 + year", data=clean, vcov={"CRV1": "drgn2"})
+    g = int(clean["drgn2"].nunique())
+    crit = float(t_dist.ppf(0.975, df=g - 1))
+    out = {"outcome": outcome, "n_obs": len(clean), "n_clusters": g, "controls": ";".join(controls)}
+    for group, seed in [("medium", seed_medium), ("high", seed_high)]:
+        term = f"post_x_{group}"
+        coef, se = float(fit.coef()[term]), float(fit.se()[term])
+        try:
+            p_wbt = _boot_pvalue(fit.wildboottest(param=term, reps=9999, seed=seed))
         except Exception as exc:
-            logger.error("Failed to build data for spec=%s: %s", spec, exc)
+            logger.warning("WCB failed for %s: %s", term, exc)
+            p_wbt = np.nan
+        out.update({
+            f"coef_{group}": coef,
+            f"se_{group}": se,
+            f"ci_low_{group}": coef - crit * se,
+            f"ci_high_{group}": coef + crit * se,
+            f"pval_cluster_{group}": float(fit.pvalue()[term]),
+            f"pval_wbt_{group}": p_wbt,
+        })
+    return out
+
+
+def run_binned_did(panel: pl.DataFrame, post_years: list[int], label: str = "baseline", outcomes: list[str] | None = None, exposure_specs: list[str] | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    outcomes = outcomes or ANALYSIS_OUTCOMES
+    exposure_specs = exposure_specs or EXPOSURE_SPECS
+    rows, assignment_frames = [], []
+    for i, spec in enumerate(exposure_specs):
+        try:
+            did, assignments = build_binned_did_data(panel, post_years, spec)
+        except Exception as exc:
+            logger.error("Failed to build %s: %s", spec, exc)
             continue
-
+        assignments["label"] = label
+        assignment_frames.append(assignments)
         df = did.to_pandas()
-        controls = [c for c in BALANCE_CONTROLS if c in df.columns]
-
-        if not controls:
-            logger.warning("No BALANCE_CONTROLS found for spec=%s", spec)
-
-        for outcome_idx, outcome in enumerate(outcomes):
+        controls = [c for c in PREFERRED_CONTROLS if c in df.columns]
+        missing_controls = [c for c in PREFERRED_CONTROLS if c not in df.columns]
+        if missing_controls:
+            raise ValueError(f"Preferred controls missing from analysis data: {missing_controls}")
+        logger.info("Preferred adjusted controls [%s]: %s", spec, controls)
+        for j, outcome in enumerate(outcomes):
             if outcome not in df.columns:
-                logger.warning("Outcome '%s' not in panel -- skipping", outcome)
                 continue
-
-            seed_M = 42 + spec_idx * n_outcomes * 2 + outcome_idx * 2
-            seed_H = seed_M + 1
-
-            try:
-                row = run_binned_did_spec(
-                    df,
-                    outcome,
-                    controls,
-                    seed_M=seed_M,
-                    seed_H=seed_H,
-                )
-                row["label"] = label
-                row["exposure_spec"] = spec
-                rows.append(row)
-            except Exception as exc:
-                logger.error("Failed spec=%s outcome=%s: %s", spec, outcome, exc)
-
-    results = pd.DataFrame(rows)
-
-    logger.info(
-        "[%s] Binned DiD complete: %d spec-outcome pairs estimated",
-        label,
-        len(results),
-    )
-
-    return results
+            row = run_binned_did_spec(df, outcome, controls, 42 + i * 100 + j * 2, 43 + i * 100 + j * 2)
+            row.update({"label": label, "exposure_spec": spec, "control_spec": "preferred_demographic"})
+            rows.append(row)
+    return pd.DataFrame(rows), pd.concat(assignment_frames, ignore_index=True) if assignment_frames else pd.DataFrame()
