@@ -144,7 +144,7 @@ def plot_exposure(
     plot_settings = [
         {
             "column": coverage_spec,
-            "title": "Hybrid coverage exposure",
+            "title": "Coverage Exposure",
             "xlabel": (
                 "Standardised change in coverage among poor households\n"
                 "(positive = higher post-reform coverage)"
@@ -152,7 +152,7 @@ def plot_exposure(
         },
         {
             "column": benefit_spec,
-            "title": "Hybrid average-benefit exposure",
+            "title": "Average-Benefit Exposure",
             "xlabel": (
                 "Standardised change in average annual benefit\n"
                 "(positive = higher post-reform benefit)"
@@ -174,6 +174,13 @@ def plot_exposure(
 
         values = df_plot[column].to_numpy(dtype=float)
         regions = df_plot["region"].to_numpy()
+        
+        xmin = np.nanmin(values)
+        xmax = np.nanmax(values)
+        padding = 0.18 * (xmax - xmin)
+
+        ax.set_xlim(xmin - padding, xmax + padding)
+        
 
         colors = [
             "#378ADD" if value >= 0 else "#E05C5C"
